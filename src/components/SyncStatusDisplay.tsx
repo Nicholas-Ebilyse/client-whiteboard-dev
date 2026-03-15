@@ -43,10 +43,6 @@ export const SyncStatusDisplay = () => {
     return null;
   };
 
-  if (!syncStatuses?.database && !syncStatuses?.calendar) {
-    return null;
-  }
-
   return (
     <div className="flex flex-col gap-1.5 text-xs">
       {/* Database/Sheets sync status */}

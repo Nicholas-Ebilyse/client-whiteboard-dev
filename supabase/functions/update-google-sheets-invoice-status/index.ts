@@ -11,11 +11,7 @@ interface GoogleSheetsCredentials {
 }
 
 async function getAccessToken(credentials: GoogleSheetsCredentials): Promise<string> {
-  const jwtHeader = {
-    alg: 'RS256',
-    typ: 'JWT',
-  };
-
+  const jwtHeader = btoa(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
   const now = Math.floor(Date.now() / 1000);
   const jwtClaim = {
     iss: credentials.client_email,
@@ -25,17 +21,13 @@ async function getAccessToken(credentials: GoogleSheetsCredentials): Promise<str
     iat: now,
   };
 
-  const encodedHeader = btoa(JSON.stringify(jwtHeader)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
   const encodedClaim = btoa(JSON.stringify(jwtClaim)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
-  const signatureInput = `${encodedHeader}.${encodedClaim}`;
+  const signatureInput = `${jwtHeader}.${encodedClaim}`;
 
   const privateKey = await crypto.subtle.importKey(
     'pkcs8',
     pemToArrayBuffer(credentials.private_key),
-    {
-      name: 'RSASSA-PKCS1-v1_5',
-      hash: 'SHA-256',
-    },
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
     false,
     ['sign']
   );
@@ -46,7 +38,11 @@ async function getAccessToken(credentials: GoogleSheetsCredentials): Promise<str
     new TextEncoder().encode(signatureInput)
   );
 
-  const encodedSignature = btoa(String.fromCharCode(...new Uint8Array(signature)))
+  // Use loop to avoid RangeError on large signatures
+  const sigBytes = new Uint8Array(signature);
+  let sigBinary = '';
+  for (let i = 0; i < sigBytes.length; i++) sigBinary += String.fromCharCode(sigBytes[i]);
+  const encodedSignature = btoa(sigBinary)
     .replace(/=/g, '')
     .replace(/\+/g, '-')
     .replace(/\//g, '_');
@@ -69,8 +65,9 @@ async function getAccessToken(credentials: GoogleSheetsCredentials): Promise<str
 
 function pemToArrayBuffer(pem: string): ArrayBuffer {
   const b64 = pem
-    .replace(/-----BEGIN PRIVATE KEY-----/, '')
-    .replace(/-----END PRIVATE KEY-----/, '')
+    .replace(/\\n/g, '\n')
+    .replace(/-----BEGIN PRIVATE KEY-----/g, '')
+    .replace(/-----END PRIVATE KEY-----/g, '')
     .replace(/\s/g, '');
   const binary = atob(b64);
   const bytes = new Uint8Array(binary.length);
@@ -164,7 +161,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { commandeId, isInvoiced, spreadsheetId = '1hTdAy4pmhJQC6L7SJtRz_S2eQF_Lff4_7coUwouvDGI' } = await req.json();
+    const { commandeId, isInvoiced, spreadsheetId = '1699-HaYP4W2rSJUscbXCvp7fVW0vR95NRpjl5QpBUeY' } = await req.json();
 
     if (!commandeId) {
       return new Response(

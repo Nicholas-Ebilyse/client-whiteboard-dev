@@ -45,8 +45,13 @@ function tryParseServiceAccountKey(key: string): GoogleSheetsCredentials {
   }
 }
 
+function b64url(str: string): string {
+  return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
 async function getAccessToken(credentials: GoogleSheetsCredentials): Promise<string> {
-  const jwtHeader = btoa(JSON.stringify({ alg: "RS256", typ: "JWT" }));
+  console.log('Getting access token for:', credentials.client_email);
+  const jwtHeader = b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
   
   const now = Math.floor(Date.now() / 1000);
   const jwtClaimSet = {
@@ -56,11 +61,12 @@ async function getAccessToken(credentials: GoogleSheetsCredentials): Promise<str
     exp: now + 3600,
     iat: now,
   };
-  const jwtClaimSetEncoded = btoa(JSON.stringify(jwtClaimSet));
+  const jwtClaimSetEncoded = b64url(JSON.stringify(jwtClaimSet));
   
   const signatureInput = `${jwtHeader}.${jwtClaimSetEncoded}`;
   
-  const privateKey = credentials.private_key.replace(/\\n/g, '\n');
+  console.log('Parsing private key, length:', credentials.private_key.length);
+  const privateKey = credentials.private_key;
   const keyData = await crypto.subtle.importKey(
     "pkcs8",
     pemToArrayBuffer(privateKey),
@@ -75,7 +81,11 @@ async function getAccessToken(credentials: GoogleSheetsCredentials): Promise<str
     new TextEncoder().encode(signatureInput)
   );
   
-  const signatureEncoded = btoa(String.fromCharCode(...new Uint8Array(signature)))
+  // Use loop instead of spread to avoid RangeError on large arrays
+  const sigBytes = new Uint8Array(signature);
+  let sigBinary = '';
+  for (let i = 0; i < sigBytes.length; i++) sigBinary += String.fromCharCode(sigBytes[i]);
+  const signatureEncoded = btoa(sigBinary)
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
     .replace(/=/g, '');
@@ -93,11 +103,21 @@ async function getAccessToken(credentials: GoogleSheetsCredentials): Promise<str
 }
 
 function pemToArrayBuffer(pem: string): ArrayBuffer {
-  const b64 = pem
-    .replace(/-----BEGIN PRIVATE KEY-----/, '')
-    .replace(/-----END PRIVATE KEY-----/, '')
-    .replace(/\s/g, '');
-  const binary = atob(b64);
+  // Normalize: handle both \\n (escaped) and real newlines, strip PEM headers
+  const normalized = pem
+    .replace(/\\n/g, '\n')
+    .replace(/-----BEGIN PRIVATE KEY-----/g, '')
+    .replace(/-----END PRIVATE KEY-----/g, '')
+    .replace(/\s+/g, '');
+  
+  if (!normalized) throw new Error('PEM private key is empty after stripping headers');
+  
+  // Validate base64 characters before decoding
+  if (!/^[A-Za-z0-9+/=]+$/.test(normalized)) {
+    throw new Error(`PEM contains invalid base64 characters`);
+  }
+  
+  const binary = atob(normalized);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) {
     bytes[i] = binary.charCodeAt(i);
@@ -300,7 +320,7 @@ serve(async (req) => {
         .eq('key', 'google_spreadsheet_id')
         .maybeSingle();
       
-      spreadsheetId = setting?.value || '1Y0KEaFKapkRpzuKDGIF_KPzbFi9LAbIdCZ2q8qX6HeY';
+      spreadsheetId = setting?.value || '1699-HaYP4W2rSJUscbXCvp7fVW0vR95NRpjl5QpBUeY';
     }
 
     if (!spreadsheetId) {
@@ -463,11 +483,14 @@ serve(async (req) => {
       await ensureHeaders(spreadsheetId, 'Affectations', AFFECTATIONS_HEADERS, accessToken);
       const assignData = await fetchSheetData(spreadsheetId, 'Affectations', accessToken);
       if (assignData.length > 1) {
-        // Need technician and commande maps for ID lookup (if they used names in the sheet)
+        // Prepare tech and commande maps for ID lookup
         const { data: techs } = await supabase.from('technicians').select('id, name');
         const { data: cmds } = await supabase.from('commandes').select('id, client, chantier');
         const techNameToId = Object.fromEntries(techs?.map(t => [t.name, t.id]) || []);
         
+        // Map "Client - Chantier" to commande ID
+        const cmdMap = Object.fromEntries(cmds?.map(c => [`${c.client} - ${c.chantier}`, c.id]) || []);
+
         const h = assignData[0];
         const iID = h.indexOf('ID');
         const iTech = h.indexOf('Technicien');
@@ -482,16 +505,25 @@ serve(async (req) => {
         for (let i = 1; i < assignData.length; i++) {
           const row = assignData[i];
           const id = row[iID]?.trim();
-          const techId = techNameToId[row[iTech]?.trim()] || row[iTech]?.trim();
+          const techName = row[iTech]?.trim();
+          const techId = techNameToId[techName] || techName;
           if (!techId) continue;
 
+          const chantierStr = row[iChan]?.trim();
+          const commandeId = cmdMap[chantierStr] || null;
+          
+          // Use the matched project name or fallback to sheet value
+          const assignmentName = chantierStr || 'Nouvelle affectation';
+
           await supabase.from('assignments').upsert({
-            id: id && id.length > 10 ? id : undefined, // Check if it's a UUID
+            id: id && id.length > 10 ? id : undefined,
             technician_id: techId,
+            commande_id: commandeId,
+            name: assignmentName,
             start_date: parseDate(row[iStart]?.trim()),
-            start_period: row[iStartP]?.trim(),
-            end_date: parseDate(row[iEnd]?.trim()),
-            end_period: row[iEndP]?.trim(),
+            start_period: row[iStartP]?.trim() || 'Matin',
+            end_date: parseDate(row[iEnd]?.trim()) || parseDate(row[iStart]?.trim()),
+            end_period: row[iEndP]?.trim() || row[iStartP]?.trim() || 'Matin',
             is_absent: row[iAbs]?.toUpperCase() === 'TRUE',
             comment: row[iComm]?.trim(),
           }, { onConflict: 'id' });
@@ -523,12 +555,17 @@ serve(async (req) => {
           const row = noteData[i];
           const id = row[iID]?.trim();
           const techId = techNameToId[row[iTech]?.trim()] || row[iTech]?.trim();
+          
+          if (!row[iText]?.trim()) continue; // Skip empty notes
 
           await supabase.from('notes').upsert({
             id: id && id.length > 10 ? id : undefined,
             technician_id: techId || null,
             start_date: parseDate(row[iDate]?.trim()),
-            period: row[iPeriod]?.trim(),
+            end_date: parseDate(row[iDate]?.trim()), // Notes currently single-day in sync
+            period: row[iPeriod]?.trim() || 'Matin',
+            start_period: row[iPeriod]?.trim() || 'Matin',
+            end_period: row[iPeriod]?.trim() || 'Matin',
             is_sav: row[iSAV]?.toUpperCase() === 'TRUE',
             is_confirmed: row[iConf]?.toUpperCase() === 'TRUE',
             is_invoiced: row[iBill]?.toUpperCase() === 'TRUE',

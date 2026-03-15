@@ -42,7 +42,7 @@ export const SyncGoogleSheetsButton = () => {
       const c = data?.counts || {};
       toast({
         title: "Import réussi",
-        description: `${c.commandes || 0} commandes, ${c.sav || 0} SAV importés depuis Google Sheets.`,
+        description: `${c.techniciens || 0} techniciens, ${c.chantiers || 0} chantiers, ${c.commandes || 0} commandes, ${c.sav || 0} SAV, ${c.affectations || 0} affectations, ${c.notes || 0} notes importés.`,
       });
 
       queryClient.invalidateQueries({ queryKey: ["assignments"] });

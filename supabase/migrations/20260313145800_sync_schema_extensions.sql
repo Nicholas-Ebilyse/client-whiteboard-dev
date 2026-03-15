@@ -6,10 +6,10 @@ ALTER TABLE public.technicians
 ADD COLUMN is_interim BOOLEAN DEFAULT false;
 
 -- Add flags to notes
-ALTER TABLE public.notes
-ADD COLUMN is_sav BOOLEAN DEFAULT false,
-ADD COLUMN is_confirmed BOOLEAN DEFAULT false,
-ADD COLUMN is_billed BOOLEAN DEFAULT false;
+ALTER TABLE public.notes                                  
+ADD COLUMN IF NOT EXISTS is_sav BOOLEAN DEFAULT false,                                  
+ADD COLUMN IF NOT EXISTS is_confirmed BOOLEAN DEFAULT false,                            
+ADD COLUMN IF NOT EXISTS is_billed BOOLEAN DEFAULT false;
 
 -- Comment on columns for clarity
 COMMENT ON COLUMN public.technicians.is_interim IS 'Indicates if the technician is an interim worker';

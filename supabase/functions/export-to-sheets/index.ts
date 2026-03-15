@@ -35,11 +35,19 @@ function tryParseServiceAccountKey(key: string): GoogleCredentials {
 }
 
 function pemToArrayBuffer(pem: string): ArrayBuffer {
-  const b64 = pem
-    .replace(/-----BEGIN PRIVATE KEY-----/, "")
-    .replace(/-----END PRIVATE KEY-----/, "")
-    .replace(/\s/g, "");
-  const binary = atob(b64);
+  // Handle both \\n (escaped) and real newlines, strip PEM headers
+  const normalized = pem
+    .replace(/\\n/g, '\n')
+    .replace(/-----BEGIN PRIVATE KEY-----/g, '')
+    .replace(/-----END PRIVATE KEY-----/g, '')
+    .replace(/\s+/g, '');
+
+  if (!normalized) throw new Error('PEM private key is empty after stripping headers');
+  if (!/^[A-Za-z0-9+/=]+$/.test(normalized)) {
+    throw new Error('PEM contains invalid base64 characters');
+  }
+
+  const binary = atob(normalized);
   const buffer = new ArrayBuffer(binary.length);
   const bytes = new Uint8Array(buffer);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
@@ -51,6 +59,7 @@ function b64url(input: string): string {
 }
 
 async function getAccessToken(credentials: GoogleCredentials): Promise<string> {
+  console.log('Getting access token for:', credentials.client_email);
   const header = b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
   const now = Math.floor(Date.now() / 1000);
   const payload = b64url(
@@ -63,16 +72,20 @@ async function getAccessToken(credentials: GoogleCredentials): Promise<string> {
     })
   );
   const sigInput = `${header}.${payload}`;
-  const privateKey = credentials.private_key.replace(/\\n/g, "\n");
+  // Pass private_key as-is; pemToArrayBuffer handles both escaped and real newlines
   const keyData = await crypto.subtle.importKey(
     "pkcs8",
-    pemToArrayBuffer(privateKey),
+    pemToArrayBuffer(credentials.private_key),
     { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
     false,
     ["sign"]
   );
   const sig = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", keyData, new TextEncoder().encode(sigInput));
-  const sigB64 = btoa(String.fromCharCode(...new Uint8Array(sig)))
+  // Use loop instead of spread to avoid RangeError on large Uint8Arrays
+  const sigBytes = new Uint8Array(sig);
+  let sigBinary = '';
+  for (let i = 0; i < sigBytes.length; i++) sigBinary += String.fromCharCode(sigBytes[i]);
+  const sigB64 = btoa(sigBinary)
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=+$/, "");
@@ -235,7 +248,7 @@ Deno.serve(async (req) => {
         .eq('key', 'google_spreadsheet_id')
         .maybeSingle();
       
-      spreadsheetId = setting?.value || '1Y0KEaFKapkRpzuKDGIF_KPzbFi9LAbIdCZ2q8qX6HeY';
+      spreadsheetId = setting?.value || '1699-HaYP4W2rSJUscbXCvp7fVW0vR95NRpjl5QpBUeY';
     }
 
     if (!spreadsheetId) {
