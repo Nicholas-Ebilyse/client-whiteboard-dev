@@ -1,0 +1,695 @@
+import { useState, useEffect, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { Assignment, Chantier } from '@/types/planning';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { CalendarIcon, Copy, MapPin, ExternalLink } from 'lucide-react';
+import { format, isBefore, isAfter, startOfDay } from 'date-fns';
+import { cn } from '@/lib/utils';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Textarea } from '@/components/ui/textarea';
+import { SearchableSelect } from './SearchableSelect';
+import { DeleteAssignmentConfirmDialog } from './DeleteAssignmentConfirmDialog';
+import { useToast } from '@/hooks/use-toast';
+import { Input } from '@/components/ui/input';
+import { useMaxAssignmentsPerPeriod } from '@/hooks/useAppSettings';
+interface EditAssignmentDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  assignment: Assignment | null;
+  chantiers: Chantier[];
+  commandes: any[]; // Issue #3: Add commandes for address lookup
+  technicians: { id: string; name: string }[];
+  assignments: Assignment[];
+  onSave: (assignment: Assignment) => void;
+  onDelete?: (id: string) => void;
+  onDeleteGroup?: (id: string) => void;
+  onDuplicate?: (id: string) => void;
+  allDbAssignments?: any[]; // Raw DB assignments for finding linked technicians
+}
+
+export const EditAssignmentDialog = ({
+  open,
+  onOpenChange,
+  assignment,
+  chantiers,
+  commandes, // Issue #3: Receive commandes prop
+  technicians,
+  assignments,
+  onSave,
+  onDelete,
+  onDeleteGroup,
+  onDuplicate,
+  allDbAssignments = [],
+}: EditAssignmentDialogProps) => {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const today = new Date();
+  const [selectedTechnician, setSelectedTechnician] = useState(assignment?.teamId || '');
+  const [selectedCommande, setSelectedCommande] = useState(assignment?.commandeId || '');
+  const [startDate, setStartDate] = useState<Date | undefined>(
+    assignment ? new Date(assignment.startDate) : today
+  );
+  const [endDate, setEndDate] = useState<Date | undefined>(
+    assignment ? new Date(assignment.endDate) : today
+  );
+  const [startPeriod, setStartPeriod] = useState<'Matin' | 'Après-midi'>(
+    assignment?.startPeriod || 'Matin'
+  );
+  const [endPeriod, setEndPeriod] = useState<'Matin' | 'Après-midi'>(
+    assignment?.endPeriod || 'Matin'
+  );
+  const [isAbsent, setIsAbsent] = useState(assignment?.isAbsent || false);
+  const [isConfirmed, setIsConfirmed] = useState(assignment?.isConfirmed || false);
+  const [isInvoiced, setIsInvoiced] = useState(false);
+  const [absenceReason, setAbsenceReason] = useState(assignment?.comment || '');
+  const [hasSecondTech, setHasSecondTech] = useState(false);
+  const [secondTechnician, setSecondTechnician] = useState('');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [isUpdatingInvoiceStatus, setIsUpdatingInvoiceStatus] = useState(false);
+
+  // Find linked technician from the same group
+  const linkedTechnician = useMemo(() => {
+    if (!assignment?.assignment_group_id || allDbAssignments.length === 0) return null;
+    
+    const linkedAssignment = allDbAssignments.find(
+      a => a.assignment_group_id === assignment.assignment_group_id && 
+           a.technician_id !== assignment.teamId
+    );
+    
+    if (linkedAssignment) {
+      return technicians.find(t => t.id === linkedAssignment.technician_id);
+    }
+    return null;
+  }, [assignment, allDbAssignments, technicians]);
+
+  useEffect(() => {
+    if (assignment) {
+      setSelectedTechnician(assignment.teamId);
+      setSelectedCommande(assignment.commandeId || '');
+      setStartDate(new Date(assignment.startDate));
+      setEndDate(new Date(assignment.endDate));
+      setStartPeriod(assignment.startPeriod);
+      setEndPeriod(assignment.endPeriod);
+      setIsAbsent(assignment.isAbsent || false);
+      setIsConfirmed(assignment.isConfirmed || false);
+      setAbsenceReason(assignment.comment || '');
+      setHasSecondTech(false);
+      setSecondTechnician('');
+      
+      // Check if the selected commande is invoiced
+      if (assignment.commandeId) {
+        const commande = commandes.find((c: any) => c.id === assignment.commandeId);
+        setIsInvoiced(commande?.is_invoiced || false);
+      } else {
+        setIsInvoiced(false);
+      }
+    }
+  }, [assignment, commandes]);
+
+  const checkAbsenceConflict = (techId: string, start: Date, startP: string, end: Date, endP: string) => {
+    const startStr = format(start, 'yyyy-MM-dd');
+    const endStr = format(end, 'yyyy-MM-dd');
+    
+    return assignments.some(a => {
+      if (!a.isAbsent || a.teamId !== techId) return false;
+      if (assignment?.id === a.id) return false;
+      
+      const aStart = new Date(a.startDate);
+      const aEnd = new Date(a.endDate);
+      const aStartStr = format(aStart, 'yyyy-MM-dd');
+      const aEndStr = format(aEnd, 'yyyy-MM-dd');
+      
+      return !(endStr < aStartStr || startStr > aEndStr);
+    });
+  };
+
+  const { maxAssignments: MAX_ASSIGNMENTS_PER_PERIOD } = useMaxAssignmentsPerPeriod();
+
+  const countAssignmentsPerPeriod = (techId: string, start: Date, startP: string, end: Date, endP: string): { date: string; period: string; count: number }[] => {
+    const startStr = format(start, 'yyyy-MM-dd');
+    const endStr = format(end, 'yyyy-MM-dd');
+    const periodCounts: { [key: string]: number } = {};
+    
+    // Initialize counts for all periods in the new assignment range
+    let currentDate = new Date(start);
+    while (currentDate <= end) {
+      const dateStr = format(currentDate, 'yyyy-MM-dd');
+      let periodsToCheck: string[] = [];
+      
+      if (dateStr === startStr && dateStr === endStr) {
+        // Single day
+        if (startP === 'Matin' && endP === 'Matin') periodsToCheck = ['Matin'];
+        else if (startP === 'Après-midi' && endP === 'Après-midi') periodsToCheck = ['Après-midi'];
+        else periodsToCheck = ['Matin', 'Après-midi'];
+      } else if (dateStr === startStr) {
+        periodsToCheck = startP === 'Matin' ? ['Matin', 'Après-midi'] : ['Après-midi'];
+      } else if (dateStr === endStr) {
+        periodsToCheck = endP === 'Après-midi' ? ['Matin', 'Après-midi'] : ['Matin'];
+      } else {
+        periodsToCheck = ['Matin', 'Après-midi'];
+      }
+      
+      for (const period of periodsToCheck) {
+        periodCounts[`${dateStr}-${period}`] = 0;
+      }
+      
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    // Count existing assignments for each period
+    assignments.forEach(a => {
+      if (a.teamId !== techId && a.secondTechnicianId !== techId) return;
+      if (assignment?.id === a.id) return;
+      
+      const aStart = new Date(a.startDate);
+      const aEnd = new Date(a.endDate);
+      const aStartStr = format(aStart, 'yyyy-MM-dd');
+      const aEndStr = format(aEnd, 'yyyy-MM-dd');
+      
+      // Check each period key we're tracking
+      Object.keys(periodCounts).forEach(key => {
+        const [dateStr, period] = key.split('-');
+        const periodName = period;
+        
+        // Check if this existing assignment covers this date/period
+        if (dateStr < aStartStr || dateStr > aEndStr) return;
+        
+        let coversThisPeriod = false;
+        if (dateStr === aStartStr && dateStr === aEndStr) {
+          // Single day assignment - check if period is within the assignment's period range
+          const periodIsMatin = periodName === 'Matin';
+          const startsAtMatin = a.startPeriod === 'Matin';
+          const endsAtAfternoon = a.endPeriod === 'Après-midi';
+          if (periodIsMatin && startsAtMatin) coversThisPeriod = true;
+          if (!periodIsMatin && endsAtAfternoon) coversThisPeriod = true;
+        } else if (dateStr === aStartStr) {
+          if (periodName === 'Matin' && a.startPeriod === 'Matin') coversThisPeriod = true;
+          if (periodName === 'Après-midi') coversThisPeriod = true;
+        } else if (dateStr === aEndStr) {
+          if (periodName === 'Matin') coversThisPeriod = true;
+          if (periodName === 'Après-midi' && a.endPeriod === 'Après-midi') coversThisPeriod = true;
+        } else {
+          // Middle day - fully covered
+          coversThisPeriod = true;
+        }
+        
+        if (coversThisPeriod) {
+          periodCounts[key]++;
+        }
+      });
+    });
+    
+    // Return periods that would exceed the limit
+    return Object.entries(periodCounts)
+      .filter(([_, count]) => count >= MAX_ASSIGNMENTS_PER_PERIOD - 1) // -1 because we're adding one more
+      .map(([key, count]) => {
+        const parts = key.split('-');
+        const period = parts.pop()!;
+        const date = parts.join('-');
+        return { date, period, count: count + 1 };
+      });
+  };
+
+  const checkAssignmentConflict = (techId: string, start: Date, startP: string, end: Date, endP: string) => {
+    const exceededPeriods = countAssignmentsPerPeriod(techId, start, startP, end, endP);
+    // Return periods that would exceed the max (acting as "conflicts")
+    return exceededPeriods.filter(p => p.count > MAX_ASSIGNMENTS_PER_PERIOD);
+  };
+
+  const handleSave = () => {
+    if (assignment && selectedTechnician && (isAbsent || selectedCommande) && startDate && endDate) {
+      const startDateStr = format(startDate, 'yyyy-MM-dd');
+      const endDateStr = format(endDate, 'yyyy-MM-dd');
+      
+      if (endDateStr < startDateStr) {
+        toast({
+          title: 'Erreur',
+          description: 'La date de fin ne peut pas précéder la date de début.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      if (startDateStr === endDateStr && startPeriod === 'Après-midi' && endPeriod === 'Matin') {
+        toast({
+          title: 'Erreur',
+          description: 'Une affectation ne peut pas commencer l\'après-midi et se terminer le matin du même jour.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Check absence conflicts
+      if (!isAbsent && checkAbsenceConflict(selectedTechnician, startDate, startPeriod, endDate, endPeriod)) {
+        toast({
+          title: 'Conflit d\'absence',
+          description: 'Le technicien est absent durant cette période.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (hasSecondTech && secondTechnician) {
+        if (!isAbsent && checkAbsenceConflict(secondTechnician, startDate, startPeriod, endDate, endPeriod)) {
+          toast({
+            title: 'Conflit d\'absence',
+            description: 'Le deuxième technicien est absent durant cette période.',
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
+
+      // Check assignment conflicts for primary technician
+      if (!isAbsent) {
+        const conflicts = checkAssignmentConflict(selectedTechnician, startDate, startPeriod, endDate, endPeriod);
+        if (conflicts.length > 0) {
+          const techName = technicians.find(t => t.id === selectedTechnician)?.name || 'Le technicien';
+          const conflictDetails = conflicts.map(c => {
+            const dateFormatted = format(new Date(c.date), 'dd/MM');
+            return `${dateFormatted} ${c.period} (${c.count} affectations)`;
+          }).join(', ');
+          
+          toast({
+            title: 'Limite d\'affectations atteinte',
+            description: `${techName} a déjà le maximum de 3 affectations pour: ${conflictDetails}.`,
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
+
+      // Check assignment conflicts for second technician
+      if (hasSecondTech && secondTechnician && !isAbsent) {
+        const conflicts = checkAssignmentConflict(secondTechnician, startDate, startPeriod, endDate, endPeriod);
+        if (conflicts.length > 0) {
+          const techName = technicians.find(t => t.id === secondTechnician)?.name || 'Le deuxième technicien';
+          const conflictDetails = conflicts.map(c => {
+            const dateFormatted = format(new Date(c.date), 'dd/MM');
+            return `${dateFormatted} ${c.period} (${c.count} affectations)`;
+          }).join(', ');
+          
+          toast({
+            title: 'Limite d\'affectations atteinte',
+            description: `${techName} a déjà le maximum de 3 affectations pour: ${conflictDetails}.`,
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
+      
+      const updatedAssignment: Assignment = {
+        ...assignment,
+        teamId: selectedTechnician,
+        chantierId: null,
+        commandeId: isAbsent ? null : selectedCommande,
+        startDate: startDateStr,
+        endDate: endDateStr,
+        startPeriod,
+        endPeriod,
+        isAbsent,
+        isConfirmed,
+        comment: isAbsent ? absenceReason : assignment.comment,
+      };
+      // Pass the second technician ID to the save handler
+      const assignmentToSave = {
+        ...updatedAssignment,
+        secondTechnicianId: hasSecondTech ? secondTechnician : undefined,
+      };
+      
+      onSave(assignmentToSave);
+      onOpenChange(false);
+    }
+  };
+
+  const handleDeleteClick = () => {
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteSingle = () => {
+    if (assignment?.id && onDelete) {
+      onDelete(assignment.id);
+      setDeleteDialogOpen(false);
+      onOpenChange(false);
+    }
+  };
+
+  const handleDeleteGroup = () => {
+    if (assignment?.assignment_group_id && onDeleteGroup) {
+      onDeleteGroup(assignment.assignment_group_id);
+      setDeleteDialogOpen(false);
+      onOpenChange(false);
+    }
+  };
+
+  const handleDuplicate = () => {
+    if (assignment?.id && onDuplicate) {
+      onDuplicate(assignment.id);
+      onOpenChange(false);
+    }
+  };
+
+  const chantierOptions = chantiers.map(c => ({
+    value: c.id,
+    label: c.name,
+  }));
+
+  return (
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-[600px] bg-card max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-semibold">Éditer l'affectation</DialogTitle>
+          </DialogHeader>
+
+        <div className="space-y-6 py-4 max-h-[calc(90vh-200px)] overflow-y-auto">
+          <div className="space-y-2">
+            <Label htmlFor="technician">Technicien</Label>
+            <Select value={selectedTechnician} onValueChange={setSelectedTechnician}>
+              <SelectTrigger id="technician" className="bg-background">
+                <SelectValue placeholder="Sélectionner un technicien" />
+              </SelectTrigger>
+              <SelectContent className="bg-popover">
+                {[...technicians].sort((a, b) => a.name.localeCompare(b.name, 'fr')).map((tech) => (
+                  <SelectItem key={tech.id} value={tech.id}>
+                    {tech.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Show linked technician if exists */}
+          {linkedTechnician && (
+            <div className="p-3 rounded-md bg-primary/10 border border-primary/20">
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">Technicien lié :</span>
+                <span className="font-medium text-primary">{linkedTechnician.name}</span>
+                <span className="text-xs text-muted-foreground">(via groupe 🔗)</span>
+              </div>
+            </div>
+          )}
+
+          {/* Only show add second tech option if there's no linked technician already */}
+          {!linkedTechnician && (
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="second-tech" 
+                  checked={hasSecondTech}
+                  onCheckedChange={(checked) => setHasSecondTech(checked as boolean)}
+                />
+                <label htmlFor="second-tech" className="text-sm cursor-pointer">Ajouter un deuxième technicien</label>
+              </div>
+              {hasSecondTech && (
+                <Select value={secondTechnician} onValueChange={setSecondTechnician}>
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder="Sélectionner le 2ème technicien" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover">
+                    {[...technicians]
+                      .filter(t => t.id !== selectedTechnician)
+                      .sort((a, b) => a.name.localeCompare(b.name, 'fr'))
+                      .map((tech) => (
+                        <SelectItem key={tech.id} value={tech.id}>
+                          {tech.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between mb-2">
+              <Label htmlFor="chantier">Chantier</Label>
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="invoiced" 
+                    checked={isInvoiced}
+                    disabled={!selectedCommande || isAbsent || isUpdatingInvoiceStatus}
+                    onCheckedChange={async (checked) => {
+                      const newValue = checked as boolean;
+                      setIsInvoiced(newValue);
+                      setIsUpdatingInvoiceStatus(true);
+                      
+                      try {
+                        // Update the commandes table
+                        const { supabase } = await import('@/integrations/supabase/client');
+                        const { error: dbError } = await supabase
+                          .from('commandes')
+                          .update({ is_invoiced: newValue })
+                          .eq('id', selectedCommande);
+                        
+                        if (dbError) {
+                          throw dbError;
+                        }
+                        
+                        // Update Google Sheets
+                        const { error: sheetError } = await supabase.functions.invoke('update-google-sheets-invoice-status', {
+                          body: { commandeId: selectedCommande, isInvoiced: newValue }
+                        });
+                        
+                        if (sheetError) {
+                          console.warn('Failed to update Google Sheets:', sheetError);
+                        }
+                        
+                        // Invalidate commandes query to refresh the UI immediately
+                        queryClient.invalidateQueries({ queryKey: ['commandes'] });
+                        
+                        toast({
+                          title: newValue ? "Chantier marqué comme facturé" : "Statut facturé retiré",
+                          description: "Le statut a été mis à jour"
+                        });
+                      } catch (error: any) {
+                        console.error('Error updating invoice status:', error);
+                        setIsInvoiced(!newValue); // Revert on error
+                        toast({
+                          title: "Erreur",
+                          description: "Impossible de mettre à jour le statut",
+                          variant: "destructive"
+                        });
+                      } finally {
+                        setIsUpdatingInvoiceStatus(false);
+                      }
+                    }}
+                  />
+                  <label htmlFor="invoiced" className="text-sm cursor-pointer text-red-600 font-medium">Facturé</label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="absent" 
+                    checked={isAbsent}
+                    disabled={isInvoiced}
+                    onCheckedChange={(checked) => setIsAbsent(checked as boolean)}
+                  />
+                  <label htmlFor="absent" className="text-sm cursor-pointer">Absent</label>
+                </div>
+              </div>
+            </div>
+            <SearchableSelect
+              value={selectedCommande}
+              onValueChange={setSelectedCommande}
+              options={chantierOptions}
+              placeholder={isAbsent ? "Absent" : "Rechercher un chantier..."}
+              disabled={isAbsent || isInvoiced}
+            />
+          </div>
+
+          {/* Address display with Google Maps link using commande.chantier field */}
+          {!isAbsent && selectedCommande && (() => {
+            const selectedComm = commandes.find((c: any) => c.id === selectedCommande);
+            if (selectedComm?.chantier) {
+              const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedComm.chantier)}`;
+              return (
+                <div className="space-y-2 bg-muted/30 p-3 rounded-md">
+                  <Label className="text-xs text-muted-foreground">Adresse</Label>
+                  <div className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <Input 
+                      value={selectedComm.chantier}
+                      readOnly
+                      className="flex-1 bg-background/50 text-sm"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(mapsUrl, '_blank')}
+                      className="flex-shrink-0"
+                    >
+                      <ExternalLink className="h-4 w-4 mr-1" />
+                      Maps
+                    </Button>
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })()}
+
+          {isAbsent && (
+            <div className="space-y-2">
+              <Label htmlFor="absence-reason">Motif de l'absence</Label>
+              <Textarea
+                id="absence-reason"
+                value={absenceReason}
+                onChange={(e) => setAbsenceReason(e.target.value)}
+                placeholder="Indiquez le motif de l'absence..."
+                rows={2}
+              />
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Date début</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    disabled={isConfirmed || isInvoiced}
+                    className={cn(
+                      'w-full justify-start text-left font-normal bg-background',
+                      !startDate && 'text-muted-foreground'
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {startDate ? format(startDate, 'dd/MM/yyyy') : 'Choisir'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 bg-popover" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={startDate}
+                    onSelect={setStartDate}
+                    defaultMonth={startDate || today}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="period-start">Période début</Label>
+              <Select 
+                value={startPeriod} 
+                onValueChange={(v) => setStartPeriod(v as 'Matin' | 'Après-midi')}
+                disabled={isConfirmed || isInvoiced}
+              >
+                <SelectTrigger id="period-start" className="bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-popover">
+                  <SelectItem value="Matin">Matin</SelectItem>
+                  <SelectItem value="Après-midi">Après-midi</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Date fin</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    disabled={isConfirmed || isInvoiced}
+                    className={cn(
+                      'w-full justify-start text-left font-normal bg-background',
+                      !endDate && 'text-muted-foreground'
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {endDate ? format(endDate, 'dd/MM/yyyy') : 'Choisir'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 bg-popover" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={endDate}
+                    onSelect={setEndDate}
+                    defaultMonth={endDate || startDate || today}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="period-end">Période fin</Label>
+              <Select 
+                value={endPeriod} 
+                onValueChange={(v) => setEndPeriod(v as 'Matin' | 'Après-midi')}
+                disabled={isConfirmed || isInvoiced}
+              >
+                <SelectTrigger id="period-end" className="bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-popover">
+                  <SelectItem value="Matin">Matin</SelectItem>
+                  <SelectItem value="Après-midi">Après-midi</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter className="gap-2 flex-col sm:flex-row sm:justify-between">
+          <div className="flex items-center space-x-2">
+            <Checkbox 
+              id="confirmed" 
+              checked={isConfirmed}
+              onCheckedChange={(checked) => setIsConfirmed(checked as boolean)}
+            />
+            <label htmlFor="confirmed" className="text-sm cursor-pointer">Confirmé</label>
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            {assignment?.id && !assignment.id.startsWith('new-') && onDuplicate && (
+              <Button type="button" variant="outline" onClick={handleDuplicate} size="sm">
+                <Copy className="h-4 w-4 mr-2" />
+                Dupliquer
+              </Button>
+            )}
+            {assignment?.id && !assignment.id.startsWith('new-') && onDelete && (
+              <Button type="button" variant="destructive" onClick={handleDeleteClick} size="sm">
+                Supprimer
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => onOpenChange(false)} size="sm">
+              Annuler
+            </Button>
+            <Button onClick={handleSave} className="bg-success hover:bg-success/90" size="sm">
+              Enregistrer
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <DeleteAssignmentConfirmDialog
+      open={deleteDialogOpen}
+      onOpenChange={setDeleteDialogOpen}
+      assignment={assignment}
+      onConfirmSingle={handleDeleteSingle}
+      onConfirmGroup={handleDeleteGroup}
+    />
+  </>
+  );
+};

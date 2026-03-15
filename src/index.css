@@ -1,0 +1,200 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 210 20% 98%;
+    --foreground: 215 25% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 215 25% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 25% 15%;
+
+    --primary: 215 70% 75%;
+    --primary-foreground: 215 25% 15%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 215 25% 15%;
+
+    --muted: 210 25% 92%;
+    --muted-foreground: 215 16.3% 46.9%;
+
+    --accent: 200 95% 50%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 215 20% 88%;
+    --input: 215 20% 88%;
+    --ring: 215 90% 55%;
+    
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+    
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    
+    --tonic-green: 142 71% 45%;
+    --absent-pink: 330 85% 85%;
+    --confirmed-blue: 215 85% 85%;
+    
+    /* Note state colors - cyan-tinted blue to distinguish from assignments */
+    --note-confirmed: 195 85% 85%;
+    --note-confirmed-foreground: 195 50% 20%;
+    
+    /* Assignment state colors */
+    --assignment-unconfirmed: 220 14% 70%;
+    --assignment-unconfirmed-foreground: 220 15% 20%;
+    --assignment-confirmed: 215 85% 85%;
+    --assignment-confirmed-foreground: 215 50% 20%;
+    --assignment-invoiced: 0 85% 80%;
+    --assignment-invoiced-foreground: 0 50% 20%;
+
+    /* M3 Surface Elevation */
+    --surface-1: 215 90% 55% / 0.05;
+    --surface-2: 215 90% 55% / 0.08;
+    --surface-3: 215 90% 55% / 0.11;
+    --surface-4: 215 90% 55% / 0.12;
+    --surface-5: 215 90% 55% / 0.14;
+
+    /* M3 State Layers */
+    --state-hover: 215 25% 15% / 0.08;
+    --state-focus: 215 25% 15% / 0.12;
+    --state-pressed: 215 25% 15% / 0.12;
+    --state-dragged: 215 25% 15% / 0.16;
+
+    /* M3 Typography Scale */
+    --display-large: 57px;
+    --display-medium: 45px;
+    --display-small: 36px;
+    --headline-large: 32px;
+    --headline-medium: 28px;
+    --headline-small: 24px;
+    --title-large: 22px;
+    --title-medium: 16px;
+    --title-small: 14px;
+    --label-large: 14px;
+    --label-medium: 12px;
+    --label-small: 11px;
+    --body-large: 16px;
+    --body-medium: 14px;
+    --body-small: 12px;
+
+    /* M3 Transitions */
+    --motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+    --motion-easing-emphasized: cubic-bezier(0.05, 0.7, 0.1, 1);
+    --motion-duration-short: 150ms;
+    --motion-duration-medium: 250ms;
+    --motion-duration-long: 400ms;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 215 30% 12%;
+    --foreground: 210 40% 98%;
+
+    --card: 215 28% 16%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 215 28% 16%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 215 70% 75%;
+    --primary-foreground: 215 25% 15%;
+
+    --secondary: 215 25% 20%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 215 25% 20%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 200 95% 55%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 62.8% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 215 25% 25%;
+    --input: 215 25% 25%;
+    --ring: 215 90% 60%;
+    
+    --success: 142 76% 42%;
+    --success-foreground: 0 0% 100%;
+    
+    --warning: 38 92% 55%;
+    --warning-foreground: 0 0% 100%;
+    
+    --tonic-green: 142 71% 50%;
+    --absent-pink: 330 60% 40%;
+    --confirmed-blue: 215 60% 45%;
+    
+    /* Note state colors - dark mode */
+    --note-confirmed: 195 60% 35%;
+    --note-confirmed-foreground: 195 80% 90%;
+    
+    /* Assignment state colors - dark mode */
+    --assignment-unconfirmed: 220 15% 35%;
+    --assignment-unconfirmed-foreground: 220 20% 90%;
+    --assignment-confirmed: 215 60% 35%;
+    --assignment-confirmed-foreground: 215 80% 90%;
+    --assignment-invoiced: 0 60% 35%;
+    --assignment-invoiced-foreground: 0 80% 90%;
+
+    /* M3 Surface Elevation - Dark Mode */
+    --surface-1: 215 90% 60% / 0.05;
+    --surface-2: 215 90% 60% / 0.08;
+    --surface-3: 215 90% 60% / 0.11;
+    --surface-4: 215 90% 60% / 0.12;
+    --surface-5: 215 90% 60% / 0.14;
+
+    /* M3 State Layers - Dark Mode */
+    --state-hover: 210 40% 98% / 0.08;
+    --state-focus: 210 40% 98% / 0.12;
+    --state-pressed: 210 40% 98% / 0.12;
+    --state-dragged: 210 40% 98% / 0.16;
+    
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}

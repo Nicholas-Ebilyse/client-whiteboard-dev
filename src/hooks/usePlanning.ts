@@ -1,0 +1,343 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { getWeek, getYear, startOfWeek, addDays, format } from 'date-fns';
+import { scheduleDebouncedCalendarSync } from '@/hooks/useGoogleCalendarSync';
+import { fr } from 'date-fns/locale';
+
+export const useWeekConfig = () => {
+  return useQuery({
+    queryKey: ['week-config'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('week_config')
+        .select('*')
+        .eq('is_current', true)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') throw error;
+      
+      // If no config exists, create one with current week
+      if (!data) {
+        const currentDate = new Date();
+        const weekNumber = getWeek(currentDate, { weekStartsOn: 1 });
+        const year = getYear(currentDate);
+        
+        const { data: newData, error: insertError } = await supabase
+          .from('week_config')
+          .insert({ week_number: weekNumber, year, is_current: true })
+          .select()
+          .single();
+        
+        if (insertError) throw insertError;
+        return newData;
+      }
+      
+      return data;
+    },
+  });
+};
+
+export const useUpdateWeekConfig = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ week_number, year }: { week_number: number; year: number }) => {
+      const { data, error } = await supabase
+        .from('week_config')
+        .update({ week_number, year })
+        .eq('is_current', true)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['week-config'] });
+    },
+  });
+};
+
+export const useTechnicians = (includeArchived = false) => {
+  return useQuery({
+    queryKey: ['technicians', includeArchived],
+    queryFn: async () => {
+      let query = supabase
+        .from('technicians')
+        .select('*')
+        .order('position');
+      
+      if (!includeArchived) {
+        query = query.eq('is_archived', false);
+      }
+      
+      const { data, error } = await query;
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+};
+
+export const useCreateTechnician = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ name, isTemp }: { name: string; isTemp?: boolean }) => {
+      const { data: existingTechs } = await supabase
+        .from('technicians')
+        .select('position')
+        .order('position', { ascending: false })
+        .limit(1);
+      
+      const maxPosition = existingTechs?.[0]?.position ?? -1;
+      
+      const { data, error } = await supabase
+        .from('technicians')
+        .insert({ name, position: maxPosition + 1, is_temp: isTemp || false })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['technicians'] });
+    },
+  });
+};
+
+export const useUpdateTechnician = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ id, name, is_interim }: { id: string; name?: string; is_interim?: boolean }) => {
+      const updates: any = {};
+      if (name !== undefined) updates.name = name;
+      if (is_interim !== undefined) updates.is_temp = is_interim;
+
+      const { data, error } = await supabase
+        .from('technicians')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['technicians'] });
+    },
+  });
+};
+
+export const useUpdateTechnicianPositions = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (positions: { id: string; position: number }[]) => {
+      const updates = positions.map(({ id, position }) =>
+        supabase.from('technicians').update({ position }).eq('id', id)
+      );
+      const results = await Promise.all(updates);
+      const error = results.find((r) => r.error)?.error;
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['technicians'] });
+    },
+  });
+};
+
+export const useChantiers = () => {
+  return useQuery({
+    queryKey: ['invoices'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('invoices')
+        .select('*')
+        .order('name');
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+};
+
+export const useCommandes = () => {
+  return useQuery({
+    queryKey: ['commandes'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('commandes')
+        .select('*')
+        .order('client, chantier');
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+};
+
+export const useAssignments = (weekStart: string, weekEnd: string) => {
+  return useQuery({
+    queryKey: ['assignments', weekStart, weekEnd],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('assignments')
+        .select('*')
+        .gte('start_date', weekStart)
+        .lte('start_date', weekEnd);
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!weekStart && !!weekEnd,
+  });
+};
+
+export const useNotes = (weekStart: string, weekEnd: string) => {
+  return useQuery({
+    queryKey: ['notes', weekStart, weekEnd],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('notes')
+        .select('*')
+        .or(`and(start_date.lte.${weekEnd},end_date.gte.${weekStart})`);
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!weekStart && !!weekEnd,
+  });
+};
+
+export const useSaveAssignment = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (assignment: any) => {
+      const { id, ...rest } = assignment;
+      
+      if (id && !id.startsWith('new-')) {
+        const { data, error } = await supabase
+          .from('assignments')
+          .update(rest)
+          .eq('id', id)
+          .select()
+          .single();
+        
+        if (error) throw error;
+        return data;
+      } else {
+        const { data, error } = await supabase
+          .from('assignments')
+          .insert(rest)
+          .select()
+          .single();
+        
+        if (error) throw error;
+        return data;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['assignments'] });
+      scheduleDebouncedCalendarSync();
+    },
+  });
+};
+
+export const useDeleteAssignment = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('assignments')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['assignments'] });
+      scheduleDebouncedCalendarSync();
+    },
+  });
+};
+
+export const useSaveNote = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (note: any) => {
+      const { id, ...rest } = note;
+      
+      if (id && !id.startsWith('new-')) {
+        const { data, error } = await supabase
+          .from('notes')
+          .update(rest)
+          .eq('id', id)
+          .select()
+          .single();
+        
+        if (error) throw error;
+        return data;
+      } else {
+        const { data, error } = await supabase
+          .from('notes')
+          .insert(rest)
+          .select()
+          .single();
+        
+        if (error) throw error;
+        return data;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notes'] });
+      scheduleDebouncedCalendarSync();
+    },
+  });
+};
+
+export const useDeleteNote = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('notes')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notes'] });
+      scheduleDebouncedCalendarSync();
+    },
+  });
+};
+
+export const getWeekDates = (weekNumber: number, year: number) => {
+  // Find the first Thursday of the year (ISO week definition)
+  const jan4 = new Date(year, 0, 4);
+  const firstMonday = startOfWeek(jan4, { weekStartsOn: 1 });
+  
+  // Add the appropriate number of weeks
+  const weekStart = addDays(firstMonday, (weekNumber - 1) * 7);
+  
+  const dates = [];
+  for (let i = 0; i < 5; i++) {
+    const date = addDays(weekStart, i);
+    dates.push({
+      fullDate: format(date, 'yyyy-MM-dd'),
+      date: format(date, 'EEEE d', { locale: fr }),
+      dayName: format(date, 'EEEE', { locale: fr }),
+    });
+  }
+  
+  return dates;
+};
