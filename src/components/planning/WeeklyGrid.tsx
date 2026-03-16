@@ -2,72 +2,52 @@ import React from 'react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { TechnicianHeaderCell } from '@/components/TechnicianHeaderCell';
 import { DayHeaderCell } from '@/components/DayHeaderCell';
-import { TechnicianDayCell } from '@/components/TechnicianDayCell';
-import { PeriodCell } from '@/components/PeriodCell';
 import { AssignmentCell } from '@/components/AssignmentCell';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
 
 interface WeeklyGridProps {
-  displayTechnicians: any[];
+  // Rows: Teams (not individual technicians)
+  displayTeams: any[];
+  // Still needed for absence checks and TechnicianManagement
   activeTechnicians: any[];
   weekDates: any[];
-  periods: string[];
   notes: any[];
+  absences: any[];
   commandes: any[];
   chantiers: any[];
   isAdmin: boolean;
   maxAssignments: number;
   allAssignmentsFormatted: any[];
+  searchTerm?: string;
 
-  // Notes data getters
+  // Data getters — NO period arg
   getGeneralNotesForDate: (date: string) => any[];
-  getDayNotesForTechnician: (techId: string, date: string) => any[];
-  getAssignmentsForCell: (techId: string, date: string, period: string) => any[];
-  getNotesForCell: (techId: string, date: string, period: string) => any[];
-
-  // Header Actions
-  setManageTechsDialogOpen: (open: boolean) => void;
+  getAssignmentsForCell: (teamId: string, date: string) => any[];
 
   // Day / General Notes Actions
-  handleAddGeneralNote: (date: string, period: string) => void;
+  handleAddGeneralNote: (date: string) => void;
   handleGeneralNoteClick: (note: any, date: string) => void;
-  
-  // Tech Day Notes Actions
-  handleAddTechDayNote: (techId: string, techName: string, date: string) => void;
-  handleTechDayNoteClick: (note: any, techId: string, techName: string, date: string) => void;
 
   // Shared Note Actions
-  saveNote: any; // mutation object
+  saveNote: any;
   handleDeleteNote: (id: string) => void;
   handleToggleNoteConfirm: (id: string, currentStatus: boolean) => void;
-  
-  // Note Drag & Drop
-  handleNoteDragStart: (e: React.DragEvent, note: any) => void;
-  handleNoteDragOver: (e: React.DragEvent, techId: string | null, date: string, period: string) => void;
-  handleNoteDrop: (e: React.DragEvent, techId: string | null, date: string, period: string) => void;
-  handleNoteDragEnd: () => void;
-  noteDropTarget: any;
-  isNoteDragging: boolean;
 
-  // Cell Level Actions
-  handleCellClick: (techId: string, date: string, period: string) => void;
-  handleNoteClick: (noteId: string) => void;
-  handleToggleNoteDisplayBelow: (noteId: string, currentStatus: boolean) => void;
-  handleBulkToggleNotesDisplayBelow: (noteIds: string[], showBelow: boolean) => void;
-  handleAddNote: (techId: string, date: string, period: string) => void;
-  handleAddAssignment: (techId: string, date: string, period: string) => void;
+  // Cell Level Actions — NO period arg
+  handleCellClick: (teamId: string, date: string) => void;
+  handleAddAssignment: (teamId: string, date: string) => void;
   handleAssignmentClick: (assignment: any) => void;
   handleDuplicateAssignment: (id: string) => void;
   handleDeleteAssignment: (id: string) => void;
-  handleAssignmentMoveUp: (assignment: any, techId: string, date: string, period: string) => void;
-  handleAssignmentMoveDown: (assignment: any, techId: string, date: string, period: string) => void;
 
-  // Assignment Drag & Drop
+  // Assignment Drag & Drop — NO period arg
   isDraggable: (assignment: any) => boolean;
-  handleDragStart: (e: React.DragEvent, assignment: any, date: string, period: string, techId: string) => void;
-  handleDragOver: (e: React.DragEvent, techId: string, date: string, period: string) => void;
+  handleDragStart: (e: React.DragEvent, assignment: any, date: string, teamId: string) => void;
+  handleDragOver: (e: React.DragEvent, teamId: string, date: string) => void;
   handleDragLeave: () => void;
-  handleDrop: (e: React.DragEvent, techId: string, date: string, period: string) => void;
+  handleDrop: (e: React.DragEvent, teamId: string, date: string) => void;
   handleDragEnd: () => void;
   dropTarget: any;
   previewCells: any[];
@@ -79,45 +59,29 @@ interface WeeklyGridProps {
 }
 
 export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
-  displayTechnicians,
+  displayTeams,
   activeTechnicians,
   weekDates,
-  periods,
   notes,
+  absences,
   commandes,
   chantiers,
   isAdmin,
   maxAssignments,
   allAssignmentsFormatted,
+  searchTerm,
   getGeneralNotesForDate,
-  getDayNotesForTechnician,
   getAssignmentsForCell,
-  getNotesForCell,
-  setManageTechsDialogOpen,
   handleAddGeneralNote,
   handleGeneralNoteClick,
-  handleAddTechDayNote,
-  handleTechDayNoteClick,
   saveNote,
   handleDeleteNote,
   handleToggleNoteConfirm,
-  handleNoteDragStart,
-  handleNoteDragOver,
-  handleNoteDrop,
-  handleNoteDragEnd,
-  noteDropTarget,
-  isNoteDragging,
   handleCellClick,
-  handleNoteClick,
-  handleToggleNoteDisplayBelow,
-  handleBulkToggleNotesDisplayBelow,
-  handleAddNote,
   handleAddAssignment,
   handleAssignmentClick,
   handleDuplicateAssignment,
   handleDeleteAssignment,
-  handleAssignmentMoveUp,
-  handleAssignmentMoveDown,
   isDraggable,
   handleDragStart,
   handleDragOver,
@@ -131,69 +95,33 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
   setHighlightedGroupId,
 }) => {
   return (
-    <div className="overflow-x-auto">
-      <div className="min-w-[900px] lg:min-w-0">
-        {/* Header Row */}
-        <div 
+    <div className="overflow-x-auto pb-8">
+      <div className="min-w-[1200px] lg:min-w-0">
+        {/* ── Header Row (Days) ── */}
+        <div
           className="grid border-b-2 border-border bg-muted/50"
-          style={{ gridTemplateColumns: `150px repeat(${displayTechnicians.length}, minmax(150px, 1fr))` }}
+          style={{ gridTemplateColumns: `180px repeat(${weekDates.length}, minmax(200px, 1fr))` }}
         >
-          <div className="p-2 sm:p-3 border-r border-border flex items-center justify-center">
-            {isAdmin && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      onClick={() => setManageTechsDialogOpen(true)}
-                      className="px-3 py-2 text-xs sm:text-sm font-medium text-foreground bg-primary hover:bg-primary/90 rounded border border-border transition-colors"
-                    >
-                      Gérer techs
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Gérer les techniciens</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
+          {/* Top-left admin cell */}
+          <div className="p-2 sm:p-4 border-r border-border flex flex-col items-center justify-center gap-1 bg-white">
+            <span className="font-bold text-primary tracking-wide text-lg sm:text-xl">RPS Planning</span>
+            <span className="text-sm font-medium text-muted-foreground capitalize">
+              {weekDates.length > 0 ? format(new Date(weekDates[0].fullDate), 'EEEE d MMMM yyyy', { locale: fr }) : ''}
+            </span>
           </div>
-          {displayTechnicians.map((tech, index) => {
-            const bgColor = index >= 4 && index % 2 === 1 ? 'hsl(var(--muted) / 0.5)' : (index >= 4 ? 'hsl(var(--muted) / 0.3)' : tech.color);
-            return (
-              <div 
-                key={tech.id}
-                className="p-3 sm:p-4 text-center border-r border-border last:border-r-0"
-                style={{ 
-                  backgroundColor: bgColor,
-                  minHeight: '60px'
-                }}
-              >
-                <TechnicianHeaderCell
-                  name={tech.name}
-                  isArchived={tech.is_archived}
-                  backgroundColor={bgColor}
-                />
-              </div>
-            );
-          })}
-        </div>
 
-        {/* Days and Periods */}
-        {weekDates.map((day) => {
-          const generalNotesForDay = getGeneralNotesForDate(day.fullDate);
-          return (
-            <div key={day.fullDate}>
-              {/* Day Header Row */}
-              <div 
-                className="grid bg-primary/10 border-b border-border"
-                style={{ gridTemplateColumns: `150px repeat(${displayTechnicians.length}, minmax(150px, 1fr))` }}
-              >
+          {/* Day column headers — no Matin/Après-midi */}
+          {weekDates.map((day) => {
+            const generalNotesForDay = getGeneralNotesForDate(day.fullDate);
+            const dayLabel = day.date.charAt(0).toUpperCase() + day.date.slice(1);
+            return (
+              <div key={day.fullDate} className="border-r border-border bg-primary/5">
                 <DayHeaderCell
                   dayDate={day.fullDate}
-                  dayLabel={day.date.charAt(0).toUpperCase() + day.date.slice(1)}
+                  dayLabel={dayLabel}
                   generalNotes={generalNotesForDay}
                   isAdmin={isAdmin}
-                  onAddNote={() => handleAddGeneralNote(day.fullDate, 'Journée')}
+                  onAddNote={() => handleAddGeneralNote(day.fullDate)}
                   onNoteClick={(note) => handleGeneralNoteClick(note, day.fullDate)}
                   onNoteDuplicate={(note) => {
                     saveNote.mutate({
@@ -201,9 +129,6 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                       technician_id: null,
                       start_date: day.fullDate,
                       end_date: day.fullDate,
-                      period: 'Matin',
-                      start_period: 'Matin',
-                      end_period: 'Après-midi',
                       is_sav: note.is_sav,
                     }, {
                       onSuccess: () => toast.success('Note dupliquée'),
@@ -219,197 +144,125 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                     technician_id: n.technician_id,
                     start_date: n.start_date,
                     end_date: n.end_date || n.start_date,
-                    start_period: n.start_period || n.period || 'Matin',
-                    end_period: n.end_period || n.period || 'Après-midi',
                   }))}
-                  onNoteDragStart={isAdmin ? handleNoteDragStart : undefined}
-                  onNoteDragOver={isAdmin ? handleNoteDragOver : undefined}
-                  onNoteDrop={isAdmin ? handleNoteDrop : undefined}
-                  onNoteDragEnd={isAdmin ? handleNoteDragEnd : undefined}
-                  noteDropTarget={noteDropTarget}
-                  isNoteDragging={isNoteDragging}
                 />
-                {displayTechnicians.map((tech) => (
-                  <div key={tech.id} className="border-r border-border last:border-r-0">
-                    <TechnicianDayCell
-                      technicianId={tech.id}
-                      technicianName={tech.name}
-                      date={day.fullDate}
-                      dayNotes={getDayNotesForTechnician(tech.id, day.fullDate)}
-                      isAdmin={isAdmin}
-                      onAddNote={() => handleAddTechDayNote(tech.id, tech.name, day.fullDate)}
-                      onNoteClick={(note) => handleTechDayNoteClick(note, tech.id, tech.name, day.fullDate)}
-                      onNoteDuplicate={(note) => {
-                        saveNote.mutate({
-                          text: note.text,
-                          technician_id: tech.id,
-                          start_date: day.fullDate,
-                          end_date: day.fullDate,
-                          period: 'Matin',
-                          start_period: 'Matin',
-                          end_period: 'Après-midi',
-                          is_sav: note.is_sav,
-                        }, {
-                          onSuccess: () => toast.success('Note dupliquée'),
-                          onError: () => toast.error('Erreur lors de la duplication'),
-                        });
-                      }}
-                      onNoteDelete={handleDeleteNote}
-                      onNoteToggleConfirm={isAdmin ? handleToggleNoteConfirm : undefined}
-                      fullNotes={notes.filter(n => n.technician_id === tech.id).map(n => ({
-                        id: n.id,
-                        text: n.text,
-                        is_sav: n.is_sav,
-                        technician_id: n.technician_id,
-                        start_date: n.start_date,
-                        end_date: n.end_date || n.start_date,
-                        start_period: n.start_period || n.period || 'Matin',
-                        end_period: n.end_period || n.period || 'Après-midi',
-                      }))}
-                      onNoteDragStart={isAdmin ? handleNoteDragStart : undefined}
-                      onNoteDragOver={isAdmin ? handleNoteDragOver : undefined}
-                      onNoteDrop={isAdmin ? handleNoteDrop : undefined}
-                      onNoteDragEnd={isAdmin ? handleNoteDragEnd : undefined}
-                      noteDropTarget={noteDropTarget}
-                      isNoteDragging={isNoteDragging}
-                    />
+              </div>
+            );
+          })}
+        </div>
+
+        {/* ── Team Rows ── */}
+        {displayTeams.map((team) => {
+          // Technicians belonging to this team
+          const teamTechs = activeTechnicians.filter(t => t.team_id === team.id);
+
+          return (
+            <div
+              key={team.id}
+              className="grid border-b border-border"
+              style={{ gridTemplateColumns: `180px repeat(${weekDates.length}, minmax(200px, 1fr))` }}
+            >
+              {/* Row Header: Team name */}
+              <div
+                className="p-3 sm:p-4 text-center border-r border-border flex flex-col justify-center"
+                style={{ backgroundColor: team.color }}
+              >
+                <TechnicianHeaderCell
+                  name={team.name}
+                  isArchived={false}
+                  backgroundColor={team.color}
+                />
+                {/* List member technicians */}
+                {teamTechs.length > 0 && (
+                  <div className="mt-1 flex flex-wrap gap-1 justify-center">
+                    <TooltipProvider delayDuration={300}>
+                      {teamTechs.map(t => (
+                        <Tooltip key={t.id}>
+                          <TooltipTrigger asChild>
+                            <span className="text-[10px] bg-black/10 rounded px-1 py-0.5 font-medium truncate max-w-[80px] cursor-help">
+                              {t.name}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-[200px] text-xs">
+                            <p className="font-semibold">{t.name}</p>
+                            {t.skills && <p className="text-muted-foreground mt-1 whitespace-pre-wrap">{t.skills}</p>}
+                          </TooltipContent>
+                        </Tooltip>
+                      ))}
+                    </TooltipProvider>
                   </div>
-                ))}
+                )}
               </div>
 
-              {/* Periods Rows (Matin/Après-midi) */}
-              {periods.map((period) => (
-                <div
-                  key={`${day.fullDate}-${period}`}
-                  className="grid border-b border-border last:border-b-0"
-                  style={{ gridTemplateColumns: `150px repeat(${displayTechnicians.length}, minmax(150px, 1fr))` }}
-                >
-                  <PeriodCell
-                    period={period}
-                    dayDate={day.fullDate}
-                    generalNotes={generalNotesForDay}
-                    isAdmin={isAdmin}
-                    onAddNote={() => handleAddGeneralNote(day.fullDate, period as 'Matin' | 'Après-midi')}
-                    onNoteClick={(note) => handleGeneralNoteClick(note, day.fullDate)}
-                    onNoteDuplicate={(note) => {
-                      saveNote.mutate({
-                        text: note.text,
-                        technician_id: null,
-                        start_date: day.fullDate,
-                        end_date: day.fullDate,
-                        period: period,
-                        start_period: period,
-                        end_period: period,
-                        is_sav: note.is_sav,
-                      }, {
-                        onSuccess: () => toast.success('Note dupliquée'),
-                        onError: () => toast.error('Erreur lors de la duplication'),
-                      });
-                    }}
-                    onNoteDelete={handleDeleteNote}
-                    onNoteToggleConfirm={isAdmin ? handleToggleNoteConfirm : undefined}
-                    fullNotes={notes.filter(n => n.technician_id === null).map(n => ({
-                      id: n.id,
-                      text: n.text,
-                      is_sav: n.is_sav,
-                      technician_id: n.technician_id,
-                      start_date: n.start_date,
-                      end_date: n.end_date || n.start_date,
-                      start_period: n.start_period || n.period || 'Matin',
-                      end_period: n.end_period || n.period || 'Après-midi',
-                    }))}
-                    onNoteDragStart={isAdmin ? handleNoteDragStart : undefined}
-                    onNoteDragOver={isAdmin ? handleNoteDragOver : undefined}
-                    onNoteDrop={isAdmin ? handleNoteDrop : undefined}
-                    onNoteDragEnd={isAdmin ? handleNoteDragEnd : undefined}
-                    noteDropTarget={noteDropTarget}
-                    isNoteDragging={isNoteDragging}
-                  />
-                  {displayTechnicians.map((tech, index) => {
-                    const bgColor = index >= 4 && index % 2 === 1 ? 'hsl(var(--muted) / 0.5)' : (index >= 4 ? 'hsl(var(--muted) / 0.3)' : tech.color);
-                    return (
-                      <div 
-                        key={tech.id} 
-                        className="border-r border-border last:border-r-0"
-                        style={{ backgroundColor: bgColor }}
-                      >
-                        <AssignmentCell
-                          assignments={getAssignmentsForCell(tech.id, day.fullDate, period)}
-                          notes={getNotesForCell(tech.id, day.fullDate, period)}
-                          teamColor={bgColor}
-                          onClick={isAdmin ? () => handleCellClick(tech.id, day.fullDate, period) : undefined}
-                          onNoteClick={isAdmin ? handleNoteClick : undefined}
-                          onNoteDuplicate={isAdmin ? (note) => {
-                            saveNote.mutate({
-                              text: note.text,
-                              technician_id: tech.id,
-                              start_date: day.fullDate,
-                              end_date: day.fullDate,
-                              period: period,
-                              start_period: period,
-                              end_period: period,
-                              is_sav: note.is_sav,
-                            }, {
-                              onSuccess: () => toast.success('Note dupliquée'),
-                              onError: () => toast.error('Erreur lors de la duplication'),
-                            });
-                          } : undefined}
-                          onNoteDelete={isAdmin ? handleDeleteNote : undefined}
-                          onNoteToggleConfirm={isAdmin ? handleToggleNoteConfirm : undefined}
-                          onNoteToggleDisplayBelow={isAdmin ? handleToggleNoteDisplayBelow : undefined}
-                          onBulkToggleNotesDisplayBelow={isAdmin ? handleBulkToggleNotesDisplayBelow : undefined}
-                          onAddNote={isAdmin ? () => handleAddNote(tech.id, day.fullDate, period) : undefined}
-                          onAddAssignment={isAdmin ? () => handleAddAssignment(tech.id, day.fullDate, period) : undefined}
-                          onAssignmentClick={isAdmin ? handleAssignmentClick : undefined}
-                          onAssignmentDuplicate={isAdmin ? (a) => handleDuplicateAssignment(a.id) : undefined}
-                          onAssignmentDelete={isAdmin ? (a) => handleDeleteAssignment(a.id) : undefined}
-                          onAssignmentMoveUp={isAdmin ? (a) => handleAssignmentMoveUp(a, tech.id, day.fullDate, period) : undefined}
-                          onAssignmentMoveDown={isAdmin ? (a) => handleAssignmentMoveDown(a, tech.id, day.fullDate, period) : undefined}
-                          commandes={commandes}
-                          chantiers={chantiers}
-                          isAdmin={isAdmin}
-                          maxAssignmentsPerPeriod={maxAssignments}
-                          // Drag and drop props
-                          cellDate={day.fullDate}
-                          cellPeriod={period}
-                          cellTechnicianId={tech.id}
-                          isDraggable={isAdmin ? isDraggable : undefined}
-                          onDragStart={isAdmin ? handleDragStart : undefined}
-                          onDragOver={isAdmin ? handleDragOver : undefined}
-                          onDragLeave={isAdmin ? handleDragLeave : undefined}
-                          onDrop={isAdmin ? handleDrop : undefined}
-                          onDragEnd={isAdmin ? handleDragEnd : undefined}
-                          isDropTarget={dropTarget?.technicianId === tech.id && dropTarget?.date === day.fullDate && dropTarget?.period === period ? dropTarget : null}
-                          isPreviewCell={previewCells.some(c => c.technicianId === tech.id && c.date === day.fullDate && c.period === period)}
-                          draggedAssignmentId={draggedItem?.assignment?.id}
-                          draggedGroupId={draggedItem?.assignment?.assignment_group_id}
-                          // Note drag props
-                          fullNotes={notes.filter(n => n.technician_id === tech.id).map(n => ({
-                            id: n.id,
-                            text: n.text,
-                            is_sav: n.is_sav,
-                            technician_id: n.technician_id,
-                            start_date: n.start_date,
-                            end_date: n.end_date || n.start_date,
-                            start_period: n.start_period || n.period || 'Matin',
-                            end_period: n.end_period || n.period || 'Après-midi',
-                          }))}
-                          onNoteDragStart={isAdmin ? handleNoteDragStart : undefined}
-                          onNoteDragOver={isAdmin ? handleNoteDragOver : undefined}
-                          onNoteDrop={isAdmin ? handleNoteDrop : undefined}
-                          onNoteDragEnd={isAdmin ? handleNoteDragEnd : undefined}
-                          isNoteDragging={isNoteDragging}
-                          noteDropTarget={noteDropTarget}
-                          allAssignments={allAssignmentsFormatted}
-                          technicians={activeTechnicians.map(t => ({ id: t.id, name: t.name }))}
-                          highlightedGroupId={highlightedGroupId}
-                          onHighlightGroup={setHighlightedGroupId}
-                        />
+              {/* Day cells — one unified cell per day, no period split */}
+              {weekDates.map((day) => {
+                // Absence: block if ANY technician in this team is absent this day
+                const teamIsUnavailable = teamTechs.some(tech =>
+                  absences?.some(a =>
+                    a.technician_id === tech.id &&
+                    a.start_date <= day.fullDate &&
+                    a.end_date >= day.fullDate
+                  )
+                );
+
+                const isDropTarget = dropTarget?.teamId === team.id && dropTarget?.date === day.fullDate;
+                const isPreview = previewCells.some(c => c.teamId === team.id && c.date === day.fullDate);
+
+                return (
+                  <div
+                    key={day.fullDate}
+                    className={[
+                      'border-r border-border bg-background relative group/daycell',
+                      'hover:bg-muted/10 transition-colors',
+                      teamIsUnavailable
+                        ? 'bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,rgba(0,0,0,0.05)_10px,rgba(0,0,0,0.05)_20px)] pointer-events-none'
+                        : '',
+                      isDropTarget ? 'ring-2 ring-inset ring-primary' : '',
+                      isPreview ? 'bg-primary/5' : '',
+                    ].join(' ')}
+                    style={{ minHeight: '120px' }}
+                    onDragOver={isAdmin && !teamIsUnavailable ? (e) => handleDragOver(e, team.id, day.fullDate) : undefined}
+                    onDragLeave={isAdmin ? handleDragLeave : undefined}
+                    onDrop={isAdmin && !teamIsUnavailable ? (e) => handleDrop(e, team.id, day.fullDate) : undefined}
+                    onClick={isAdmin && !teamIsUnavailable ? () => handleCellClick(team.id, day.fullDate) : undefined}
+                  >
+                    {teamIsUnavailable && (
+                      <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+                        <span className="text-xs text-muted-foreground/60 font-medium bg-background/70 px-2 py-0.5 rounded">
+                          Absent
+                        </span>
                       </div>
-                    );
-                  })}
-                </div>
-              ))}
+                    )}
+
+                    <AssignmentCell
+                      assignments={getAssignmentsForCell(team.id, day.fullDate)}
+                      notes={[]}
+                      teamColor={team.color}
+                      searchTerm={searchTerm}
+                      onClick={undefined} // cell-level click handled by outer div
+                      onNoteClick={undefined}
+                      onAddAssignment={isAdmin && !teamIsUnavailable ? () => handleAddAssignment(team.id, day.fullDate) : undefined}
+                      onAssignmentClick={isAdmin ? handleAssignmentClick : undefined}
+                      onAssignmentDuplicate={isAdmin ? (a) => handleDuplicateAssignment(a.id) : undefined}
+                      onAssignmentDelete={isAdmin ? (a) => handleDeleteAssignment(a.id) : undefined}
+                      commandes={commandes}
+                      chantiers={chantiers}
+                      isAdmin={isAdmin}
+                      maxAssignmentsPerPeriod={maxAssignments}
+                      cellDate={day.fullDate}
+                      cellTechnicianId={team.id}
+                      isDraggable={isAdmin ? isDraggable : undefined}
+                      onDragStart={isAdmin ? (e, a) => handleDragStart(e, a, day.fullDate, team.id) : undefined}
+                      draggedAssignmentId={draggedItem?.assignment?.id}
+                      draggedGroupId={draggedItem?.assignment?.assignment_group_id}
+                      allAssignments={allAssignmentsFormatted}
+                      technicians={activeTechnicians.map(t => ({ id: t.id, name: t.name }))}
+                      highlightedGroupId={highlightedGroupId}
+                      onHighlightGroup={setHighlightedGroupId}
+                    />
+                  </div>
+                );
+              })}
             </div>
           );
         })}

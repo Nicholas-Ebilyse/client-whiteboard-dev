@@ -3,7 +3,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
-import { Checkbox } from './ui/checkbox';
 import { toast } from 'sonner';
 
 interface EditGeneralNoteDialogProps {
@@ -14,31 +13,20 @@ interface EditGeneralNoteDialogProps {
     text: string; 
     date: string;
     period: 'Matin' | 'Après-midi' | 'Journée';
-    is_sav?: boolean;
     is_confirmed?: boolean;
-    is_invoiced?: boolean;
   } | null;
-  onSave: (note: any) => void;
+  onSave: (note: Record<string, unknown>) => void;
   onDelete?: (id: string) => void;
 }
 
 export const EditGeneralNoteDialog = ({ open, onOpenChange, note, onSave, onDelete }: EditGeneralNoteDialogProps) => {
   const [text, setText] = useState('');
-  const [isSav, setIsSav] = useState(false);
-  const [isConfirmed, setIsConfirmed] = useState(false);
-  const [isInvoiced, setIsInvoiced] = useState(false);
 
   useEffect(() => {
     if (note) {
       setText(note.text);
-      setIsSav(note.is_sav || false);
-      setIsConfirmed(note.is_confirmed || false);
-      setIsInvoiced(note.is_invoiced || false);
     } else {
       setText('');
-      setIsSav(false);
-      setIsConfirmed(false);
-      setIsInvoiced(false);
     }
   }, [note]);
 
@@ -51,15 +39,15 @@ export const EditGeneralNoteDialog = ({ open, onOpenChange, note, onSave, onDele
     onSave({
       id: note?.id,
       text: text.trim(),
-      technician_id: null, // General note - no specific technician
+      technician_id: null,
       start_date: note?.date,
       end_date: note?.date,
       period: note?.period === 'Journée' ? 'Matin' : note?.period,
       start_period: note?.period === 'Journée' ? 'Matin' : note?.period,
       end_period: note?.period === 'Journée' ? 'Après-midi' : note?.period,
-      is_sav: isSav,
-      is_confirmed: isConfirmed,
-      is_invoiced: isInvoiced,
+      is_sav: false,
+      is_confirmed: false,
+      is_invoiced: false,
     });
     onOpenChange(false);
   };
@@ -87,34 +75,6 @@ export const EditGeneralNoteDialog = ({ open, onOpenChange, note, onSave, onDele
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
-              <Checkbox 
-                id="sav" 
-                checked={isSav}
-                onCheckedChange={(checked) => setIsSav(checked as boolean)}
-              />
-              <label htmlFor="sav" className="text-sm cursor-pointer">SAV</label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox 
-                id="confirmed" 
-                checked={isConfirmed}
-                onCheckedChange={(checked) => setIsConfirmed(checked as boolean)}
-              />
-              <label htmlFor="confirmed" className="text-sm cursor-pointer">Confirmé</label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox 
-                id="invoiced" 
-                checked={isInvoiced}
-                onCheckedChange={(checked) => setIsInvoiced(checked as boolean)}
-                className="border-red-400 data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500"
-              />
-              <label htmlFor="invoiced" className="text-sm cursor-pointer text-red-600 dark:text-red-400">Facturé</label>
-            </div>
-          </div>
-          
           <div className="space-y-2">
             <Label htmlFor="note-text">Note</Label>
             <Textarea

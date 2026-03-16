@@ -41,12 +41,8 @@ export const EditNoteDialog = ({ open, onOpenChange, note, technicians, weekDate
   const [technicianId, setTechnicianId] = useState('');
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
-  const [startPeriod, setStartPeriod] = useState<'Matin' | 'Après-midi'>('Matin');
-  const [endPeriod, setEndPeriod] = useState<'Matin' | 'Après-midi'>('Après-midi');
-  const [isSav, setIsSav] = useState(false);
-  const [isConfirmed, setIsConfirmed] = useState(false);
-  const [isInvoiced, setIsInvoiced] = useState(false);
   const [displayBelow, setDisplayBelow] = useState(false);
+  const [isConfirmed, setIsConfirmed] = useState(false);
 
   useEffect(() => {
     if (note) {
@@ -61,25 +57,15 @@ export const EditNoteDialog = ({ open, onOpenChange, note, technicians, weekDate
       const dateToUse = note.end_date || note.start_date;
       const parsedEndDate = dateToUse ? new Date(dateToUse) : undefined;
       setEndDate(parsedEndDate && !isNaN(parsedEndDate.getTime()) ? parsedEndDate : undefined);
-      
-      setStartPeriod((note.start_period || note.period || 'Matin') as 'Matin' | 'Après-midi');
-      setEndPeriod((note.end_period || note.period || 'Après-midi') as 'Matin' | 'Après-midi');
-      setIsSav(note.is_sav || false);
+
       setIsConfirmed(note.is_confirmed || false);
-      setIsInvoiced(note.is_invoiced || false);
       setDisplayBelow(note.display_below || false);
     } else {
-      // Initialize with today's date for new notes
-      const today = new Date();
       setText('');
       setTechnicianId('');
       setStartDate(today);
       setEndDate(today);
-      setStartPeriod('Matin');
-      setEndPeriod('Après-midi');
-      setIsSav(false);
       setIsConfirmed(false);
-      setIsInvoiced(false);
       setDisplayBelow(false);
     }
   }, [note]);
@@ -96,12 +82,7 @@ export const EditNoteDialog = ({ open, onOpenChange, note, technicians, weekDate
       technician_id: technicianId,
       start_date: format(startDate, 'yyyy-MM-dd'),
       end_date: format(endDate, 'yyyy-MM-dd'),
-      period: startPeriod, // Keep for backward compatibility
-      start_period: startPeriod,
-      end_period: endPeriod,
-      is_sav: isSav,
       is_confirmed: isConfirmed,
-      is_invoiced: isInvoiced,
       display_below: displayBelow,
     });
     onOpenChange(false);
@@ -198,44 +179,9 @@ export const EditNoteDialog = ({ open, onOpenChange, note, technicians, weekDate
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="start-period">Période début</Label>
-              <Select value={startPeriod} onValueChange={(v) => setStartPeriod(v as 'Matin' | 'Après-midi')}>
-                <SelectTrigger id="start-period" className="bg-background">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-popover">
-                  <SelectItem value="Matin">Matin</SelectItem>
-                  <SelectItem value="Après-midi">Après-midi</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="end-period">Période fin</Label>
-              <Select value={endPeriod} onValueChange={(v) => setEndPeriod(v as 'Matin' | 'Après-midi')}>
-                <SelectTrigger id="end-period" className="bg-background">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-popover">
-                  <SelectItem value="Matin">Matin</SelectItem>
-                  <SelectItem value="Après-midi">Après-midi</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
           <div className="space-y-2">
+            {/* Status toggles */}
             <div className="flex items-center space-x-4 mb-2">
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="sav" 
-                  checked={isSav}
-                  onCheckedChange={(checked) => setIsSav(checked as boolean)}
-                />
-                <label htmlFor="sav" className="text-sm cursor-pointer">SAV</label>
-              </div>
               <div className="flex items-center space-x-2">
                 <Checkbox 
                   id="confirmed" 
@@ -243,15 +189,6 @@ export const EditNoteDialog = ({ open, onOpenChange, note, technicians, weekDate
                   onCheckedChange={(checked) => setIsConfirmed(checked as boolean)}
                 />
                 <label htmlFor="confirmed" className="text-sm cursor-pointer">Confirmé</label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="invoiced" 
-                  checked={isInvoiced}
-                  onCheckedChange={(checked) => setIsInvoiced(checked as boolean)}
-                  className="border-red-400 data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500"
-                />
-                <label htmlFor="invoiced" className="text-sm cursor-pointer text-red-600 dark:text-red-400">Facturé</label>
               </div>
               <div className="flex items-center space-x-2">
                 <Checkbox 

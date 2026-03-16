@@ -22,8 +22,6 @@ interface DraggableNote {
   technician_id: string | null;
   start_date: string;
   end_date: string;
-  start_period: string;
-  end_period: string;
 }
 
 interface Commande {
@@ -64,32 +62,32 @@ interface AssignmentCellProps {
   maxAssignmentsPerPeriod?: number;
   // Drag and drop props for assignments
   cellDate?: string;
-  cellPeriod?: string;
   cellTechnicianId?: string;
   isDraggable?: (assignment: Assignment) => boolean;
-  onDragStart?: (e: React.DragEvent, assignment: Assignment, date: string, period: string, technicianId: string) => void;
-  onDragOver?: (e: React.DragEvent, technicianId: string, date: string, period: string) => void;
+  onDragStart?: (e: React.DragEvent, assignment: Assignment, date: string, technicianId: string) => void;
+  onDragOver?: (e: React.DragEvent, technicianId: string, date: string) => void;
   onDragLeave?: () => void;
-  onDrop?: (e: React.DragEvent, technicianId: string, date: string, period: string) => void;
+  onDrop?: (e: React.DragEvent, technicianId: string, date: string) => void;
   onDragEnd?: () => void;
-  isDropTarget?: { technicianId: string; date: string; period: string; isValid: boolean } | null;
+  isDropTarget?: { technicianId: string; date: string; isValid: boolean } | null;
   isPreviewCell?: boolean;
   draggedAssignmentId?: string | null;
   draggedGroupId?: string | null;
   // Note drag and drop props
   fullNotes?: DraggableNote[];
   onNoteDragStart?: (e: React.DragEvent, note: DraggableNote) => void;
-  onNoteDragOver?: (e: React.DragEvent, technicianId: string | null, date: string, period: string) => void;
-  onNoteDrop?: (e: React.DragEvent, technicianId: string | null, date: string, period: string, preserveDuration?: boolean) => void;
+  onNoteDragOver?: (e: React.DragEvent, technicianId: string | null, date: string) => void;
+  onNoteDrop?: (e: React.DragEvent, technicianId: string | null, date: string, preserveDuration?: boolean) => void;
   onNoteDragEnd?: () => void;
   isNoteDragging?: boolean;
-  noteDropTarget?: { technicianId: string | null; date: string; period: string } | null;
+  noteDropTarget?: { technicianId: string | null; date: string } | null;
   // For showing linked technician info
   allAssignments?: Assignment[];
   technicians?: { id: string; name: string }[];
   // For highlighting linked assignments on hover
   highlightedGroupId?: string | null;
   onHighlightGroup?: (groupId: string | null) => void;
+  searchTerm?: string;
 }
 
 // Helper to remove ", France" from addresses for display
@@ -134,7 +132,6 @@ export const AssignmentCell = ({
   isAdmin = false,
   maxAssignmentsPerPeriod = 3,
   cellDate,
-  cellPeriod,
   cellTechnicianId,
   isDraggable,
   onDragStart,
@@ -157,6 +154,7 @@ export const AssignmentCell = ({
   technicians = [],
   highlightedGroupId,
   onHighlightGroup,
+  searchTerm = "",
 }: AssignmentCellProps) => {
   const hasContent = assignments.length > 0 || notes.length > 0;
   // Separate notes by display position
@@ -219,38 +217,36 @@ export const AssignmentCell = ({
 
   const handleCellDragOver = (e: React.DragEvent) => {
     // Handle assignment drag
-    if (onDragOver && cellTechnicianId && cellDate && cellPeriod) {
-      onDragOver(e, cellTechnicianId, cellDate, cellPeriod);
+    if (onDragOver && cellTechnicianId && cellDate) {
+      onDragOver(e, cellTechnicianId, cellDate);
     }
     // Handle note drag
-    if (onNoteDragOver && cellDate && cellPeriod) {
-      onNoteDragOver(e, cellTechnicianId || null, cellDate, cellPeriod);
+    if (onNoteDragOver && cellDate) {
+      onNoteDragOver(e, cellTechnicianId || null, cellDate);
     }
   };
 
   const handleCellDrop = (e: React.DragEvent) => {
     // Check if dropping a note
-    if (e.dataTransfer.types.includes('application/note-json') && onNoteDrop && cellDate && cellPeriod) {
+    if (e.dataTransfer.types.includes('application/note-json') && onNoteDrop && cellDate) {
       // Assignment cells preserve duration when dropping notes
-      onNoteDrop(e, cellTechnicianId || null, cellDate, cellPeriod, true);
+      onNoteDrop(e, cellTechnicianId || null, cellDate, true);
       return;
     }
     // Handle assignment drop
-    if (onDrop && cellTechnicianId && cellDate && cellPeriod) {
-      onDrop(e, cellTechnicianId, cellDate, cellPeriod);
+    if (onDrop && cellTechnicianId && cellDate) {
+      onDrop(e, cellTechnicianId, cellDate);
     }
   };
   
   const isCurrentDropTarget = isDropTarget?.technicianId === cellTechnicianId && 
-    isDropTarget?.date === cellDate && 
-    isDropTarget?.period === cellPeriod;
+    isDropTarget?.date === cellDate;
   const isValidDrop = isCurrentDropTarget && isDropTarget?.isValid;
   const isInvalidDrop = isCurrentDropTarget && !isDropTarget?.isValid;
   
   // Note drop target indicator
   const isNoteDropTarget = noteDropTarget?.technicianId === (cellTechnicianId || null) &&
-    noteDropTarget?.date === cellDate &&
-    noteDropTarget?.period === cellPeriod;
+    noteDropTarget?.date === cellDate;
   
   // Find full note data for drag
   const getFullNote = (noteId: string): DraggableNote | undefined => {
@@ -526,8 +522,8 @@ export const AssignmentCell = ({
                     )}
                     draggable={draggable}
                     onDragStart={(e) => {
-                      if (draggable && onDragStart && cellDate && cellPeriod && cellTechnicianId) {
-                        onDragStart(e, assignment, cellDate, cellPeriod, cellTechnicianId);
+                      if (draggable && onDragStart && cellDate && cellTechnicianId) {
+                        onDragStart(e, assignment, cellDate, cellTechnicianId);
                       }
                     }}
                     onDragEnd={onDragEnd}
@@ -576,25 +572,28 @@ export const AssignmentCell = ({
                           </Tooltip>
                         </TooltipProvider>
                       )}
-                      {/* Lock icon for confirmed or invoiced assignments */}
+                      {/* Lock icon/Badge for confirmed or invoiced assignments */}
                       {!draggable && isAdmin && (
                         <TooltipProvider delayDuration={300}>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <span className="absolute bottom-1 right-1">
-                                <Lock className={cn(
-                                  "h-3 w-3",
-                                  commande?.is_invoiced 
-                                    ? "text-red-600 dark:text-red-400" 
-                                    : "text-blue-600 dark:text-blue-400"
-                                )} />
+                              <span className="absolute bottom-1 right-1 flex items-center justify-center">
+                                {commande?.is_invoiced ? (
+                                  <Lock className="h-3 w-3 text-red-600 dark:text-red-400" />
+                                ) : assignment.isConfirmed ? (
+                                  <span className="flex items-center justify-center w-3 h-3 bg-green-500 text-white font-bold text-[10px] rounded-sm">
+                                    P
+                                  </span>
+                                ) : (
+                                  <Lock className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+                                )}
                               </span>
                             </TooltipTrigger>
                             <TooltipContent side="top" className="text-xs">
                               {commande?.is_invoiced 
                                 ? "Verrouillé : facturé" 
                                 : assignment.isConfirmed 
-                                  ? "Verrouillé : confirmé" 
+                                  ? "Verrouillé : confirmé (Planifié)" 
                                   : "Verrouillé"}
                             </TooltipContent>
                           </Tooltip>

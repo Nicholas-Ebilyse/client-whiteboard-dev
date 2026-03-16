@@ -134,7 +134,14 @@ export const TechnicianManagementDialog = ({
 
   const handleAddNew = () => {
     if (newTechName.trim()) {
-      onAdd(newTechName.trim(), isTemp);
+      // Enforce INT prefix
+      let finalName = newTechName.trim();
+      if (isTemp && !finalName.startsWith('INT ')) {
+        finalName = `INT ${finalName}`;
+      } else if (!isTemp && finalName.startsWith('INT ')) {
+        finalName = finalName.replace(/^INT /, '');
+      }
+      onAdd(finalName, isTemp);
       setNewTechName('');
       setIsTemp(false);
       setIsAddingNew(false);
@@ -187,7 +194,17 @@ export const TechnicianManagementDialog = ({
                 <input
                   type="checkbox"
                   checked={tech.is_temp || false}
-                  onChange={(e) => onNameChange(tech.id, tech.name, e.target.checked)}
+                  onChange={(e) => {
+                    const isChecked = e.target.checked;
+                    // Enforce INT prefix when toggling is_temp status
+                    let updatedName = tech.name;
+                    if (isChecked && !updatedName.startsWith('INT ')) {
+                      updatedName = `INT ${updatedName}`;
+                    } else if (!isChecked && updatedName.startsWith('INT ')) {
+                      updatedName = updatedName.replace(/^INT /, '');
+                    }
+                    onNameChange(tech.id, updatedName, isChecked);
+                  }}
                   className="rounded border-border h-3 w-3"
                 />
                 <span className="text-[10px] text-muted-foreground uppercase">INT</span>

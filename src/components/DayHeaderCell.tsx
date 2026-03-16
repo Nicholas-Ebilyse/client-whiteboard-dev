@@ -83,18 +83,17 @@ export const DayHeaderCell = ({
   return (
     <div 
       className={cn(
-        "p-1 sm:p-2 font-semibold text-sm sm:text-base border-r border-border relative transition-all",
+        "p-2 sm:p-3 font-bold text-base sm:text-lg lg:text-xl text-center border-r border-border relative transition-all flex flex-col items-center justify-center min-h-[60px]",
         isNoteDropTarget && "ring-2 ring-indigo-500 ring-inset bg-indigo-100/50 dark:bg-indigo-900/30",
         isNoteDragging && !isNoteDropTarget && "bg-indigo-50/50 dark:bg-indigo-950/20"
       )}
-      style={{ minHeight: '32px' }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
-      <div className="flex items-center justify-center">
-        {dayLabel}
+      <div className="flex items-center justify-center w-full">
+        <span className="capitalize">{dayLabel}</span>
         {isAdmin && isHovered && (
           <button
             onClick={(e) => {

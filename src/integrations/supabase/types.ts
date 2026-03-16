@@ -10,10 +10,70 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
+    PostgrestVersion: "14.4"
+  }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
+      absences: {
+        Row: {
+          created_at: string
+          end_date: string
+          id: string
+          reason: string | null
+          start_date: string
+          technician_id: string
+        }
+        Insert: {
+          created_at?: string
+          end_date: string
+          id?: string
+          reason?: string | null
+          start_date: string
+          technician_id: string
+        }
+        Update: {
+          created_at?: string
+          end_date?: string
+          id?: string
+          reason?: string | null
+          start_date?: string
+          technician_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "absences_technician_id_fkey"
+            columns: ["technician_id"]
+            isOneToOne: false
+            referencedRelation: "technicians"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       app_settings: {
         Row: {
           created_at: string | null
@@ -50,16 +110,14 @@ export type Database = {
           comment: string | null
           created_at: string | null
           end_date: string
-          end_period: string
           external_id: string | null
           id: string
           is_absent: boolean | null
           is_confirmed: boolean | null
           is_fixed: boolean | null
           name: string
-          second_technician_id: string | null
           start_date: string
-          start_period: string
+          team_id: string | null
           technician_id: string
           updated_at: string | null
         }
@@ -71,16 +129,14 @@ export type Database = {
           comment?: string | null
           created_at?: string | null
           end_date: string
-          end_period: string
           external_id?: string | null
           id?: string
           is_absent?: boolean | null
           is_confirmed?: boolean | null
           is_fixed?: boolean | null
           name: string
-          second_technician_id?: string | null
           start_date: string
-          start_period: string
+          team_id?: string | null
           technician_id: string
           updated_at?: string | null
         }
@@ -92,16 +148,14 @@ export type Database = {
           comment?: string | null
           created_at?: string | null
           end_date?: string
-          end_period?: string
           external_id?: string | null
           id?: string
           is_absent?: boolean | null
           is_confirmed?: boolean | null
           is_fixed?: boolean | null
           name?: string
-          second_technician_id?: string | null
           start_date?: string
-          start_period?: string
+          team_id?: string | null
           technician_id?: string
           updated_at?: string | null
         }
@@ -121,10 +175,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "assignments_second_technician_id_fkey"
-            columns: ["second_technician_id"]
+            foreignKeyName: "assignments_team_id_fkey"
+            columns: ["team_id"]
             isOneToOne: false
-            referencedRelation: "technicians"
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
           {
@@ -211,31 +265,52 @@ export type Database = {
         }
         Relationships: []
       }
+      global_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: string
+        }
+        Relationships: []
+      }
       invoices: {
         Row: {
+          address: string | null
+          attachments: string[] | null
           color: string
           created_at: string | null
           external_id: string | null
           id: string
-          margin: string | null
           name: string
           updated_at: string | null
         }
         Insert: {
+          address?: string | null
+          attachments?: string[] | null
           color?: string
           created_at?: string | null
           external_id?: string | null
           id?: string
-          margin?: string | null
           name: string
           updated_at?: string | null
         }
         Update: {
+          address?: string | null
+          attachments?: string[] | null
           color?: string
           created_at?: string | null
           external_id?: string | null
           id?: string
-          margin?: string | null
           name?: string
           updated_at?: string | null
         }
@@ -247,15 +322,13 @@ export type Database = {
           created_at: string | null
           display_below: boolean
           end_date: string | null
-          end_period: string
           external_id: string | null
           id: string
+          is_billed: boolean | null
           is_confirmed: boolean
           is_invoiced: boolean
           is_sav: boolean
-          period: string
           start_date: string
-          start_period: string
           technician_id: string | null
           text: string
           updated_at: string | null
@@ -265,15 +338,13 @@ export type Database = {
           created_at?: string | null
           display_below?: boolean
           end_date?: string | null
-          end_period?: string
           external_id?: string | null
           id?: string
+          is_billed?: boolean | null
           is_confirmed?: boolean
           is_invoiced?: boolean
           is_sav?: boolean
-          period: string
           start_date: string
-          start_period?: string
           technician_id?: string | null
           text: string
           updated_at?: string | null
@@ -283,15 +354,13 @@ export type Database = {
           created_at?: string | null
           display_below?: boolean
           end_date?: string | null
-          end_period?: string
           external_id?: string | null
           id?: string
+          is_billed?: boolean | null
           is_confirmed?: boolean
           is_invoiced?: boolean
           is_sav?: boolean
-          period?: string
           start_date?: string
-          start_period?: string
           technician_id?: string | null
           text?: string
           updated_at?: string | null
@@ -397,6 +466,33 @@ export type Database = {
         }
         Relationships: []
       }
+      teams: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          name: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          name: string
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          name?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       technicians: {
         Row: {
           color: string
@@ -404,10 +500,13 @@ export type Database = {
           external_id: string | null
           id: string
           is_archived: boolean
+          is_interim: boolean | null
           is_temp: boolean
           members: string | null
           name: string
           position: number
+          skills: string | null
+          team_id: string | null
           updated_at: string | null
         }
         Insert: {
@@ -416,10 +515,13 @@ export type Database = {
           external_id?: string | null
           id?: string
           is_archived?: boolean
+          is_interim?: boolean | null
           is_temp?: boolean
           members?: string | null
           name: string
           position?: number
+          skills?: string | null
+          team_id?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -428,13 +530,24 @@ export type Database = {
           external_id?: string | null
           id?: string
           is_archived?: boolean
+          is_interim?: boolean | null
           is_temp?: boolean
           members?: string | null
           name?: string
           position?: number
+          skills?: string | null
+          team_id?: string | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "technicians_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -637,6 +750,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       app_role: ["admin", "user"],

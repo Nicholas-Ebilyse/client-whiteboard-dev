@@ -3,7 +3,7 @@ import { EditAssignmentDialog } from '@/components/EditAssignmentDialog';
 import { EditNoteDialog } from '@/components/EditNoteDialog';
 import { EditGeneralNoteDialog } from '@/components/EditGeneralNoteDialog';
 import { EditTechnicianWeekNoteDialog } from '@/components/EditTechnicianWeekNoteDialog';
-import { TechnicianManagementDialog } from '@/components/TechnicianManagementDialog';
+import { TeamManagementDialog } from '@/components/TeamManagementDialog';
 import { SendScheduleDialog } from '@/components/SendScheduleDialog';
 import { DragIndicator } from '@/components/DragIndicator';
 import { SAVTable } from '@/components/SAVTable';
@@ -38,18 +38,21 @@ import {
   useWeekConfig,
   useUpdateWeekConfig,
   useTechnicians,
+  useTeams,
   useCreateTechnician,
   useUpdateTechnician,
   useUpdateTechnicianPositions,
   useCommandes,
   useAssignments,
   useNotes,
+  useAbsences,
   useSaveAssignment,
   useDeleteAssignment,
   useSaveNote,
   useDeleteNote,
   getWeekDates,
 } from '@/hooks/usePlanning';
+import { AbsenceManagementDialog } from '@/components/AbsenceManagementDialog';
 import { useDuplicateAssignment } from '@/hooks/useDuplicateAssignment';
 import { useArchiveTechnician } from '@/hooks/useArchiveTechnician';
 import { useUpdateRelatedAssignments } from '@/hooks/useUpdateRelatedAssignments';
@@ -74,6 +77,7 @@ const Index = () => {
   const [selectedTechWeekNote, setSelectedTechWeekNote] = useState<any>(null); // eslint-disable-line @typescript-eslint/no-explicit-any
   const [techWeekNoteDialogOpen, setTechWeekNoteDialogOpen] = useState(false);
   const [manageTechsDialogOpen, setManageTechsDialogOpen] = useState(false);
+  const [absenceManagementOpen, setAbsenceManagementOpen] = useState(false);
   const [sendScheduleOpen, setSendScheduleOpen] = useState(false);
   const [savAbove, setSavAbove] = useState(false);
   const [groupEditAlert, setGroupEditAlert] = useState<{
@@ -85,6 +89,7 @@ const Index = () => {
   });
   const [editSingleMode, setEditSingleMode] = useState(false);
   const [highlightedGroupId, setHighlightedGroupId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const queryClient = useQueryClient();
 
   // Session management - automatic refresh and expiry warning
@@ -131,6 +136,7 @@ const Index = () => {
   // Fetch data
   const { data: weekConfig } = useWeekConfig();
   const { data: technicians = [] } = useTechnicians(true);
+  const { data: teams = [] } = useTeams();
   const activeTechnicians = technicians.filter(t => !t.is_archived);
   const { data: commandes = [] } = useCommandes();
   const { data: chantiers = [] } = useQuery({
@@ -148,6 +154,7 @@ const Index = () => {
   
   const { data: assignments = [] } = useAssignments(weekStart, weekEnd);
   const { data: notes = [] } = useNotes(weekStart, weekEnd);
+  const { data: absences = [] } = useAbsences(weekStart, weekEnd);
   const { data: savRecords = [] } = useSAV(weekStart, weekEnd);
   const { maxAssignments } = useMaxAssignmentsPerPeriod();
 
@@ -184,18 +191,20 @@ const Index = () => {
     pendingDrop,
     confirmPendingDrop,
     cancelPendingDrop,
-    linkedTechPendingDrop,
+    linkedGroupPendingDrop,
     confirmLinkedDropSingle,
     confirmLinkedDropAll,
-    cancelLinkedTechPendingDrop,
+    cancelLinkedGroupPendingDrop,
     handleWeekNavDragOver,
     handleWeekNavDrop,
     isDragging,
   } = useDragAndDropAssignment(
-    assignments, 
+    assignments,
     commandes,
+    teams,
     technicians,
-    weekStart, 
+    absences,
+    weekStart,
     weekEnd,
     (week, year) => updateWeekConfig.mutate({ week_number: week, year }),
     weekConfig?.week_number,
@@ -216,14 +225,12 @@ const Index = () => {
     handleNoteUndo,
   } = useDragAndDropNote();
 
-  // Get technician name for confirmation dialog
-  const getTargetTechnicianName = () => {
+  // Get team name for confirmation dialog
+  const getTargetTeamName = () => {
     if (!pendingDrop) return '';
-    const tech = technicians.find(t => t.id === pendingDrop.targetTechnicianId);
-    return tech?.name || 'un autre technicien';
+    const team = teams.find(t => t.id === pendingDrop.targetTeamId);
+    return team?.name || 'une autre équipe';
   };
-
-  const periods = ['Matin', 'Après-midi'];
 
   const handleWeekChange = (week_number: number, year: number) => {
     updateWeekConfig.mutate({ week_number, year }, {
@@ -269,79 +276,31 @@ const Index = () => {
     });
   };
 
-  const handleAddNote = (technicianId: string, date: string, period: string) => {
-    setSelectedNote({
-      id: '',
-      text: '',
-      technician_id: technicianId,
-      start_date: date,
-      end_date: date,
-      start_period: period,
-      end_period: period,
-      period: period, // Keep for backward compatibility
-      is_sav: false,
-    });
-    setNoteDialogOpen(true);
-  };
-
-  const handleCellClick = (technicianId: string, date: string, period: string) => {
-    const existing = assignments.find(
-      (a) => a.technician_id === technicianId && a.start_date === date && a.start_period === period
-    );
-    
-    if (existing) {
-      setSelectedAssignment({
-        id: existing.id,
-        teamId: existing.technician_id,
-        chantierId: existing.chantier_id,
-        commandeId: existing.commande_id,
-        name: existing.name,
-        startDate: existing.start_date,
-        startPeriod: existing.start_period as 'Matin' | 'Après-midi',
-        endDate: existing.end_date,
-        endPeriod: existing.end_period as 'Matin' | 'Après-midi',
-        isFixed: existing.is_fixed || false,
-        isValid: true,
-        comment: existing.comment || undefined,
-        assignment_group_id: existing.assignment_group_id,
-      });
-      setAssignmentDialogOpen(true);
-    } else {
-      const firstCommande = commandes[0];
-      const periodValue = period as 'Matin' | 'Après-midi';
-      const newAssignment: Assignment = {
-        id: `new-${Date.now()}`,
-        teamId: technicianId,
-        chantierId: null,
-        commandeId: firstCommande?.id || null,
-        name: firstCommande ? `${firstCommande.client} - ${firstCommande.chantier}` : '',
-        startDate: date,
-        startPeriod: periodValue,
-        endDate: date,
-        endPeriod: periodValue,
-        isFixed: false,
-        isValid: true,
-      };
-      setSelectedAssignment(newAssignment);
-      setAssignmentDialogOpen(true);
-    }
-  };
-
-  const handleAddAssignment = (technicianId: string, date: string, period: string) => {
-    // Always create a new assignment, regardless of existing ones
-    const firstCommande = commandes[0];
-    // Use the clicked period as both start and end period (single half-day assignment by default)
-    const periodValue = period as 'Matin' | 'Après-midi';
+  const handleCellClick = (teamId: string, date: string) => {
     const newAssignment: Assignment = {
       id: `new-${Date.now()}`,
-      teamId: technicianId,
+      teamId,
       chantierId: null,
-      commandeId: firstCommande?.id || null,
-      name: firstCommande ? `${firstCommande.client} - ${firstCommande.chantier}` : '',
+      commandeId: commandes[0]?.id || null,
+      name: commandes[0] ? `${commandes[0].client} - ${commandes[0].chantier}` : '',
       startDate: date,
-      startPeriod: periodValue,
       endDate: date,
-      endPeriod: periodValue,
+      isFixed: false,
+      isValid: true,
+    };
+    setSelectedAssignment(newAssignment);
+    setAssignmentDialogOpen(true);
+  };
+
+  const handleAddAssignment = (teamId: string, date: string) => {
+    const newAssignment: Assignment = {
+      id: `new-${Date.now()}`,
+      teamId,
+      chantierId: null,
+      commandeId: commandes[0]?.id || null,
+      name: commandes[0] ? `${commandes[0].client} - ${commandes[0].chantier}` : '',
+      startDate: date,
+      endDate: date,
       isFixed: false,
       isValid: true,
     };
@@ -381,58 +340,42 @@ const Index = () => {
   };
 
   const handleSaveAssignment = async (updatedAssignment: Assignment) => {
-    // Find the commande to get the current name
     const commande = updatedAssignment.commandeId ? commandes.find(c => c.id === updatedAssignment.commandeId) : null;
     const assignmentName = updatedAssignment.isAbsent ? 'Absent' : (commande ? `${commande.client} - ${commande.chantier}` : updatedAssignment.name);
 
-    // If editing an existing assignment, update it and its related assignments if it's part of a group
     if (updatedAssignment.id && !updatedAssignment.id.startsWith('new-')) {
-      // First, get the original assignment from database to check for group_id
       const originalAssignment = assignments.find(a => a.id === updatedAssignment.id);
-      
       const dbAssignment = {
         id: updatedAssignment.id,
-        technician_id: updatedAssignment.teamId,
+        team_id: updatedAssignment.teamId,
+        technician_id: originalAssignment?.technician_id ?? updatedAssignment.technicianId,
         chantier_id: null,
         commande_id: updatedAssignment.commandeId,
         name: assignmentName,
         start_date: updatedAssignment.startDate,
-        start_period: updatedAssignment.startPeriod,
         end_date: updatedAssignment.endDate,
-        end_period: updatedAssignment.endPeriod,
         is_fixed: updatedAssignment.isFixed,
         comment: updatedAssignment.comment,
         is_absent: updatedAssignment.isAbsent || false,
         is_confirmed: updatedAssignment.isConfirmed || false,
       };
 
-      // Check if this assignment is part of a group and we're NOT in single edit mode
       if (originalAssignment?.assignment_group_id && !editSingleMode) {
-        // Update the primary assignment first
         await new Promise((resolve, reject) => {
-          saveAssignment.mutate(dbAssignment, {
-            onSuccess: resolve,
-            onError: reject,
-          });
+          saveAssignment.mutate(dbAssignment, { onSuccess: resolve, onError: reject });
         });
-
-        // Then update all related assignments in the group with common fields
-        // NOTE: Do NOT include technician_id - each assignment keeps its own technician
-        // This allows linked assignments (e.g., two technicians on same job) to remain linked
-        const groupUpdates = {
-          chantier_id: null,
-          commande_id: updatedAssignment.commandeId,
-          name: assignmentName,
-          is_fixed: updatedAssignment.isFixed,
-          comment: updatedAssignment.comment,
-          is_absent: updatedAssignment.isAbsent || false,
-          is_confirmed: updatedAssignment.isConfirmed || false,
-        };
-
         updateRelatedAssignments.mutate(
           {
             groupId: originalAssignment.assignment_group_id,
-            updates: groupUpdates,
+            updates: {
+              chantier_id: null,
+              commande_id: updatedAssignment.commandeId,
+              name: assignmentName,
+              is_fixed: updatedAssignment.isFixed,
+              comment: updatedAssignment.comment,
+              is_absent: updatedAssignment.isAbsent || false,
+              is_confirmed: updatedAssignment.isConfirmed || false,
+            },
           },
           {
             onSuccess: () => {
@@ -441,85 +384,24 @@ const Index = () => {
               setEditSingleMode(false);
             },
             onError: () => {
-              toast.error("Erreur lors de la mise à jour du groupe");
+              toast.error('Erreur lors de la mise à jour du groupe');
               setEditSingleMode(false);
             },
           }
         );
       } else {
-        // Single assignment OR editing single mode - only update this assignment
-        // If editing single and was part of group, remove from group
         const groupId = originalAssignment?.assignment_group_id;
         const finalDbAssignment = editSingleMode && groupId
           ? { ...dbAssignment, assignment_group_id: null }
           : dbAssignment;
-        
-        // Check if we need to add a second technician for an existing assignment
-        if (updatedAssignment.secondTechnicianId && !groupId) {
-          // Create a new assignment for the second technician
-          const secondTechAssignment = {
-            technician_id: updatedAssignment.secondTechnicianId,
-            chantier_id: null,
-            commande_id: updatedAssignment.commandeId,
-            name: assignmentName,
-            start_date: updatedAssignment.startDate,
-            start_period: updatedAssignment.startPeriod,
-            end_date: updatedAssignment.endDate,
-            end_period: updatedAssignment.endPeriod,
-            is_fixed: updatedAssignment.isFixed,
-            comment: updatedAssignment.comment,
-            is_absent: updatedAssignment.isAbsent || false,
-            is_confirmed: updatedAssignment.isConfirmed || false,
-            assignment_group_id: crypto.randomUUID(),
-            second_technician_id: updatedAssignment.teamId,
-          };
-          
-          // Update primary assignment with new group ID
-          const primaryWithGroup = {
-            ...finalDbAssignment,
-            assignment_group_id: secondTechAssignment.assignment_group_id,
-            second_technician_id: updatedAssignment.secondTechnicianId,
-          };
-          
-          try {
-            // Save primary assignment
-            await new Promise((resolve, reject) => {
-              saveAssignment.mutate(primaryWithGroup, {
-                onSuccess: resolve,
-                onError: reject,
-              });
-            });
-            // Save second technician assignment
-            await new Promise((resolve, reject) => {
-              saveAssignment.mutate(secondTechAssignment, {
-                onSuccess: resolve,
-                onError: reject,
-              });
-            });
-            toast.success('Affectation mise à jour avec deuxième technicien');
-            setAssignmentDialogOpen(false);
-            setEditSingleMode(false);
-          } catch (error) {
-            toast.error("Erreur lors de l'enregistrement");
-            setEditSingleMode(false);
-          }
-          return;
-        }
-        
-        // Regular save without second technician
         saveAssignment.mutate(finalDbAssignment, {
           onSuccess: async () => {
-            // If we detached from a group, check if the remaining group has only one member
             if (editSingleMode && groupId) {
-              const remainingInGroup = assignments.filter(
+              const remaining = assignments.filter(
                 a => a.assignment_group_id === groupId && a.id !== updatedAssignment.id
               );
-              if (remainingInGroup.length === 1) {
-                // Remove group_id from the last remaining member
-                await supabase
-                  .from('assignments')
-                  .update({ assignment_group_id: null })
-                  .eq('id', remainingInGroup[0].id);
+              if (remaining.length === 1) {
+                await supabase.from('assignments').update({ assignment_group_id: null }).eq('id', remaining[0].id);
                 queryClient.invalidateQueries({ queryKey: ['assignments'] });
               }
             }
@@ -536,96 +418,41 @@ const Index = () => {
       return;
     }
 
-    // For new assignments, split into multiple half-day assignments with a group ID
+    // New assignment — single full-day or multi-day block
     const startDate = new Date(updatedAssignment.startDate);
     const endDate = new Date(updatedAssignment.endDate);
-    const assignmentsToCreate = [];
-    
-    // Generate a group ID if we're creating multiple assignments OR if there's a second technician
-    const isMultiPeriod = startDate < endDate || 
-      (startDate.getTime() === endDate.getTime() && 
-       updatedAssignment.startPeriod === 'Matin' && 
-       updatedAssignment.endPeriod === 'Après-midi');
-    
-    const hasSecondTechnician = !!updatedAssignment.secondTechnicianId;
-    const needsGroupId = isMultiPeriod || hasSecondTechnician;
-    const groupId = needsGroupId ? crypto.randomUUID() : null;
+    const isMultiDay = startDate < endDate;
+    const groupId = isMultiDay ? crypto.randomUUID() : null;
 
-    // Get list of technicians (primary + optional second)
-    const technicianIds = [updatedAssignment.teamId];
-    if (updatedAssignment.secondTechnicianId) {
-      technicianIds.push(updatedAssignment.secondTechnicianId);
-    }
-
+    const assignmentsToCreate: object[] = [];
     const currentDate = new Date(startDate);
-    let currentPeriod = updatedAssignment.startPeriod;
-
     while (currentDate <= endDate) {
-      const dateStr = currentDate.toISOString().split('T')[0];
-      const isLastDay = currentDate.getTime() === endDate.getTime();
-      
-      // Determine if we should create this half-day assignment
-      const isFirstDay = currentDate.getTime() === startDate.getTime();
-      const shouldCreate = 
-        (isFirstDay && isLastDay) || // Single day assignment
-        (isFirstDay && (
-          (updatedAssignment.startPeriod === 'Matin') || 
-          (updatedAssignment.startPeriod === 'Après-midi' && currentPeriod === 'Après-midi')
-        )) || // First day, from start period onwards
-        (!isFirstDay && !isLastDay) || // Middle days, all periods
-        (isLastDay && (currentPeriod === 'Matin' || updatedAssignment.endPeriod === 'Après-midi')); // Last day logic
-
-      if (shouldCreate) {
-        const isLast = isLastDay && (
-          (updatedAssignment.endPeriod === 'Matin' && currentPeriod === 'Matin') ||
-          (updatedAssignment.endPeriod === 'Après-midi' && currentPeriod === 'Après-midi')
-        );
-
-        // Create assignment for each technician in this period
-        for (const techId of technicianIds) {
-          assignmentsToCreate.push({
-            technician_id: techId,
-            chantier_id: null,
-            commande_id: updatedAssignment.commandeId,
-            name: assignmentName,
-            start_date: dateStr,
-            start_period: currentPeriod,
-            end_date: dateStr,
-            end_period: currentPeriod,
-            is_fixed: updatedAssignment.isFixed,
-            comment: updatedAssignment.comment,
-            is_absent: updatedAssignment.isAbsent || false,
-            is_confirmed: updatedAssignment.isConfirmed || false,
-            assignment_group_id: groupId,
-            second_technician_id: technicianIds.length > 1 ? technicianIds.find(id => id !== techId) : null,
-          });
-        }
-
-        if (isLast) break;
-      }
-
-      // Move to next period
-      if (currentPeriod === 'Matin') {
-        currentPeriod = 'Après-midi';
-      } else {
-        currentPeriod = 'Matin';
-        currentDate.setDate(currentDate.getDate() + 1);
-      }
+      assignmentsToCreate.push({
+        team_id: updatedAssignment.teamId,
+        technician_id: updatedAssignment.technicianId || null,
+        chantier_id: null,
+        commande_id: updatedAssignment.commandeId,
+        name: assignmentName,
+        start_date: currentDate.toISOString().split('T')[0],
+        end_date: currentDate.toISOString().split('T')[0],
+        is_fixed: updatedAssignment.isFixed,
+        comment: updatedAssignment.comment,
+        is_absent: updatedAssignment.isAbsent || false,
+        is_confirmed: updatedAssignment.isConfirmed || false,
+        assignment_group_id: groupId,
+      });
+      currentDate.setDate(currentDate.getDate() + 1);
     }
 
-    // Save all assignments
     try {
-      for (const assignment of assignmentsToCreate) {
+      for (const a of assignmentsToCreate) {
         await new Promise((resolve, reject) => {
-          saveAssignment.mutate(assignment, {
-            onSuccess: resolve,
-            onError: reject,
-          });
+          saveAssignment.mutate(a, { onSuccess: resolve, onError: reject });
         });
       }
       toast.success(`${assignmentsToCreate.length} affectation(s) créée(s)`);
       setAssignmentDialogOpen(false);
-    } catch (error) {
+    } catch {
       toast.error("Erreur lors de l'enregistrement");
     }
   };
@@ -697,56 +524,38 @@ const Index = () => {
     });
   };
 
-  // Handler for toggling note confirmation status
   const handleToggleNoteConfirm = (noteId: string, isConfirmed: boolean) => {
     const note = notes.find(n => n.id === noteId);
     if (!note) return;
-    
     saveNote.mutate({
       id: noteId,
       text: note.text,
       technician_id: note.technician_id,
       start_date: note.start_date,
       end_date: note.end_date || note.start_date,
-      period: note.period,
-      start_period: note.start_period || note.period,
-      end_period: note.end_period || note.period,
       is_sav: note.is_sav,
       is_confirmed: isConfirmed,
     }, {
-      onSuccess: () => {
-        toast.success(isConfirmed ? 'Note confirmée' : 'Note non confirmée');
-      },
-      onError: () => {
-        toast.error('Erreur lors de la mise à jour');
-      },
+      onSuccess: () => toast.success(isConfirmed ? 'Note confirmée' : 'Note non confirmée'),
+      onError: () => toast.error('Erreur lors de la mise à jour'),
     });
   };
 
-  // Handler for toggling note display_below status
   const handleToggleNoteDisplayBelow = (noteId: string, displayBelow: boolean) => {
     const note = notes.find(n => n.id === noteId);
     if (!note) return;
-    
     saveNote.mutate({
       id: noteId,
       text: note.text,
       technician_id: note.technician_id,
       start_date: note.start_date,
       end_date: note.end_date || note.start_date,
-      period: note.period,
-      start_period: note.start_period || note.period,
-      end_period: note.end_period || note.period,
       is_sav: note.is_sav,
       is_confirmed: note.is_confirmed,
       display_below: displayBelow,
     }, {
-      onSuccess: () => {
-        toast.success(displayBelow ? 'Note déplacée en bas' : 'Note déplacée en haut');
-      },
-      onError: () => {
-        toast.error('Erreur lors de la mise à jour');
-      },
+      onSuccess: () => toast.success(displayBelow ? 'Note déplacée en bas' : 'Note déplacée en haut'),
+      onError: () => toast.error('Erreur lors de la mise à jour'),
     });
   };
 
@@ -760,81 +569,55 @@ const Index = () => {
   // Handler for swapping assignment positions (reordering within a cell)
   // Note: This is a visual reorder within the UI - we swap the assignments' positions
   const handleAssignmentSwap = (assignment1: Assignment, assignment2: Assignment) => {
-    // Swap by re-saving both assignments with swapped order
-    // We'll use the order they appear in the cell - swap their IDs conceptually
-    // For now, we can swap their start_date/start_period to change their order
-    // But actually the simplest approach is to just swap them in the database
-    // by updating one to have a temporary value, then updating both
-    
-    // Get full assignment data from database
     const dbAssignment1 = assignments.find(a => a.id === assignment1.id);
     const dbAssignment2 = assignments.find(a => a.id === assignment2.id);
-    
     if (!dbAssignment1 || !dbAssignment2) return;
-    
-    // Swap the created_at timestamps to change their order
-    // This is a simple way to reorder without adding a position column
     const now = new Date();
-    const temp1CreatedAt = dbAssignment1.created_at;
-    
-    // Update first assignment with new timestamp
     saveAssignment.mutate({
       id: dbAssignment1.id,
+      team_id: dbAssignment1.team_id,
       technician_id: dbAssignment1.technician_id,
       commande_id: dbAssignment1.commande_id,
       name: dbAssignment1.name,
       start_date: dbAssignment1.start_date,
-      start_period: dbAssignment1.start_period,
       end_date: dbAssignment1.end_date,
-      end_period: dbAssignment1.end_period,
       is_fixed: dbAssignment1.is_fixed,
       comment: dbAssignment1.comment,
       is_absent: dbAssignment1.is_absent,
       absence_reason: dbAssignment1.absence_reason,
       is_confirmed: dbAssignment1.is_confirmed,
-      second_technician_id: dbAssignment1.second_technician_id,
       assignment_group_id: dbAssignment1.assignment_group_id,
-      updated_at: now.toISOString(), // Force update to reorder
+      updated_at: now.toISOString(),
     });
-    
-    // Update second assignment with slightly earlier timestamp
     saveAssignment.mutate({
       id: dbAssignment2.id,
+      team_id: dbAssignment2.team_id,
       technician_id: dbAssignment2.technician_id,
       commande_id: dbAssignment2.commande_id,
       name: dbAssignment2.name,
       start_date: dbAssignment2.start_date,
-      start_period: dbAssignment2.start_period,
       end_date: dbAssignment2.end_date,
-      end_period: dbAssignment2.end_period,
       is_fixed: dbAssignment2.is_fixed,
       comment: dbAssignment2.comment,
       is_absent: dbAssignment2.is_absent,
       absence_reason: dbAssignment2.absence_reason,
       is_confirmed: dbAssignment2.is_confirmed,
-      second_technician_id: dbAssignment2.second_technician_id,
       assignment_group_id: dbAssignment2.assignment_group_id,
-      updated_at: new Date(now.getTime() - 1000).toISOString(), // 1 second earlier
+      updated_at: new Date(now.getTime() - 1000).toISOString(),
     });
-    
     toast.success('Ordre modifié');
   };
 
-  // Get assignments for a cell to find the one above/below
-  const handleAssignmentMoveUp = (assignment: Assignment, technicianId: string, date: string, period: string) => {
-    const cellAssignments = getAssignmentsForCell(technicianId, date, period);
+  const handleAssignmentMoveUp = (assignment: Assignment, teamId: string, date: string) => {
+    const cellAssignments = getAssignmentsForCell(teamId, date);
     const index = cellAssignments.findIndex(a => a.id === assignment.id);
-    if (index > 0) {
-      handleAssignmentSwap(cellAssignments[index], cellAssignments[index - 1]);
-    }
+    if (index > 0) handleAssignmentSwap(cellAssignments[index], cellAssignments[index - 1]);
   };
 
-  const handleAssignmentMoveDown = (assignment: Assignment, technicianId: string, date: string, period: string) => {
-    const cellAssignments = getAssignmentsForCell(technicianId, date, period);
+  const handleAssignmentMoveDown = (assignment: Assignment, teamId: string, date: string) => {
+    const cellAssignments = getAssignmentsForCell(teamId, date);
     const index = cellAssignments.findIndex(a => a.id === assignment.id);
-    if (index < cellAssignments.length - 1) {
-      handleAssignmentSwap(cellAssignments[index], cellAssignments[index + 1]);
-    }
+    if (index < cellAssignments.length - 1) handleAssignmentSwap(cellAssignments[index], cellAssignments[index + 1]);
   };
 
   const handleAddGeneralNote = (date: string, period: 'Matin' | 'Après-midi' | 'Journée') => {
@@ -930,37 +713,29 @@ const Index = () => {
     });
   };
 
-  // Get week notes for a specific technician (notes spanning the entire week)
-  // Get day notes for a specific technician on a specific date (single-day notes)
   const getDayNotesForTechnician = (technicianId: string, date: string) => {
     return notes.filter((n) => {
       if (n.technician_id !== technicianId) return false;
-      // Check if note is for this specific day (single day, full day)
       const noteEndDate = n.end_date || n.start_date;
-      const noteStartPeriod = n.start_period || 'Matin';
-      const noteEndPeriod = n.end_period || 'Après-midi';
-      return n.start_date === date && 
-             noteEndDate === date && 
-             noteStartPeriod === 'Matin' && 
-             noteEndPeriod === 'Après-midi';
+      return n.start_date === date && noteEndDate === date;
     });
   };
 
-  const getAssignmentsForCell = (technicianId: string, date: string, period: string): Assignment[] => {
+  // Returns assignments for a given team + date (full-day model, no period filter)
+  const getAssignmentsForCell = (teamId: string, date: string): Assignment[] => {
     const dbAssignments = assignments.filter(
-      (a) => a.technician_id === technicianId && a.start_date === date && a.start_period === period
+      (a) => (a.team_id === teamId || a.technician_id === teamId) &&
+              date >= a.start_date && date <= a.end_date
     );
-    
     return dbAssignments.map(dbAssignment => ({
       id: dbAssignment.id,
-      teamId: dbAssignment.technician_id,
+      teamId: dbAssignment.team_id ?? dbAssignment.technician_id,
+      technicianId: dbAssignment.technician_id,
       chantierId: dbAssignment.chantier_id,
       commandeId: dbAssignment.commande_id,
       name: dbAssignment.name,
       startDate: dbAssignment.start_date,
-      startPeriod: dbAssignment.start_period as 'Matin' | 'Après-midi',
       endDate: dbAssignment.end_date,
-      endPeriod: dbAssignment.end_period as 'Matin' | 'Après-midi',
       isFixed: dbAssignment.is_fixed || false,
       isValid: true,
       comment: dbAssignment.comment || undefined,
@@ -971,17 +746,15 @@ const Index = () => {
     }));
   };
 
-  // Memoized list of all assignments in Assignment format for linked technician lookup
   const allAssignmentsFormatted: Assignment[] = assignments.map(dbAssignment => ({
     id: dbAssignment.id,
-    teamId: dbAssignment.technician_id,
+    teamId: dbAssignment.team_id ?? dbAssignment.technician_id,
+    technicianId: dbAssignment.technician_id,
     chantierId: dbAssignment.chantier_id,
     commandeId: dbAssignment.commande_id,
     name: dbAssignment.name,
     startDate: dbAssignment.start_date,
-    startPeriod: dbAssignment.start_period as 'Matin' | 'Après-midi',
     endDate: dbAssignment.end_date,
-    endPeriod: dbAssignment.end_period as 'Matin' | 'Après-midi',
     isFixed: dbAssignment.is_fixed || false,
     isValid: true,
     comment: dbAssignment.comment || undefined,
@@ -991,53 +764,30 @@ const Index = () => {
     absence_reason: dbAssignment.absence_reason,
   }));
 
-  const getNotesForCell = (technicianId: string, date: string, period: string) => {
+  // Filter assignments by search term (client name or chantier/address)
+  const filteredAssignmentsFormatted = searchTerm.trim()
+    ? allAssignmentsFormatted.filter(a => {
+        if (a.isAbsent) return false;
+        const commande = commandes.find(c => c.id === a.commandeId);
+        if (!commande) return false;
+        const q = searchTerm.toLowerCase();
+        return (
+          commande.client?.toLowerCase().includes(q) ||
+          commande.chantier?.toLowerCase().includes(q)
+        );
+      })
+    : allAssignmentsFormatted;
+
+  const getNotesForCell = (technicianId: string, date: string) => {
     return notes.filter((n) => {
       if (n.technician_id !== technicianId) return false;
       
-      // Check if the cell's date and period falls within the note's date and period range
       const cellDate = date;
-      const cellPeriod = period;
       const noteStartDate = n.start_date;
       const noteEndDate = n.end_date || n.start_date;
-      const noteStartPeriod = n.start_period || n.period || 'Matin';
-      const noteEndPeriod = n.end_period || n.period || 'Après-midi';
       
-      // Exclude day-level notes (single day, full day) - these are shown in TechnicianDayCell
-      if (noteStartDate === noteEndDate && 
-          noteStartPeriod === 'Matin' && 
-          noteEndPeriod === 'Après-midi') {
-        return false;
-      }
-      
-      // If cell date is before note start or after note end, return false
-      if (cellDate < noteStartDate || cellDate > noteEndDate) return false;
-      
-      // If same day range, check periods
-      if (noteStartDate === noteEndDate) {
-        // Single day note
-        if (cellDate === noteStartDate) {
-          // Both periods if start is Matin and end is Après-midi
-          if (noteStartPeriod === 'Matin' && noteEndPeriod === 'Après-midi') {
-            return true;
-          }
-          // Only matching period
-          return cellPeriod === noteStartPeriod;
-        }
-        return false;
-      }
-      
-      // Multi-day note
-      if (cellDate === noteStartDate) {
-        // First day: from start period onwards
-        return noteStartPeriod === 'Matin' || cellPeriod === 'Après-midi';
-      } else if (cellDate === noteEndDate) {
-        // Last day: up to end period
-        return noteEndPeriod === 'Après-midi' || cellPeriod === 'Matin';
-      } else {
-        // Middle days: all periods
-        return cellDate > noteStartDate && cellDate < noteEndDate;
-      }
+      // If cell date falls within the note's date range, return true
+      return cellDate >= noteStartDate && cellDate <= noteEndDate;
     });
   };
 
@@ -1064,37 +814,8 @@ const Index = () => {
       };
     });
 
-  // Issue #1 & #6: Define core technicians that should ALWAYS be displayed (minimum 4 columns)
-  const coreTechnicianNames = ['Ludo', 'Vincent', 'David', 'Yohann'];
-  const coreTechnicians = coreTechnicianNames
-    .map(name => technicians.find(tech => tech.name === name))
-    .filter((tech): tech is (typeof technicians)[number] => !!tech)
-    .sort((a, b) => coreTechnicianNames.indexOf(a.name) - coreTechnicianNames.indexOf(b.name));
-  
-  // Get other technicians with assignments or notes in this week
-  const otherTechnicians = activeTechnicians.filter(tech => 
-    !coreTechnicianNames.includes(tech.name) &&
-    (
-      assignments.some((a) => 
-        a.technician_id === tech.id && 
-        weekDates.some((d) => {
-          const dayDate = d.fullDate;
-          return dayDate >= a.start_date && dayDate <= a.end_date;
-        })
-      ) ||
-      notes.some((n) => 
-        n.technician_id === tech.id && 
-        weekDates.some((d) => {
-          const dayDate = d.fullDate;
-          const noteEndDate = n.end_date || n.start_date;
-          return dayDate >= n.start_date && dayDate <= noteEndDate;
-        })
-      )
-    )
-  );
-
-  // Combine: always show core technicians first (4 columns), then add others with assignments
-  const displayTechnicians = [...coreTechnicians, ...otherTechnicians];
+  // Use teams as the display rows — ordered by position (from DB)
+  const displayTeams = teams;
 
   // Calculate invoiced counts for the summary
   const invoicedAssignments = assignments.filter(a => 
@@ -1182,7 +903,7 @@ const Index = () => {
               isAdmin={isAdmin}
             />
           )}
-          <div className="grid grid-cols-1 xl:grid-cols-[1fr,300px] gap-4 lg:gap-6">
+          <div className="grid grid-cols-1 gap-4 lg:gap-6">
             <Card className="overflow-hidden shadow-lg" data-schedule-container>
               <PlanningToolbar
                 weekConfig={weekConfig}
@@ -1206,48 +927,35 @@ const Index = () => {
                 savAbove={savAbove}
                 setSavAbove={setSavAbove}
                 handleSignOut={handleSignOut}
+                searchTerm={searchTerm}
+                onSearch={setSearchTerm}
+                setManageTechsDialogOpen={setManageTechsDialogOpen}
               />
               <CardContent className="p-0 max-h-[calc(100vh-12rem)] overflow-y-auto">
                 <WeeklyGrid
-                  displayTechnicians={displayTechnicians}
+                  displayTeams={displayTeams}
                   activeTechnicians={activeTechnicians}
                   weekDates={weekDates}
-                  periods={periods}
                   notes={notes}
+                  absences={absences}
                   commandes={commandes}
                   chantiers={chantiers}
                   isAdmin={isAdmin}
                   maxAssignments={maxAssignments}
                   allAssignmentsFormatted={allAssignmentsFormatted}
+                  searchTerm={searchTerm}
                   getGeneralNotesForDate={getGeneralNotesForDate}
-                  getDayNotesForTechnician={getDayNotesForTechnician}
                   getAssignmentsForCell={getAssignmentsForCell}
-                  getNotesForCell={getNotesForCell}
-                  setManageTechsDialogOpen={setManageTechsDialogOpen}
-                  handleAddGeneralNote={handleAddGeneralNote}
+                  handleAddGeneralNote={(date) => handleAddGeneralNote(date, 'Journée')}
                   handleGeneralNoteClick={handleGeneralNoteClick}
-                  handleAddTechDayNote={handleAddTechDayNote}
-                  handleTechDayNoteClick={handleTechDayNoteClick}
                   saveNote={saveNote}
                   handleDeleteNote={handleDeleteNote}
                   handleToggleNoteConfirm={handleToggleNoteConfirm}
-                  handleNoteDragStart={handleNoteDragStart}
-                  handleNoteDragOver={handleNoteDragOver}
-                  handleNoteDrop={handleNoteDrop}
-                  handleNoteDragEnd={handleNoteDragEnd}
-                  noteDropTarget={noteDropTarget}
-                  isNoteDragging={isNoteDragging}
                   handleCellClick={handleCellClick}
-                  handleNoteClick={handleNoteClick}
-                  handleToggleNoteDisplayBelow={handleToggleNoteDisplayBelow}
-                  handleBulkToggleNotesDisplayBelow={handleBulkToggleNotesDisplayBelow}
-                  handleAddNote={handleAddNote}
                   handleAddAssignment={handleAddAssignment}
                   handleAssignmentClick={handleAssignmentClick}
                   handleDuplicateAssignment={handleDuplicateAssignment}
                   handleDeleteAssignment={handleDeleteAssignment}
-                  handleAssignmentMoveUp={handleAssignmentMoveUp}
-                  handleAssignmentMoveDown={handleAssignmentMoveDown}
                   isDraggable={isDraggable}
                   handleDragStart={handleDragStart}
                   handleDragOver={handleDragOver}
@@ -1262,49 +970,6 @@ const Index = () => {
                 />
               </CardContent>
             </Card>
-
-          <Card className="shadow-lg h-fit">
-            <CardHeader className="bg-accent/5 border-b">
-              <CardTitle className="text-lg text-center flex items-center justify-center gap-2">
-                Marges
-                {projectMargins.length > 0 && (
-                <span className="text-base font-bold text-primary">
-                    ({projectMargins.reduce((sum, m) => {
-                      const numericValue = parseFloat(m.amount.replace(/[^\d.,-]/g, '').replace(',', '.'));
-                      return sum + (isNaN(numericValue) ? 0 : numericValue);
-                    }, 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €)
-                  </span>
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 space-y-3">
-              {projectMargins.length > 0 ? (
-                projectMargins.map((margin, index) => (
-                  <div
-                    key={index}
-                    className="p-3 rounded-lg bg-muted/50 border border-border hover:shadow-md transition-shadow"
-                  >
-                    <div className="font-medium text-sm mb-1 text-foreground">
-                      {margin.name.includes(' - F-') ? (
-                        <>
-                          <span className="break-words">{margin.name.split(' - F-')[0]}</span>
-                          {' '}
-                          <span className="whitespace-nowrap">F-{margin.name.split(' - F-')[1]}</span>
-                        </>
-                      ) : (
-                        <span className="break-words">{margin.name}</span>
-                      )}
-                    </div>
-                    <div className="text-lg font-bold text-primary">{margin.amount}</div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  Aucune affectation cette semaine
-                </p>
-              )}
-            </CardContent>
-          </Card>
         </div>
         
         {/* SAV Table - Below position */}
@@ -1339,9 +1004,7 @@ const Index = () => {
             commandeId: a.commande_id,
             name: a.name,
             startDate: a.start_date,
-            startPeriod: a.start_period as 'Matin' | 'Après-midi',
             endDate: a.end_date,
-            endPeriod: a.end_period as 'Matin' | 'Après-midi',
             isFixed: a.is_fixed || false,
             isValid: true,
             comment: a.comment,
@@ -1392,19 +1055,21 @@ const Index = () => {
           weekDates={weekDates.map(d => d.fullDate)}
         />
 
-        <TechnicianManagementDialog
+        <TeamManagementDialog
           open={manageTechsDialogOpen}
           onOpenChange={setManageTechsDialogOpen}
+          teams={teams}
           technicians={technicians.map((t) => ({ 
             id: t.id, 
             name: t.name, 
             is_archived: t.is_archived || false,
             position: t.position ?? 0,
+            team_id: t.team_id,
           }))}
           onArchive={handleArchiveTechnician}
           onNameChange={handleUpdateTechnicianName}
           onAdd={handleAddTechnician}
-          onReorder={(positions) => updateTechnicianPositions.mutate(positions)}
+          onAssignTeam={(techId, teamId) => updateTechnician.mutate({ id: techId, team_id: teamId })}
         />
 
         <SendScheduleDialog
@@ -1412,7 +1077,7 @@ const Index = () => {
           onOpenChange={setSendScheduleOpen}
           weekNumber={weekConfig.week_number}
           year={weekConfig.year}
-          technicians={displayTechnicians}
+          technicians={activeTechnicians.map((t) => ({ id: t.id, name: t.name }))}
           assignments={assignments}
           notes={notes}
           weekDates={weekDates}
@@ -1473,7 +1138,7 @@ const Index = () => {
             <AlertDialogHeader>
               <AlertDialogTitle>Déplacer vers un autre technicien</AlertDialogTitle>
               <AlertDialogDescription>
-                Voulez-vous vraiment déplacer cette affectation vers {getTargetTechnicianName()} ?
+                Voulez-vous vraiment déplacer cette affectation vers {getTargetTeamName()} ?
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -1485,13 +1150,12 @@ const Index = () => {
           </AlertDialogContent>
         </AlertDialog>
 
-        {/* Linked technician drop confirmation dialog */}
-        <AlertDialog open={!!linkedTechPendingDrop} onOpenChange={(open) => !open && cancelLinkedTechPendingDrop()}>
+        <AlertDialog open={!!linkedGroupPendingDrop} onOpenChange={(open) => !open && cancelLinkedGroupPendingDrop()}>
           <AlertDialogContent className="bg-card sm:max-w-lg">
             <AlertDialogHeader>
               <AlertDialogTitle>Affectation liée à d'autres techniciens</AlertDialogTitle>
               <AlertDialogDescription className="space-y-2">
-                <span>Cette affectation est liée à : {linkedTechPendingDrop?.linkedTechnicianNames.join(', ')}.</span>
+                <span>Cette affectation est liée à un groupe de {linkedGroupPendingDrop?.linkedGroupSize} affectation(s).</span>
                 <br />
                 <span className="font-medium">« Celle-ci uniquement »</span> détachera l'affectation du groupe et la déplacera indépendamment.
                 <br />
@@ -1499,7 +1163,7 @@ const Index = () => {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
-              <AlertDialogCancel onClick={cancelLinkedTechPendingDrop} className="w-full sm:w-auto">
+              <AlertDialogCancel onClick={cancelLinkedGroupPendingDrop} className="w-full sm:w-auto">
                 Annuler
               </AlertDialogCancel>
               <AlertDialogAction 

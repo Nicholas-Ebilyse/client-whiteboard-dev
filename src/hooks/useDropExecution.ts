@@ -2,22 +2,21 @@ import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { DragData, periodToNum, numToPeriod } from './useDragValidation';
+import { DragData } from './useDragValidation';
 
 export interface UndoState {
   assignments: Array<{
     id: string;
+    team_id: string | null;
     technician_id: string;
     start_date: string;
     end_date: string;
-    start_period: string;
-    end_period: string;
   }>;
 }
 
 export const useDropExecution = (
   assignments: any[],
-  calculateNewPositions: (dragData: DragData, targetDate: string, targetPeriod: string, targetTechnicianId: string) => any[]
+  calculateNewDates: (dragData: DragData, targetDate: string, targetTeamId: string) => any[]
 ) => {
   const [undoState, setUndoState] = useState<UndoState | null>(null);
   const [isUndoing, setIsUndoing] = useState(false);
@@ -25,30 +24,26 @@ export const useDropExecution = (
 
   const handleUndo = useCallback(async () => {
     if (!undoState || isUndoing) return;
-
     setIsUndoing(true);
     try {
-      for (const assignment of undoState.assignments) {
+      for (const a of undoState.assignments) {
         const { error } = await supabase
           .from('assignments')
           .update({
-            technician_id: assignment.technician_id,
-            start_date: assignment.start_date,
-            end_date: assignment.end_date,
-            start_period: assignment.start_period,
-            end_period: assignment.end_period,
+            team_id: a.team_id,
+            technician_id: a.technician_id,
+            start_date: a.start_date,
+            end_date: a.end_date,
           })
-          .eq('id', assignment.id);
-
+          .eq('id', a.id);
         if (error) throw error;
       }
-
       toast.success('Déplacement annulé');
       setUndoState(null);
       queryClient.invalidateQueries({ queryKey: ['assignments'] });
     } catch (error) {
       console.error('Undo error:', error);
-      toast.error('Erreur lors de l\'annulation');
+      toast.error("Erreur lors de l'annulation");
     } finally {
       setIsUndoing(false);
     }
@@ -56,39 +51,25 @@ export const useDropExecution = (
 
   const executeDrop = useCallback(async (
     dragData: DragData,
-    targetTechnicianId: string,
+    targetTeamId: string,
     targetDate: string,
-    targetPeriod: string,
     isCopy: boolean
   ) => {
-    console.log('[DROP] executeDrop called', {
-      isCopy,
-      targetTechnicianId,
-      targetDate,
-      targetPeriod,
-      sourceAssignmentId: dragData.assignment.id,
-      sourceTechnicianId: dragData.sourceTechnicianId,
-    });
-    
     try {
-      const newPositions = calculateNewPositions(dragData, targetDate, targetPeriod, targetTechnicianId);
-      console.log('[DROP] newPositions calculated', { count: newPositions.length });
+      const newPositions = calculateNewDates(dragData, targetDate, targetTeamId);
 
       if (isCopy) {
-        console.log('[DROP] Executing COPY mode');
         const newGroupId = crypto.randomUUID();
-        
         for (const pos of newPositions) {
           const original = pos.originalAssignment;
           const { error } = await supabase
             .from('assignments')
             .insert({
               name: original.name,
-              technician_id: targetTechnicianId,
+              team_id: targetTeamId,
+              technician_id: original.technician_id,
               start_date: pos.newStartDate.toISOString().split('T')[0],
               end_date: pos.newEndDate.toISOString().split('T')[0],
-              start_period: pos.newStartPeriod,
-              end_period: pos.newEndPeriod,
               commande_id: original.commande_id,
               chantier_id: original.chantier_id,
               comment: original.comment,
@@ -98,28 +79,25 @@ export const useDropExecution = (
               is_fixed: original.is_fixed,
               assignment_group_id: newPositions.length > 1 ? newGroupId : null,
             });
-
           if (error) throw error;
         }
-
-        toast.success(newPositions.length > 1 
+        toast.success(newPositions.length > 1
           ? `Groupe de ${newPositions.length} affectation(s) copié`
           : 'Affectation copiée'
         );
       } else {
         const groupId = dragData.assignment.assignment_group_id;
-        const assignmentsToSave = groupId 
+        const assignmentsToSave = groupId
           ? assignments.filter(a => a.assignment_group_id === groupId)
           : assignments.filter(a => a.id === dragData.assignment.id);
 
         setUndoState({
           assignments: assignmentsToSave.map(a => ({
             id: a.id,
+            team_id: a.team_id ?? null,
             technician_id: a.technician_id,
             start_date: a.start_date,
             end_date: a.end_date,
-            start_period: a.start_period,
-            end_period: a.end_period,
           })),
         });
 
@@ -127,18 +105,14 @@ export const useDropExecution = (
           const { error } = await supabase
             .from('assignments')
             .update({
-              technician_id: targetTechnicianId,
+              team_id: targetTeamId,
               start_date: pos.newStartDate.toISOString().split('T')[0],
               end_date: pos.newEndDate.toISOString().split('T')[0],
-              start_period: pos.newStartPeriod,
-              end_period: pos.newEndPeriod,
             })
             .eq('id', pos.id);
-
           if (error) throw error;
         }
-
-        toast.success(newPositions.length > 1 
+        toast.success(newPositions.length > 1
           ? `Groupe de ${newPositions.length} affectation(s) déplacé`
           : 'Affectation déplacée'
         );
@@ -149,85 +123,59 @@ export const useDropExecution = (
       console.error('Drop error:', error);
       toast.error('Erreur lors du déplacement');
     }
-  }, [calculateNewPositions, queryClient, assignments]);
+  }, [calculateNewDates, queryClient, assignments]);
 
+  /** Move just the dragged assignment out of its group */
   const executeConfirmLinkedDropSingle = useCallback(async (
     dragData: DragData,
-    targetTechnicianId: string,
-    targetDate: string,
-    targetPeriod: string
+    targetTeamId: string,
+    targetDate: string
   ) => {
     try {
       const assignment = dragData.assignment;
       const sourceDateObj = new Date(dragData.sourceDate);
       const targetDateObj = new Date(targetDate);
-      const dayOffset = Math.round((targetDateObj.getTime() - sourceDateObj.getTime()) / (1000 * 60 * 60 * 24));
-      const periodOffset = periodToNum(targetPeriod) - periodToNum(dragData.sourcePeriod);
-      
-      const newStartDate = new Date(assignment.startDate || (assignment as any).start_date);
+      const dayOffset = Math.round(
+        (targetDateObj.getTime() - sourceDateObj.getTime()) / (1000 * 60 * 60 * 24)
+      );
+
+      const newStartDate = new Date(assignment.startDate);
       newStartDate.setDate(newStartDate.getDate() + dayOffset);
-      
-      const newEndDate = new Date(assignment.endDate || (assignment as any).end_date);
+
+      const newEndDate = new Date(assignment.endDate);
       newEndDate.setDate(newEndDate.getDate() + dayOffset);
-      
-      let newStartPeriodNum = periodToNum(assignment.startPeriod || (assignment as any).start_period) + periodOffset;
-      let newEndPeriodNum = periodToNum(assignment.endPeriod || (assignment as any).end_period) + periodOffset;
-      
-      if (newStartPeriodNum > 1) {
-        newStartPeriodNum = 0;
-        newStartDate.setDate(newStartDate.getDate() + 1);
-      } else if (newStartPeriodNum < 0) {
-        newStartPeriodNum = 1;
-        newStartDate.setDate(newStartDate.getDate() - 1);
-      }
-      
-      if (newEndPeriodNum > 1) {
-        newEndPeriodNum = 0;
-        newEndDate.setDate(newEndDate.getDate() + 1);
-      } else if (newEndPeriodNum < 0) {
-        newEndPeriodNum = 1;
-        newEndDate.setDate(newEndDate.getDate() - 1);
-      }
-      
+
       setUndoState({
         assignments: [{
           id: assignment.id,
-          technician_id: dragData.sourceTechnicianId,
-          start_date: assignment.startDate || (assignment as any).start_date,
-          end_date: assignment.endDate || (assignment as any).end_date,
-          start_period: assignment.startPeriod || (assignment as any).start_period,
-          end_period: assignment.endPeriod || (assignment as any).end_period,
+          team_id: dragData.sourceTeamId,
+          technician_id: assignment.technicianId as string,
+          start_date: assignment.startDate,
+          end_date: assignment.endDate,
         }],
       });
-      
+
       const groupId = assignment.assignment_group_id;
-      
       const { error } = await supabase
         .from('assignments')
         .update({
-          technician_id: targetTechnicianId,
+          team_id: targetTeamId,
           start_date: newStartDate.toISOString().split('T')[0],
           end_date: newEndDate.toISOString().split('T')[0],
-          start_period: numToPeriod(newStartPeriodNum),
-          end_period: numToPeriod(newEndPeriodNum),
           assignment_group_id: null,
         })
         .eq('id', assignment.id);
-      
       if (error) throw error;
-      
+
       if (groupId) {
-        const remainingInGroup = assignments.filter(
+        const remaining = assignments.filter(
           a => a.assignment_group_id === groupId && a.id !== assignment.id
         );
-        if (remainingInGroup.length === 1) {
-          await supabase
-            .from('assignments')
-            .update({ assignment_group_id: null })
-            .eq('id', remainingInGroup[0].id);
+        if (remaining.length === 1) {
+          await supabase.from('assignments').update({ assignment_group_id: null }).eq('id', remaining[0].id);
         }
       }
-      
+
       toast.success('Affectation déplacée (détachée du groupe)');
       queryClient.invalidateQueries({ queryKey: ['assignments'] });
     } catch (error) {
@@ -236,50 +184,43 @@ export const useDropExecution = (
     }
   }, [assignments, queryClient]);
 
+  /** Move the entire group together */
   const executeConfirmLinkedDropAll = useCallback(async (
     dragData: DragData,
     targetDate: string,
-    targetPeriod: string,
     executeLinkedSingleCallback: () => Promise<void>
   ) => {
     const groupId = dragData.assignment.assignment_group_id;
-    
     if (!groupId) {
       await executeLinkedSingleCallback();
       return;
     }
 
     try {
-      const newPositions = calculateNewPositions(dragData, targetDate, targetPeriod, dragData.sourceTechnicianId);
+      const newPositions = calculateNewDates(dragData, targetDate, dragData.sourceTeamId);
       const groupAssignments = assignments.filter(a => a.assignment_group_id === groupId);
-      
+
       setUndoState({
         assignments: groupAssignments.map(a => ({
           id: a.id,
+          team_id: a.team_id ?? null,
           technician_id: a.technician_id,
           start_date: a.start_date,
           end_date: a.end_date,
-          start_period: a.start_period,
-          end_period: a.end_period,
         })),
       });
 
       const draggedPos = newPositions[0];
-      if (!draggedPos) {
-        throw new Error('Could not calculate new position');
-      }
+      if (!draggedPos) throw new Error('Could not calculate new position');
 
-      for (const assignment of groupAssignments) {
+      for (const a of groupAssignments) {
         const { error } = await supabase
           .from('assignments')
           .update({
             start_date: draggedPos.newStartDate.toISOString().split('T')[0],
             end_date: draggedPos.newEndDate.toISOString().split('T')[0],
-            start_period: draggedPos.newStartPeriod,
-            end_period: draggedPos.newEndPeriod,
           })
-          .eq('id', assignment.id);
-
+          .eq('id', a.id);
         if (error) throw error;
       }
 
@@ -289,7 +230,7 @@ export const useDropExecution = (
       console.error('Linked drop error:', error);
       toast.error('Erreur lors du déplacement des affectations liées');
     }
-  }, [calculateNewPositions, assignments, queryClient]);
+  }, [calculateNewDates, assignments, queryClient]);
 
   return {
     undoState,
@@ -298,6 +239,6 @@ export const useDropExecution = (
     handleUndo,
     executeDrop,
     executeConfirmLinkedDropSingle,
-    executeConfirmLinkedDropAll
+    executeConfirmLinkedDropAll,
   };
 };

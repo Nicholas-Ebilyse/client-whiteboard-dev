@@ -10,14 +10,11 @@ export interface DraggedNote {
   technician_id: string | null;
   start_date: string;
   end_date: string;
-  start_period: string;
-  end_period: string;
 }
 
 interface NoteDropTarget {
   technicianId: string | null;
   date: string;
-  period: string;
 }
 
 interface NoteUndoState {
@@ -25,9 +22,6 @@ interface NoteUndoState {
   technician_id: string | null;
   start_date: string;
   end_date: string;
-  start_period: string;
-  end_period: string;
-  period: string;
 }
 
 export const useDragAndDropNote = () => {
@@ -59,9 +53,6 @@ export const useDragAndDropNote = () => {
           technician_id: noteUndoState.technician_id,
           start_date: noteUndoState.start_date,
           end_date: noteUndoState.end_date,
-          start_period: noteUndoState.start_period,
-          end_period: noteUndoState.end_period,
-          period: noteUndoState.period,
         })
         .eq('id', noteUndoState.id);
 
@@ -95,15 +86,14 @@ export const useDragAndDropNote = () => {
   const handleNoteDragOver = useCallback((
     e: React.DragEvent,
     technicianId: string | null,
-    date: string,
-    period: string
+    date: string
   ) => {
     // Only handle if we're dragging a note
     if (!e.dataTransfer.types.includes('application/note-json')) return;
     
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    setNoteDropTarget({ technicianId, date, period });
+    setNoteDropTarget({ technicianId, date });
   }, []);
 
   const handleNoteDragLeave = useCallback(() => {
@@ -114,8 +104,7 @@ export const useDragAndDropNote = () => {
     e: React.DragEvent,
     targetTechnicianId: string | null,
     targetDate: string,
-    targetPeriod: string,
-    preserveDuration: boolean = true // If false, note becomes single-period
+    preserveDuration: boolean = true
   ) => {
     e.preventDefault();
     
@@ -131,30 +120,23 @@ export const useDragAndDropNote = () => {
         technician_id: note.technician_id,
         start_date: note.start_date,
         end_date: note.end_date,
-        start_period: note.start_period,
-        end_period: note.end_period,
-        period: note.start_period,
       });
       
       let endDate: string;
-      let endPeriod: string;
       
       if (preserveDuration) {
-        // Calculate the duration of the note in days and periods
-        const originalDuration = calculateNoteDuration(note);
+        // Calculate the duration of the note in days
+        const startDate = new Date(note.start_date);
+        const oldEndDate = new Date(note.end_date);
+        const daysDiff = Math.round((oldEndDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
         
-        // Calculate new end date and period based on original duration
-        const result = calculateNewEndPosition(
-          targetDate,
-          targetPeriod,
-          originalDuration
-        );
-        endDate = result.endDate;
-        endPeriod = result.endPeriod;
+        // Calculate new end date based on original duration
+        const newStartDate = new Date(targetDate);
+        newStartDate.setDate(newStartDate.getDate() + daysDiff);
+        endDate = newStartDate.toISOString().split('T')[0];
       } else {
-        // Single period note - same start and end
+        // Single day note
         endDate = targetDate;
-        endPeriod = targetPeriod;
       }
       
       // Update the note in the database
@@ -164,9 +146,6 @@ export const useDragAndDropNote = () => {
           technician_id: targetTechnicianId,
           start_date: targetDate,
           end_date: endDate,
-          start_period: targetPeriod,
-          end_period: endPeriod,
-          period: targetPeriod, // Legacy field
         })
         .eq('id', note.id);
 
@@ -204,55 +183,3 @@ export const useDragAndDropNote = () => {
     handleNoteUndo,
   };
 };
-
-// Helper to calculate note duration in half-day units
-function calculateNoteDuration(note: DraggedNote): number {
-  const startDate = new Date(note.start_date);
-  const endDate = new Date(note.end_date);
-  
-  // Calculate days between
-  const daysDiff = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-  
-  // Each full day = 2 half-days
-  let halfDays = daysDiff * 2;
-  
-  // Adjust for start period
-  if (note.start_period === 'Après-midi') {
-    halfDays -= 1;
-  }
-  
-  // Adjust for end period
-  if (note.end_period === 'Matin') {
-    halfDays -= 1;
-  }
-  
-  return Math.max(1, halfDays + 2); // +2 because we count both start and end
-}
-
-// Helper to calculate new end position based on duration
-function calculateNewEndPosition(
-  startDate: string,
-  startPeriod: string,
-  halfDays: number
-): { endDate: string; endPeriod: string } {
-  const date = new Date(startDate);
-  let remainingHalfDays = halfDays - 1; // -1 because we start counting from the first half-day
-  
-  // Start from the given period
-  let currentPeriod = startPeriod;
-  
-  while (remainingHalfDays > 0) {
-    if (currentPeriod === 'Matin') {
-      currentPeriod = 'Après-midi';
-    } else {
-      currentPeriod = 'Matin';
-      date.setDate(date.getDate() + 1);
-    }
-    remainingHalfDays--;
-  }
-  
-  return {
-    endDate: date.toISOString().split('T')[0],
-    endPeriod: currentPeriod,
-  };
-}
