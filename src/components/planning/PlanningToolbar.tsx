@@ -89,7 +89,7 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
           isDragging={isDragging}
         />
         <CardTitle className="text-lg sm:text-xl font-semibold flex items-center gap-2">
-          Planning Hebdomadaire - {(() => {
+          RPS Planning - {(() => {
             const weekStart = startOfWeek(new Date(weekConfig.year, 0, 1 + (weekConfig.week_number - 1) * 7), { weekStartsOn: 1 });
             const day = weekStart.getDate().toString();
             const month = ['jan', 'fév', 'mar', 'avr', 'mai', 'juin', 'juil', 'août', 'sep', 'oct', 'nov', 'déc'][weekStart.getMonth()];
@@ -185,6 +185,12 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
+              {isAdmin && (
+                <DropdownMenuItem onClick={() => window.location.href = '/admin'}>
+                  <Wrench className="mr-2 h-4 w-4 text-emerald-600" />
+                  <span>Admin</span>
+                </DropdownMenuItem>
+              )}
               {isAdmin && setManageTechsDialogOpen && (
                 <DropdownMenuItem onClick={() => setManageTechsDialogOpen(true)}>
                   <Users className="mr-2 h-4 w-4 text-indigo-600" />
@@ -203,85 +209,6 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
                   <span>{savAbove ? 'Masquer SAV' : 'Afficher SAV'}</span>
                 </DropdownMenuItem>
               )}
-              
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel>Légendes</DropdownMenuLabel>
-              
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <Palette className="mr-2 h-4 w-4 text-violet-600" />
-                  <span>Couleurs de statut</span>
-                </DropdownMenuSubTrigger>
-                <DropdownMenuPortal>
-                  <DropdownMenuSubContent className="w-64 p-3">
-                    <div className="space-y-2.5">
-                      <div className="flex items-center gap-3">
-                        <div className="w-5 h-5 rounded bg-muted border" />
-                        <div>
-                          <p className="font-medium text-sm">Non confirmé</p>
-                          <p className="text-xs text-muted-foreground">En attente de validation</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="w-5 h-5 rounded bg-confirmed-blue" />
-                        <div>
-                          <p className="font-medium text-sm">Confirmé</p>
-                          <p className="text-xs text-muted-foreground">Mission validée et planifiée</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="w-5 h-5 rounded bg-absent-pink" />
-                        <div>
-                          <p className="font-medium text-sm">Absence</p>
-                          <p className="text-xs text-muted-foreground">Technicien indisponible</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="w-5 h-5 rounded" style={{ backgroundColor: '#fca5a5' }} />
-                        <div>
-                          <p className="font-medium text-sm">Facturé</p>
-                          <p className="text-xs text-muted-foreground">Chantier terminé et facturé</p>
-                        </div>
-                      </div>
-                    </div>
-                  </DropdownMenuSubContent>
-                </DropdownMenuPortal>
-              </DropdownMenuSub>
-
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <Lock className="mr-2 h-4 w-4 text-slate-600" />
-                  <span>Icônes & Verrous</span>
-                </DropdownMenuSubTrigger>
-                <DropdownMenuPortal>
-                  <DropdownMenuSubContent className="w-64 p-3">
-                    <div className="space-y-2">
-                       <div className="flex items-center gap-3">
-                         <Lock className="h-4 w-4 text-blue-600" />
-                         <div>
-                           <p className="font-medium text-sm">Confirmé</p>
-                           <p className="text-xs text-muted-foreground">Non déplaçable car validé</p>
-                         </div>
-                       </div>
-                       <div className="flex items-center gap-3">
-                         <Lock className="h-4 w-4 text-red-600" />
-                         <div>
-                           <p className="font-medium text-sm">Facturé</p>
-                           <p className="text-xs text-muted-foreground">Non déplaçable car facturé</p>
-                         </div>
-                       </div>
-                       <div className="flex items-center gap-3">
-                         <Link2 className="h-4 w-4 text-primary" />
-                         <div>
-                           <p className="font-medium text-sm">Lié</p>
-                           <p className="text-xs text-muted-foreground">Affectation partagée avec un autre technicien</p>
-                         </div>
-                       </div>
-                     </div>
-                  </DropdownMenuSubContent>
-                </DropdownMenuPortal>
-              </DropdownMenuSub>
-
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleSignOut} className="text-rose-600">
                 <LogOut className="mr-2 h-4 w-4" />

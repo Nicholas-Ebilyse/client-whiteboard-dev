@@ -100,15 +100,10 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
         {/* ── Header Row (Days) ── */}
         <div
           className="grid border-b-2 border-border bg-muted/50"
-          style={{ gridTemplateColumns: `180px repeat(${weekDates.length}, minmax(200px, 1fr))` }}
+          style={{ gridTemplateColumns: `220px repeat(${weekDates.length}, minmax(200px, 1fr))` }}
         >
-          {/* Top-left admin cell */}
-          <div className="p-2 sm:p-4 border-r border-border flex flex-col items-center justify-center gap-1 bg-white">
-            <span className="font-bold text-primary tracking-wide text-lg sm:text-xl">RPS Planning</span>
-            <span className="text-sm font-medium text-muted-foreground capitalize">
-              {weekDates.length > 0 ? format(new Date(weekDates[0].fullDate), 'EEEE d MMMM yyyy', { locale: fr }) : ''}
-            </span>
-          </div>
+          {/* Top-left admin cell (Blank) */}
+          <div className="p-2 sm:p-4 border-r border-border bg-white" />
 
           {/* Day column headers — no Matin/Après-midi */}
           {weekDates.map((day) => {
@@ -160,11 +155,11 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
             <div
               key={team.id}
               className="grid border-b border-border"
-              style={{ gridTemplateColumns: `180px repeat(${weekDates.length}, minmax(200px, 1fr))` }}
+              style={{ gridTemplateColumns: `220px repeat(${weekDates.length}, minmax(200px, 1fr))` }}
             >
               {/* Row Header: Team name */}
               <div
-                className="p-3 sm:p-4 text-center border-r border-border flex flex-col justify-center"
+                className="p-3 sm:p-4 text-center border-r border-border flex flex-col justify-center gap-2"
                 style={{ backgroundColor: team.color }}
               >
                 <TechnicianHeaderCell
@@ -179,7 +174,7 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                       {teamTechs.map(t => (
                         <Tooltip key={t.id}>
                           <TooltipTrigger asChild>
-                            <span className="text-[10px] bg-black/10 rounded px-1 py-0.5 font-medium truncate max-w-[80px] cursor-help">
+                            <span className="text-[11px] bg-black/25 text-white rounded px-1.5 py-0.5 font-medium truncate max-w-[100px] cursor-help shadow-sm">
                               {t.name}
                             </span>
                           </TooltipTrigger>

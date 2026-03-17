@@ -29,7 +29,7 @@ interface EditAssignmentDialogProps {
   assignment: Assignment | null;
   chantiers: Chantier[];
   commandes: any[]; // Issue #3: Add commandes for address lookup
-  technicians: { id: string; name: string }[];
+  teams: any[];
   assignments: Assignment[];
   onSave: (assignment: Assignment) => void;
   onDelete?: (id: string) => void;
@@ -44,7 +44,7 @@ export const EditAssignmentDialog = ({
   assignment,
   chantiers,
   commandes, // Issue #3: Receive commandes prop
-  technicians,
+  teams,
   assignments,
   onSave,
   onDelete,
@@ -55,7 +55,8 @@ export const EditAssignmentDialog = ({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const today = new Date();
-  const [selectedTechnician, setSelectedTechnician] = useState(assignment?.teamId || '');
+  const [selectedTeam, setSelectedTeam] = useState(assignment?.teamId || '');
+  const [selectedClient, setSelectedClient] = useState('');
   const [selectedCommande, setSelectedCommande] = useState(assignment?.commandeId || '');
   const [startDate, setStartDate] = useState<Date | undefined>(
     assignment ? new Date(assignment.startDate) : today
@@ -63,11 +64,8 @@ export const EditAssignmentDialog = ({
   const [endDate, setEndDate] = useState<Date | undefined>(
     assignment ? new Date(assignment.endDate) : today
   );
-  const [isAbsent, setIsAbsent] = useState(assignment?.isAbsent || false);
   const [isConfirmed, setIsConfirmed] = useState(assignment?.isConfirmed || false);
-  const [absenceReason, setAbsenceReason] = useState(assignment?.comment || '');
-  const [hasSecondTech, setHasSecondTech] = useState(false);
-  const [secondTechnician, setSecondTechnician] = useState('');
+  const [comment, setComment] = useState(assignment?.comment || '');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   // Derive invoice status from commandes — read-only, used only for locking
@@ -81,57 +79,28 @@ export const EditAssignmentDialog = ({
     chantiers.find(c => c.id === selectedCommande),
   [chantiers, selectedCommande]);
 
-  // Find linked technician from the same group
-  const linkedTechnician = useMemo(() => {
-    if (!assignment?.assignment_group_id || allDbAssignments.length === 0) return null;
-    
-    const linkedAssignment = allDbAssignments.find(
-      a => a.assignment_group_id === assignment.assignment_group_id && 
-           a.technician_id !== assignment.teamId
-    );
-    
-    if (linkedAssignment) {
-      return technicians.find(t => t.id === linkedAssignment.technician_id);
-    }
-    return null;
-  }, [assignment, allDbAssignments, technicians]);
 
   useEffect(() => {
     if (assignment) {
-      setSelectedTechnician(assignment.teamId);
+      setSelectedTeam(assignment.teamId || '');
+      const initialCommande = assignment.commandeId ? commandes.find((c: any) => c.id === assignment.commandeId) : null;
+      setSelectedClient(initialCommande?.client || '');
       setSelectedCommande(assignment.commandeId || '');
       setStartDate(new Date(assignment.startDate));
       setEndDate(new Date(assignment.endDate));
-      setIsAbsent(assignment.isAbsent || false);
       setIsConfirmed(assignment.isConfirmed || false);
-      setAbsenceReason(assignment.comment || '');
-      setHasSecondTech(false);
-      setSecondTechnician('');
+      setComment(assignment.comment || '');
     }
-  }, [assignment]);
+  }, [assignment, commandes]);
 
-  const checkAbsenceConflict = (techId: string, start: Date, end: Date) => {
-    const startStr = format(start, 'yyyy-MM-dd');
-    const endStr = format(end, 'yyyy-MM-dd');
-    
-    return assignments.some(a => {
-      if (!a.isAbsent || a.teamId !== techId) return false;
-      if (assignment?.id === a.id) return false;
-      
-      const aStartStr = format(new Date(a.startDate), 'yyyy-MM-dd');
-      const aEndStr = format(new Date(a.endDate), 'yyyy-MM-dd');
-      
-      return !(endStr < aStartStr || startStr > aEndStr);
-    });
-  };
 
   const { maxAssignments: MAX_ASSIGNMENTS_PER_PERIOD } = useMaxAssignmentsPerPeriod();
 
-  const countAssignmentsInRange = (techId: string, start: Date, end: Date): number => {
+  const countAssignmentsInRange = (teamId: string, start: Date, end: Date): number => {
     const startStr = format(start, 'yyyy-MM-dd');
     const endStr = format(end, 'yyyy-MM-dd');
     return assignments.filter(a => {
-      if (a.teamId !== techId && a.secondTechnicianId !== techId) return false;
+      if (a.teamId !== teamId) return false;
       if (assignment?.id === a.id) return false;
       const aStartStr = format(new Date(a.startDate), 'yyyy-MM-dd');
       const aEndStr = format(new Date(a.endDate), 'yyyy-MM-dd');
@@ -140,7 +109,7 @@ export const EditAssignmentDialog = ({
   };
 
   const handleSave = () => {
-    if (assignment && selectedTechnician && (isAbsent || selectedCommande) && startDate && endDate) {
+    if (assignment && selectedTeam && selectedCommande && startDate && endDate) {
       const startDateStr = format(startDate, 'yyyy-MM-dd');
       const endDateStr = format(endDate, 'yyyy-MM-dd');
       
@@ -153,71 +122,30 @@ export const EditAssignmentDialog = ({
         return;
       }
 
-      // Check absence conflicts
-      if (!isAbsent && checkAbsenceConflict(selectedTechnician, startDate, endDate)) {
+      const count = countAssignmentsInRange(selectedTeam, startDate, endDate);
+      if (count >= MAX_ASSIGNMENTS_PER_PERIOD) {
+        const teamName = teams.find((t: any) => t.id === selectedTeam)?.name || 'L\'équipe';
         toast({
-          title: 'Conflit d\'absence',
-          description: 'Le technicien est absent durant cette période.',
+          title: 'Limite d\'affectations atteinte',
+          description: `${teamName} a déjà le maximum d'affectations sur cette période.`,
           variant: 'destructive',
         });
         return;
       }
-
-      if (hasSecondTech && secondTechnician && !isAbsent) {
-        if (checkAbsenceConflict(secondTechnician, startDate, endDate)) {
-          toast({
-            title: 'Conflit d\'absence',
-            description: 'Le deuxième technicien est absent durant cette période.',
-            variant: 'destructive',
-          });
-          return;
-        }
-
-        const count2 = countAssignmentsInRange(secondTechnician, startDate, endDate);
-        if (count2 >= MAX_ASSIGNMENTS_PER_PERIOD) {
-          const techName = technicians.find(t => t.id === secondTechnician)?.name || 'Le deuxième technicien';
-          toast({
-            title: 'Limite d\'affectations atteinte',
-            description: `${techName} a déjà le maximum d'affectations sur cette période.`,
-            variant: 'destructive',
-          });
-          return;
-        }
-      }
-
-      // Check assignment limit for primary technician
-      if (!isAbsent) {
-        const count = countAssignmentsInRange(selectedTechnician, startDate, endDate);
-        if (count >= MAX_ASSIGNMENTS_PER_PERIOD) {
-          const techName = technicians.find(t => t.id === selectedTechnician)?.name || 'Le technicien';
-          toast({
-            title: 'Limite d\'affectations atteinte',
-            description: `${techName} a déjà le maximum d'affectations sur cette période.`,
-            variant: 'destructive',
-          });
-          return;
-        }
-      }
       
       const updatedAssignment: Assignment = {
         ...assignment,
-        teamId: selectedTechnician,
+        teamId: selectedTeam,
         chantierId: null,
-        commandeId: isAbsent ? null : selectedCommande,
+        commandeId: selectedCommande,
         startDate: startDateStr,
         endDate: endDateStr,
-        startPeriod: 'Matin',
-        endPeriod: 'Après-midi',
-        isAbsent,
+        isAbsent: false,
         isConfirmed,
-        comment: isAbsent ? absenceReason : assignment.comment,
-      };
-      const assignmentToSave = {
-        ...updatedAssignment,
-        secondTechnicianId: hasSecondTech ? secondTechnician : undefined,
+        comment,
       };
       
-      onSave(assignmentToSave);
+      onSave(updatedAssignment);
       onOpenChange(false);
     }
   };
@@ -249,12 +177,20 @@ export const EditAssignmentDialog = ({
     }
   };
 
-  // Show only the client name in the trigger; the full chantier address is shown below
-  const chantierOptions = chantiers.map(c => ({
-    value: c.id,
-    // c.name is 'Client - Chantier'; we show only the client part for brevity
-    label: c.name.includes(' - ') ? c.name.split(' - ')[0] : c.name,
-  }));
+  const clientOptions = useMemo(() => {
+    const clients = Array.from(new Set(commandes.map((c: any) => c.client).filter(Boolean))) as string[];
+    return clients.sort().map(client => ({ value: client, label: client }));
+  }, [commandes]);
+
+  const chantierOptions = useMemo(() => {
+    if (!selectedClient) return [];
+    return commandes
+      .filter((c: any) => c.client === selectedClient && (!c.is_invoiced || c.id === assignment?.commandeId))
+      .map((c: any) => ({
+        value: c.id,
+        label: c.chantier || c.name,
+      }));
+  }, [commandes, selectedClient, assignment?.commandeId]);
 
   return (
     <>
@@ -266,92 +202,57 @@ export const EditAssignmentDialog = ({
 
         <div className="space-y-6 py-4 max-h-[calc(90vh-200px)] overflow-y-auto">
           <div className="space-y-2">
-            <Label htmlFor="technician">Technicien</Label>
-            <Select value={selectedTechnician} onValueChange={setSelectedTechnician}>
-              <SelectTrigger id="technician" className="bg-background">
-                <SelectValue placeholder="Sélectionner un technicien" />
+            <Label htmlFor="team">Équipe</Label>
+            <Select value={selectedTeam} disabled>
+              <SelectTrigger id="team" className="bg-muted text-muted-foreground opacity-100">
+                <SelectValue placeholder="Sélectionner une équipe" />
               </SelectTrigger>
-              <SelectContent className="bg-popover">
-                {[...technicians].sort((a, b) => a.name.localeCompare(b.name, 'fr')).map((tech) => (
-                  <SelectItem key={tech.id} value={tech.id}>
-                    {tech.name}
+              <SelectContent>
+                {teams.map((team: any) => (
+                  <SelectItem key={team.id} value={team.id}>
+                    {team.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          {/* Show linked technician if exists */}
-          {linkedTechnician && (
-            <div className="p-3 rounded-md bg-primary/10 border border-primary/20">
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-muted-foreground">Technicien lié :</span>
-                <span className="font-medium text-primary">{linkedTechnician.name}</span>
-                <span className="text-xs text-muted-foreground">(via groupe 🔗)</span>
-              </div>
-            </div>
-          )}
-
-          {/* Only show add second tech option if there's no linked technician already */}
-          {!linkedTechnician && (
+          <div className="space-y-4">
             <div className="space-y-2">
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="second-tech" 
-                  checked={hasSecondTech}
-                  onCheckedChange={(checked) => setHasSecondTech(checked as boolean)}
-                />
-                <label htmlFor="second-tech" className="text-sm cursor-pointer">Ajouter un deuxième technicien</label>
-              </div>
-              {hasSecondTech && (
-                <Select value={secondTechnician} onValueChange={setSecondTechnician}>
-                  <SelectTrigger className="bg-background">
-                    <SelectValue placeholder="Sélectionner le 2ème technicien" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-popover">
-                    {[...technicians]
-                      .filter(t => t.id !== selectedTechnician)
-                      .sort((a, b) => a.name.localeCompare(b.name, 'fr'))
-                      .map((tech) => (
-                        <SelectItem key={tech.id} value={tech.id}>
-                          {tech.name}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
+              <Label>Client</Label>
+              {isInvoiced && (
+                <p className="text-xs text-red-600 font-medium flex items-center gap-1">
+                  🔒 Ce chantier est marqué comme facturé — affectation verrouillée.
+                </p>
               )}
+              <SearchableSelect
+                value={selectedClient}
+                onValueChange={(val) => {
+                  setSelectedClient(val);
+                  setSelectedCommande('');
+                }}
+                options={clientOptions}
+                placeholder="Sélectionner un client..."
+                disabled={isInvoiced}
+              />
             </div>
-          )}
 
-          <div className="space-y-2">
-            <div className="flex items-center justify-between mb-2">
-              <Label htmlFor="chantier">Chantier</Label>
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="absent" 
-                  checked={isAbsent}
+            {selectedClient && (
+              <div className="space-y-2">
+                <Label>Chantier (Lieu/Adresse)</Label>
+                <SearchableSelect
+                  value={selectedCommande}
+                  onValueChange={setSelectedCommande}
+                  options={chantierOptions}
+                  placeholder="Sélectionner un chantier..."
                   disabled={isInvoiced}
-                  onCheckedChange={(checked) => setIsAbsent(checked as boolean)}
                 />
-                <label htmlFor="absent" className="text-sm cursor-pointer">Absent</label>
               </div>
-            </div>
-            {isInvoiced && (
-              <p className="text-xs text-red-600 font-medium flex items-center gap-1">
-                🔒 Ce chantier est marqué comme facturé — affectation verrouillée.
-              </p>
             )}
-            <SearchableSelect
-              value={selectedCommande}
-              onValueChange={setSelectedCommande}
-              options={chantierOptions}
-              placeholder={isAbsent ? "Absent" : "Rechercher un client..."}
-              disabled={isAbsent || isInvoiced}
-            />
           </div>
 
           {/* Address display with Google Maps link using commande.chantier field */}
-          {!isAbsent && selectedCommande && (() => {
+          {selectedCommande && (() => {
             const selectedComm = commandes.find((c: any) => c.id === selectedCommande);
             if (selectedComm?.chantier) {
               const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedComm.chantier)}`;
@@ -383,7 +284,7 @@ export const EditAssignmentDialog = ({
           })()}
 
           {/* Attachments Section */}
-          {!isAbsent && selectedCommande && selectedChantier && (
+          {selectedCommande && selectedChantier && (
             <div className="space-y-3 bg-muted/10 p-3 rounded-md border border-border/50">
               <div className="flex items-center justify-between">
                 <Label className="text-sm font-semibold flex items-center gap-2">
@@ -548,18 +449,16 @@ export const EditAssignmentDialog = ({
             </div>
           )}
 
-          {isAbsent && (
-            <div className="space-y-2">
-              <Label htmlFor="absence-reason">Motif de l'absence</Label>
-              <Textarea
-                id="absence-reason"
-                value={absenceReason}
-                onChange={(e) => setAbsenceReason(e.target.value)}
-                placeholder="Indiquez le motif de l'absence..."
-                rows={2}
-              />
-            </div>
-          )}
+          <div className="space-y-2">
+            <Label htmlFor="assignment-comment">Commentaire de l'affectation</Label>
+            <Textarea
+              id="assignment-comment"
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="Ex: Intervenir après 10h, Appeler le gardien..."
+              rows={2}
+            />
+          </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">

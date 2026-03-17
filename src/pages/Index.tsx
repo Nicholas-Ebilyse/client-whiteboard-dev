@@ -995,11 +995,11 @@ const Index = () => {
               color: '#dbeafe',
               facture: c.facture 
             }))}
-          commandes={commandes} // Issue #3: Pass commandes for address lookup
-          technicians={activeTechnicians.map((t) => ({ id: t.id, name: t.name }))}
+          commandes={commandes}
+          teams={teams}
           assignments={assignments.map(a => ({
             id: a.id,
-            teamId: a.technician_id,
+            teamId: a.team_id,
             chantierId: a.chantier_id,
             commandeId: a.commande_id,
             name: a.name,
