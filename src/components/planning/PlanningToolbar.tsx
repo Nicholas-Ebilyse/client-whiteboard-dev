@@ -158,7 +158,7 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
                   <Button 
                     className="w-full" 
                     onClick={() => {
-                      const url = `${window.location.origin}/presentation?timeout=${presentationTimeout}`;
+                      const url = `${window.location.origin}/presentation?timeout=${presentationTimeout}&token=${import.meta.env.VITE_PRESENTATION_TOKEN}`;
                       navigator.clipboard.writeText(url);
                       toast.success('Lien copié dans le presse-papiers');
                     }}

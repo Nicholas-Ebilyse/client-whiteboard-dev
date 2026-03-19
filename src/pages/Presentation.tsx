@@ -14,8 +14,7 @@ import {
 } from '@/hooks/usePlanning';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
-import { startOfWeek, format } from 'date-fns';
+import { startOfWeek } from 'date-fns';
 import { Loader2 } from 'lucide-react';
 import { Assignment } from '@/types/planning';
 
@@ -24,7 +23,8 @@ const DEFAULT_TIMEOUT_MINUTES = 30;
 const Presentation = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { session, loading } = useAuth();
+  const token = searchParams.get('token');
+  const validToken = import.meta.env.VITE_PRESENTATION_TOKEN;
   
   const timeoutMinutes = parseInt(searchParams.get('timeout') || '0', 10) || DEFAULT_TIMEOUT_MINUTES;
   const timeoutMs = timeoutMinutes * 60 * 1000;
@@ -33,9 +33,8 @@ const Presentation = () => {
   const [timeLeft, setTimeLeft] = useState(timeoutMs);
 
   useEffect(() => {
-    // Wait until auth check is complete before redirecting
-    if (loading) return;
-    if (!session) {
+    // Token security check
+    if (!token || token !== validToken) {
       navigate('/auth');
       return;
     }
@@ -52,7 +51,7 @@ const Presentation = () => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [navigate, session, loading]);
+  }, [navigate, token, validToken]);
 
   const formatTimeLeft = (ms: number) => {
     const totalSeconds = Math.floor(ms / 1000);
