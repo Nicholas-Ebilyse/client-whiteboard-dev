@@ -158,7 +158,9 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
                   <Button 
                     className="w-full" 
                     onClick={() => {
-                      const url = `${window.location.origin}/presentation?timeout=${presentationTimeout}&token=${import.meta.env.VITE_PRESENTATION_TOKEN}`;
+                      const weekStart = startOfWeek(new Date(weekConfig.year, 0, 1 + (weekConfig.week_number - 1) * 7), { weekStartsOn: 1 });
+                      const dateStr = format(weekStart, 'yyyy-MM-dd');
+                      const url = `${window.location.origin}/presentation?timeout=${presentationTimeout}&token=${import.meta.env.VITE_PRESENTATION_TOKEN}&date=${dateStr}`;
                       navigator.clipboard.writeText(url);
                       toast.success('Lien copié dans le presse-papiers');
                     }}

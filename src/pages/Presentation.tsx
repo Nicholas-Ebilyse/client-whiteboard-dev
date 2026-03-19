@@ -14,7 +14,7 @@ import {
 } from '@/hooks/usePlanning';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { startOfWeek } from 'date-fns';
+import { startOfWeek, getWeek, getYear } from 'date-fns';
 import { Loader2 } from 'lucide-react';
 import { Assignment } from '@/types/planning';
 
@@ -28,6 +28,11 @@ const Presentation = () => {
   
   const timeoutMinutes = parseInt(searchParams.get('timeout') || '0', 10) || DEFAULT_TIMEOUT_MINUTES;
   const timeoutMs = timeoutMinutes * 60 * 1000;
+
+  const dateParam = searchParams.get('date');
+  const customDate = dateParam ? new Date(dateParam) : null;
+  const customWeekNumber = customDate ? getWeek(customDate, { weekStartsOn: 1 }) : null;
+  const customYear = customDate ? getYear(customDate) : null;
 
   // Auto-redirect back to index after timeout
   const [timeLeft, setTimeLeft] = useState(timeoutMs);
@@ -61,7 +66,11 @@ const Presentation = () => {
   };
 
   // Data fetching
-  const { data: weekConfig, isLoading: isConfigLoading } = useWeekConfig();
+  const { data: dbWeekConfig, isLoading: isConfigLoading } = useWeekConfig();
+  
+  const weekConfig = customDate && customWeekNumber && customYear
+    ? { week_number: customWeekNumber, year: customYear }
+    : dbWeekConfig;
   const { data: technicians = [], isLoading: isTechLoading } = useTechnicians(true);
   const { data: teams = [], isLoading: isTeamsLoading } = useTeams();
   const { data: commandes = [], isLoading: isCommandesLoading } = useCommandes();
