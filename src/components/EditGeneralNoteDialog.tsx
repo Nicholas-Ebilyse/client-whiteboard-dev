@@ -35,16 +35,13 @@ export const EditGeneralNoteDialog = ({ open, onOpenChange, note, onSave, onDele
       toast.error('Veuillez saisir une note');
       return;
     }
-    
     onSave({
       id: note?.id,
       text: text.trim(),
-      technician_id: null,
       start_date: note?.date,
       end_date: note?.date,
       period: note?.period === 'Journée' ? 'Matin' : note?.period,
-      start_period: note?.period === 'Journée' ? 'Matin' : note?.period,
-      end_period: note?.period === 'Journée' ? 'Après-midi' : note?.period,
+      is_absent: false,
       is_sav: false,
       is_confirmed: false,
       is_invoiced: false,
@@ -71,7 +68,7 @@ export const EditGeneralNoteDialog = ({ open, onOpenChange, note, onSave, onDele
         <DialogHeader>
           <DialogTitle>{note?.id ? 'Modifier la note générale' : 'Nouvelle note générale'}</DialogTitle>
           <DialogDescription>
-            Note pour tous les techniciens - {getPeriodLabel()}
+            Note pour toutes les équipes - {getPeriodLabel()}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">

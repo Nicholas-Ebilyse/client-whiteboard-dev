@@ -83,7 +83,7 @@ export const useCreateTechnician = () => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async ({ name, isTemp }: { name: string; isTemp?: boolean }) => {
+    mutationFn: async ({ name, isTemp, skills }: { name: string; isTemp?: boolean; skills?: string }) => {
       const { data: existingTechs } = await supabase
         .from('technicians')
         .select('position')
@@ -94,7 +94,7 @@ export const useCreateTechnician = () => {
       
       const { data, error } = await supabase
         .from('technicians')
-        .insert({ name, position: maxPosition + 1, is_temp: isTemp || false })
+        .insert({ name, position: maxPosition + 1, is_temp: isTemp || false, skills })
         .select()
         .single();
       
@@ -111,11 +111,12 @@ export const useUpdateTechnician = () => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async ({ id, name, is_interim, team_id }: { id: string; name?: string; is_interim?: boolean; team_id?: string | null }) => {
+    mutationFn: async ({ id, name, is_interim, team_id, skills }: { id: string; name?: string; is_interim?: boolean; team_id?: string | null; skills?: string }) => {
       const updates: any = {};
       if (name !== undefined) updates.name = name;
       if (is_interim !== undefined) updates.is_temp = is_interim;
       if (team_id !== undefined) updates.team_id = team_id;
+      if (skills !== undefined) updates.skills = skills;
 
       const { data, error } = await supabase
         .from('technicians')
@@ -389,7 +390,7 @@ export const useCreateTeam = () => {
       const maxPosition = existing?.[0]?.position ?? -1;
       const { data, error } = await supabase
         .from('teams')
-        .insert({ name, color: color || '#3b82f6', position: maxPosition + 1 })
+        .insert({ name, color: color || '#EFF6FF', position: maxPosition + 1 })
         .select()
         .single();
       if (error) throw error;
@@ -460,4 +461,15 @@ export const getWeekDates = (weekNumber: number, year: number) => {
   }
   
   return dates;
+};
+
+export const useAbsenceMotives = () => {
+  return useQuery({
+    queryKey: ['absence_motives'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('absence_motives').select('*').order('name');
+      if (error) throw error;
+      return data;
+    },
+  });
 };

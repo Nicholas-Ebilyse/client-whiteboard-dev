@@ -205,8 +205,8 @@ const COMMANDES_HEADERS = ['ID', 'Numéro', 'Nom client', 'Chantier', 'Montant H
 const SAV_HEADERS = ['ID', 'Numéro', 'Nom du client', 'Adresse', 'Numéro de téléphone', 'Problème', 'Date', 'Est résolu'];
 const TECHNICIENS_HEADERS = ['ID', 'Nom', 'Couleur', 'Interim', 'Créé le'];
 const CHANTIERS_HEADERS = ['ID', 'Nom', 'Adresse', 'Couleur', 'Créé le'];
-const AFFECTATIONS_HEADERS = ['ID', 'Technicien', 'Chantier', 'Date début', 'Période début', 'Date fin', 'Période fin', 'Facturé', 'Absent', 'Commentaire'];
-const NOTES_HEADERS = ['ID', 'Technicien', 'Date', 'Période', 'SAV', 'Confirmé', 'Facturé', 'Texte'];
+const AFFECTATIONS_HEADERS = ['ID', 'Equipe', 'Chantier', 'Date début', 'Date fin', 'Facturé', 'Commentaire'];
+const NOTES_HEADERS = ['ID', 'Technicien', 'Date', 'SAV', 'Confirmé', 'Facturé', 'Texte'];
 
 function parseDate(dateStr: string): string | null {
   if (!dateStr) return null;
@@ -493,38 +493,36 @@ serve(async (req) => {
 
         const h = assignData[0];
         const iID = h.indexOf('ID');
-        const iTech = h.indexOf('Technicien');
+        const iTech = h.indexOf('Equipe'); // Label is Equipe in export 
         const iChan = h.indexOf('Chantier');
         const iStart = h.indexOf('Date début');
-        const iStartP = h.indexOf('Période début');
         const iEnd = h.indexOf('Date fin');
-        const iEndP = h.indexOf('Période fin');
-        const iAbs = h.indexOf('Absent');
         const iComm = h.indexOf('Commentaire');
+        const iBill = h.indexOf('Facturé');
 
         for (let i = 1; i < assignData.length; i++) {
           const row = assignData[i];
           const id = row[iID]?.trim();
           const techName = row[iTech]?.trim();
-          const techId = techNameToId[techName] || techName;
+          
+          // The export uses teamMap so it could be team name or tech name
+          const techId = techNameToId[techName] || (techs || []).find((t: any) => t.name === techName)?.id || techName;
           if (!techId) continue;
 
           const chantierStr = row[iChan]?.trim();
           const commandeId = cmdMap[chantierStr] || null;
           
-          // Use the matched project name or fallback to sheet value
           const assignmentName = chantierStr || 'Nouvelle affectation';
 
           await supabase.from('assignments').upsert({
             id: id && id.length > 10 ? id : undefined,
-            technician_id: techId,
+            technician_id: techId, // Assumes mapping finds the tech/team
             commande_id: commandeId,
             name: assignmentName,
             start_date: parseDate(row[iStart]?.trim()),
-            start_period: row[iStartP]?.trim() || 'Matin',
             end_date: parseDate(row[iEnd]?.trim()) || parseDate(row[iStart]?.trim()),
-            end_period: row[iEndP]?.trim() || row[iStartP]?.trim() || 'Matin',
-            is_absent: row[iAbs]?.toUpperCase() === 'TRUE',
+            is_absent: false,
+            is_billed: row[iBill]?.toUpperCase() === 'TRUE',
             comment: row[iComm]?.trim(),
           }, { onConflict: 'id' });
           assignmentCount++;
@@ -545,7 +543,6 @@ serve(async (req) => {
         const iID = h.indexOf('ID');
         const iTech = h.indexOf('Technicien');
         const iDate = h.indexOf('Date');
-        const iPeriod = h.indexOf('Période');
         const iSAV = h.indexOf('SAV');
         const iConf = h.indexOf('Confirmé');
         const iBill = h.indexOf('Facturé');
@@ -563,9 +560,6 @@ serve(async (req) => {
             technician_id: techId || null,
             start_date: parseDate(row[iDate]?.trim()),
             end_date: parseDate(row[iDate]?.trim()), // Notes currently single-day in sync
-            period: row[iPeriod]?.trim() || 'Matin',
-            start_period: row[iPeriod]?.trim() || 'Matin',
-            end_period: row[iPeriod]?.trim() || 'Matin',
             is_sav: row[iSAV]?.toUpperCase() === 'TRUE',
             is_confirmed: row[iConf]?.toUpperCase() === 'TRUE',
             is_invoiced: row[iBill]?.toUpperCase() === 'TRUE',

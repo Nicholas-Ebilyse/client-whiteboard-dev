@@ -11,6 +11,7 @@ const Auth = lazy(() => import("./pages/Auth"));
 const SimplifiedAdminDashboard = lazy(() => import("./pages/SimplifiedAdminDashboard"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const TestDropdown = lazy(() => import("./pages/TestDropdown"));
+const Presentation = lazy(() => import("./pages/Presentation"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -28,6 +29,7 @@ const App = () => (
             <Route path="/admin" element={<SimplifiedAdminDashboard />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/test-dropdown" element={<TestDropdown />} />
+            <Route path="/presentation" element={<Presentation />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

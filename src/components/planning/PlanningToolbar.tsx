@@ -1,26 +1,22 @@
 import React from 'react';
+import { toast } from 'sonner';
 import { CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuLabel, 
-  DropdownMenuSeparator, 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuPortal,
-  DropdownMenuSubContent
 } from '@/components/ui/dropdown-menu';
-import { Palette, Copy, Undo2, Mail, Wrench, LogOut, Lock, Link2, Menu, Users } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Label } from '@/components/ui/label';
+import { Palette, Copy, Undo2, Mail, Wrench, LogOut, Lock, Link2, Menu, Users, CalendarX2, Presentation, Calendar, FileSpreadsheet } from 'lucide-react';
 import { startOfWeek, format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { WeekSelector } from '@/components/WeekSelector';
-import { InvoicedSummary } from '@/components/InvoicedSummary';
 import { KeyboardShortcutsHelp } from '@/components/KeyboardShortcutsHelp';
-import { AdminBadge } from '@/components/AdminBadge';
 import { Input } from '@/components/ui/input';
 import { Search } from 'lucide-react';
 
@@ -43,12 +39,12 @@ interface PlanningToolbarProps {
   handleNoteUndo: () => void;
   setSendScheduleOpen: (open: boolean) => void;
   savRecordsLength: number;
-  savAbove: boolean;
-  setSavAbove: React.Dispatch<React.SetStateAction<boolean>>;
+  savVisible: boolean;
+  setSavVisible: React.Dispatch<React.SetStateAction<boolean>>;
   handleSignOut: () => void;
-  searchTerm?: string;
-  onSearch?: (term: string) => void;
+  onOpenSearchModal?: () => void;
   setManageTechsDialogOpen?: (open: boolean) => void;
+  setAbsenceManagementOpen?: (open: boolean) => void;
 }
 
 export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
@@ -70,16 +66,19 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
   handleNoteUndo,
   setSendScheduleOpen,
   savRecordsLength,
-  savAbove,
-  setSavAbove,
+  savVisible,
+  setSavVisible,
   handleSignOut,
-  searchTerm = "",
-  onSearch,
+  onOpenSearchModal,
   setManageTechsDialogOpen,
+  setAbsenceManagementOpen,
 }) => {
+  const [presentationTimeout, setPresentationTimeout] = React.useState(30);
+
   return (
     <CardHeader className="bg-primary/5 border-b p-0">
       <div className="p-2 sm:p-4 flex flex-col sm:flex-row items-center justify-between gap-2 border-b">
+        <div className="flex-1 flex justify-start">
         <WeekSelector
           weekNumber={weekConfig.week_number}
           year={weekConfig.year}
@@ -88,7 +87,8 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
           onDrop={handleWeekNavDrop}
           isDragging={isDragging}
         />
-        <CardTitle className="text-lg sm:text-xl font-semibold flex items-center gap-2">
+        </div>
+        <CardTitle className="flex-none text-lg sm:text-xl font-semibold flex items-center justify-center gap-2">
           RPS Planning - {(() => {
             const weekStart = startOfWeek(new Date(weekConfig.year, 0, 1 + (weekConfig.week_number - 1) * 7), { weekStartsOn: 1 });
             const day = weekStart.getDate().toString();
@@ -97,31 +97,79 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
             return `${day} ${month} ${year}`;
           })()}
         </CardTitle>
-        <div className="flex-1 max-w-sm mx-4 relative hidden md:block">
-          {onSearch && (
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="search"
-                placeholder="Rechercher client, chantier..."
-                className="w-full pl-9 h-9 bg-background focus-visible:ring-primary/50"
-                value={searchTerm}
-                onChange={(e) => onSearch(e.target.value)}
-              />
-            </div>
-          )}
-        </div>
-          <div className="flex items-center gap-1.5">
+        <div className="flex-1 flex items-center justify-end gap-1.5">
           {/* Info group */}
-          <InvoicedSummary
-            invoicedAssignments={invoicedAssignments}
-            totalAssignments={totalAssignments}
-            invoicedNotes={invoicedNotes}
-            totalNotes={totalNotes}
-          />
           {isAdmin && <KeyboardShortcutsHelp />}
           
           {/* Quick Actions */}
+          {onOpenSearchModal && (
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={onOpenSearchModal}
+                    className="h-8 w-8 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300"
+                  >
+                    <Search className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Recherche avancée et filtres
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+
+          {isAdmin && (
+            <Popover>
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                      >
+                        <Presentation className="h-4 w-4" />
+                      </Button>
+                    </PopoverTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Mode présentation
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <PopoverContent className="w-64 p-4">
+                <div className="space-y-4">
+                  <h4 className="font-semibold text-sm">Mode présentation</h4>
+                  <div className="space-y-2">
+                    <Label htmlFor="timeout">Délai avant retour (en minutes)</Label>
+                    <Input 
+                      id="timeout"
+                      type="number" 
+                      min="1"
+                      value={presentationTimeout} 
+                      onChange={e => setPresentationTimeout(parseInt(e.target.value) || 30)} 
+                    />
+                  </div>
+                  <Button 
+                    className="w-full" 
+                    onClick={() => {
+                      const url = `${window.location.origin}/presentation?timeout=${presentationTimeout}`;
+                      navigator.clipboard.writeText(url);
+                      toast.success('Lien copié dans le presse-papiers');
+                    }}
+                  >
+                    Copier lien Présentation
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
+
           {isAdmin && (
             <TooltipProvider delayDuration={200}>
               <Tooltip>
@@ -175,8 +223,6 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
           {/* Separator */}
           <div className="w-px h-6 bg-border mx-1" />
 
-          {isAdmin && <AdminBadge />}
-
           {/* Hamburger Menu for less frequent actions */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -197,6 +243,24 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
                   <span>Gérer les équipes</span>
                 </DropdownMenuItem>
               )}
+              {isAdmin && setAbsenceManagementOpen && (
+                <DropdownMenuItem onClick={() => setAbsenceManagementOpen(true)}>
+                  <CalendarX2 className="mr-2 h-4 w-4 text-orange-500" />
+                  <span>Gérer les absences</span>
+                </DropdownMenuItem>
+              )}
+              {isAdmin && (
+                <>
+                  <DropdownMenuItem onClick={() => window.open(`https://calendar.google.com/calendar/u/0/r?cid=c_8ca18ced58f50f7a5d670b6bee03ca40017d805860177daba7efcd7a6a53b8b2@group.calendar.google.com`, '_blank')}>
+                    <Calendar className="mr-2 h-4 w-4 text-blue-600" />
+                    <span>Ouvrir Google Calendar</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => window.open(`https://docs.google.com/spreadsheets/d/1699-HaYP4W2rSJUscbXCvp7fVW0vR95NRpjl5QpBUeY/edit`, '_blank')}>
+                    <FileSpreadsheet className="mr-2 h-4 w-4 text-emerald-600" />
+                    <span>Ouvrir Google Sheets</span>
+                  </DropdownMenuItem>
+                </>
+              )}
               {isAdmin && (
                 <DropdownMenuItem onClick={() => setSendScheduleOpen(true)}>
                   <Mail className="mr-2 h-4 w-4 text-sky-600" />
@@ -204,9 +268,9 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
                 </DropdownMenuItem>
               )}
               {savRecordsLength > 0 && (
-                <DropdownMenuItem onClick={() => setSavAbove(prev => !prev)}>
-                  <Wrench className={cn("mr-2 h-4 w-4", savAbove ? "text-orange-500" : "text-muted-foreground")} />
-                  <span>{savAbove ? 'Masquer SAV' : 'Afficher SAV'}</span>
+                <DropdownMenuItem onClick={() => setSavVisible(prev => !prev)}>
+                  <Wrench className={cn("mr-2 h-4 w-4", savVisible ? "text-orange-500" : "text-muted-foreground")} />
+                  <span>{savVisible ? 'Masquer SAV' : 'Afficher SAV'}</span>
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />

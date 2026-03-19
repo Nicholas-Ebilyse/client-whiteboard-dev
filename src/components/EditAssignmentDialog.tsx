@@ -23,6 +23,27 @@ import { DeleteAssignmentConfirmDialog } from './DeleteAssignmentConfirmDialog';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { useMaxAssignmentsPerPeriod } from '@/hooks/useAppSettings';
+
+const getShortChantierName = (address: string) => {
+  if (!address) return '';
+  // Try to match standard French format: zip code followed by city
+  const match = address.match(/\b\d{5}\s+([A-Za-zÀ-ÖØ-öø-ÿ\-\s]+?)(?:,|$)/);
+  if (match) {
+    return match[1].trim();
+  }
+  
+  // Fallback splitting by comma
+  const parts = address.split(',').map(p => p.trim());
+  if (parts.length > 0) {
+    const lastPart = parts[parts.length - 1];
+    if (lastPart.toLowerCase() === 'france' && parts.length > 1) {
+      return parts[parts.length - 2].replace(/^\d{5}\s+/, '').trim();
+    }
+    return lastPart.replace(/^\d{5}\s+/, '').trim();
+  }
+  return address;
+};
+
 interface EditAssignmentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -68,6 +89,7 @@ export const EditAssignmentDialog = ({
   const [comment, setComment] = useState(assignment?.comment || '');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [editedChantierAddress, setEditedChantierAddress] = useState<string | null>(null);
   // Derive invoice status from commandes — read-only, used only for locking
   const isInvoiced = useMemo(() => {
     if (!assignment?.commandeId) return false;
@@ -79,6 +101,9 @@ export const EditAssignmentDialog = ({
     chantiers.find(c => c.id === selectedCommande),
   [chantiers, selectedCommande]);
 
+  useEffect(() => {
+    setEditedChantierAddress(null);
+  }, [selectedCommande]);
 
   useEffect(() => {
     if (assignment) {
@@ -92,7 +117,6 @@ export const EditAssignmentDialog = ({
       setComment(assignment.comment || '');
     }
   }, [assignment, commandes]);
-
 
   const { maxAssignments: MAX_ASSIGNMENTS_PER_PERIOD } = useMaxAssignmentsPerPeriod();
 
@@ -108,7 +132,7 @@ export const EditAssignmentDialog = ({
     }).length;
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (assignment && selectedTeam && selectedCommande && startDate && endDate) {
       const startDateStr = format(startDate, 'yyyy-MM-dd');
       const endDateStr = format(endDate, 'yyyy-MM-dd');
@@ -131,6 +155,29 @@ export const EditAssignmentDialog = ({
           variant: 'destructive',
         });
         return;
+      }
+
+      // Check for address edit
+      if (editedChantierAddress !== null) {
+        const selectedComm = commandes.find((c: any) => c.id === selectedCommande);
+        if (selectedComm && editedChantierAddress !== selectedComm.chantier) {
+          try {
+            const { supabase } = await import('@/integrations/supabase/client');
+            const { error } = await supabase
+              .from('invoices')
+              .update({ chantier: editedChantierAddress })
+              .eq('id', selectedCommande);
+              
+            if (error) throw error;
+            
+            queryClient.invalidateQueries({ queryKey: ['invoices'] });
+            toast({ title: "Adresse mise à jour", description: "L'adresse du chantier a été enregistrée avec succès." });
+          } catch (error) {
+            console.error("Erreur lors de la mise à jour de l'adresse:", error);
+            toast({ title: "Erreur", description: "Impossible de sauvegarder l'adresse.", variant: "destructive" });
+            return; // Don't save assignment if address failed
+          }
+        }
       }
       
       const updatedAssignment: Assignment = {
@@ -188,9 +235,16 @@ export const EditAssignmentDialog = ({
       .filter((c: any) => c.client === selectedClient && (!c.is_invoiced || c.id === assignment?.commandeId))
       .map((c: any) => ({
         value: c.id,
-        label: c.chantier || c.name,
+        label: c.chantier ? getShortChantierName(c.chantier) : c.name,
       }));
   }, [commandes, selectedClient, assignment?.commandeId]);
+
+  // Auto-select chantier if there is only one option available
+  useEffect(() => {
+    if (selectedClient && chantierOptions.length === 1 && !selectedCommande) {
+      setSelectedCommande(chantierOptions[0].value);
+    }
+  }, [selectedClient, chantierOptions, selectedCommande]);
 
   return (
     <>
@@ -203,8 +257,8 @@ export const EditAssignmentDialog = ({
         <div className="space-y-6 py-4 max-h-[calc(90vh-200px)] overflow-y-auto">
           <div className="space-y-2">
             <Label htmlFor="team">Équipe</Label>
-            <Select value={selectedTeam} disabled>
-              <SelectTrigger id="team" className="bg-muted text-muted-foreground opacity-100">
+            <Select value={selectedTeam} onValueChange={setSelectedTeam}>
+              <SelectTrigger id="team" className="bg-background">
                 <SelectValue placeholder="Sélectionner une équipe" />
               </SelectTrigger>
               <SelectContent>
@@ -239,7 +293,7 @@ export const EditAssignmentDialog = ({
 
             {selectedClient && (
               <div className="space-y-2">
-                <Label>Chantier (Lieu/Adresse)</Label>
+                <Label>Chantier</Label>
                 <SearchableSelect
                   value={selectedCommande}
                   onValueChange={setSelectedCommande}
@@ -262,9 +316,9 @@ export const EditAssignmentDialog = ({
                   <div className="flex items-center gap-2">
                     <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                     <Input 
-                      value={selectedComm.chantier}
-                      readOnly
-                      className="flex-1 bg-background/50 text-sm"
+                      value={editedChantierAddress !== null ? editedChantierAddress : selectedComm.chantier}
+                      onChange={(e) => setEditedChantierAddress(e.target.value)}
+                      className="flex-1 bg-background text-sm"
                     />
                     <Button
                       type="button"
@@ -450,7 +504,7 @@ export const EditAssignmentDialog = ({
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="assignment-comment">Commentaire de l'affectation</Label>
+            <Label htmlFor="assignment-comment">Notes/Commentaires supplémentaires</Label>
             <Textarea
               id="assignment-comment"
               value={comment}

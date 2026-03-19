@@ -18,12 +18,11 @@ type FilterStatus = 'all' | 'resolved' | 'unresolved';
 interface SAVTableProps {
   savRecords: SAVRecord[];
   weekStart: string;
-  isAbove: boolean;
-  onTogglePosition: () => void;
+  onClose: () => void;
   isAdmin: boolean;
 }
 
-export const SAVTable = ({ savRecords, weekStart, isAbove, onTogglePosition, isAdmin }: SAVTableProps) => {
+export const SAVTable = ({ savRecords, weekStart, onClose, isAdmin }: SAVTableProps) => {
   const updateResolved = useUpdateSAVResolved();
   const [isExpanded, setIsExpanded] = useState(false);
   const [sortField, setSortField] = useState<SortField>('numero');
@@ -134,8 +133,7 @@ export const SAVTable = ({ savRecords, weekStart, isAbove, onTogglePosition, isA
 
   return (
     <Card className={cn(
-      "w-full shadow-lg border-t-4 border-t-orange-500",
-      isAbove ? "mb-4" : "mt-4"
+      "w-full shadow-lg border-t-4 border-t-orange-500 mt-4"
     )}>
       {/* ── Clickable title bar (collapsed by default) ── */}
       <CardHeader
@@ -190,21 +188,21 @@ export const SAVTable = ({ savRecords, weekStart, isAbove, onTogglePosition, isA
             )}
           </div>
 
-          {/* Position toggle button */}
+          {/* Close button */}
           <TooltipProvider delayDuration={0}>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={(e) => { e.stopPropagation(); onTogglePosition(); }}
+                  onClick={(e) => { e.stopPropagation(); onClose(); }}
                   className="h-7 w-7 p-0 hover:bg-orange-100 dark:hover:bg-orange-900/50"
                 >
-                  {isAbove ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+                  <X className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="left">
-                {isAbove ? 'Déplacer en bas' : 'Déplacer en haut'}
+                Fermer SAV
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>

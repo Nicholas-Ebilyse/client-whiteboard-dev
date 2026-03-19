@@ -5,10 +5,11 @@ import { toast } from 'sonner';
 import { DragData } from './useDragValidation';
 
 export interface UndoState {
-  assignments: Array<{
+  type?: 'move' | 'copy';
+  copiedIds?: string[];
+  assignments?: Array<{
     id: string;
     team_id: string | null;
-    technician_id: string;
     start_date: string;
     end_date: string;
   }>;
@@ -26,17 +27,28 @@ export const useDropExecution = (
     if (!undoState || isUndoing) return;
     setIsUndoing(true);
     try {
-      for (const a of undoState.assignments) {
-        const { error } = await supabase
-          .from('assignments')
-          .update({
-            team_id: a.team_id,
-            technician_id: a.technician_id,
-            start_date: a.start_date,
-            end_date: a.end_date,
-          })
-          .eq('id', a.id);
-        if (error) throw error;
+      if (undoState.type === 'copy' && undoState.copiedIds) {
+        // Undo a copy by deleting the newly created assignments
+        for (const newId of undoState.copiedIds) {
+          const { error } = await supabase
+            .from('assignments')
+            .delete()
+            .eq('id', newId);
+          if (error) throw error;
+        }
+      } else if (undoState.assignments) {
+        // Undo a move by restoring original positions
+        for (const a of undoState.assignments) {
+          const { error } = await supabase
+            .from('assignments')
+            .update({
+              team_id: a.team_id,
+              start_date: a.start_date,
+              end_date: a.end_date,
+            })
+            .eq('id', a.id);
+          if (error) throw error;
+        }
       }
       toast.success('Déplacement annulé');
       setUndoState(null);
@@ -60,14 +72,15 @@ export const useDropExecution = (
 
       if (isCopy) {
         const newGroupId = crypto.randomUUID();
+        const createdIds: string[] = [];
+        
         for (const pos of newPositions) {
           const original = pos.originalAssignment;
-          const { error } = await supabase
+          const { data, error } = await supabase
             .from('assignments')
             .insert({
               name: original.name,
               team_id: targetTeamId,
-              technician_id: original.technician_id,
               start_date: pos.newStartDate.toISOString().split('T')[0],
               end_date: pos.newEndDate.toISOString().split('T')[0],
               commande_id: original.commande_id,
@@ -78,9 +91,19 @@ export const useDropExecution = (
               is_confirmed: false,
               is_fixed: original.is_fixed,
               assignment_group_id: newPositions.length > 1 ? newGroupId : null,
-            });
+            })
+            .select('id')
+            .single();
+            
           if (error) throw error;
+          if (data) createdIds.push(data.id);
         }
+        
+        setUndoState({
+          type: 'copy',
+          copiedIds: createdIds,
+        });
+        
         toast.success(newPositions.length > 1
           ? `Groupe de ${newPositions.length} affectation(s) copié`
           : 'Affectation copiée'
@@ -92,10 +115,10 @@ export const useDropExecution = (
           : assignments.filter(a => a.id === dragData.assignment.id);
 
         setUndoState({
+          type: 'move',
           assignments: assignmentsToSave.map(a => ({
             id: a.id,
             team_id: a.team_id ?? null,
-            technician_id: a.technician_id,
             start_date: a.start_date,
             end_date: a.end_date,
           })),
@@ -114,7 +137,7 @@ export const useDropExecution = (
         }
         toast.success(newPositions.length > 1
           ? `Groupe de ${newPositions.length} affectation(s) déplacé`
-          : 'Affectation déplacée'
+          : 'Affectation assignée à l\'équipe'
         );
       }
 
@@ -146,10 +169,10 @@ export const useDropExecution = (
       newEndDate.setDate(newEndDate.getDate() + dayOffset);
 
       setUndoState({
+        type: 'move',
         assignments: [{
           id: assignment.id,
           team_id: dragData.sourceTeamId,
-          technician_id: assignment.technicianId as string,
           start_date: assignment.startDate,
           end_date: assignment.endDate,
         }],
@@ -201,10 +224,10 @@ export const useDropExecution = (
       const groupAssignments = assignments.filter(a => a.assignment_group_id === groupId);
 
       setUndoState({
+        type: 'move',
         assignments: groupAssignments.map(a => ({
           id: a.id,
           team_id: a.team_id ?? null,
-          technician_id: a.technician_id,
           start_date: a.start_date,
           end_date: a.end_date,
         })),

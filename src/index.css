@@ -43,20 +43,20 @@ All colors MUST be HSL.
     --warning-foreground: 0 0% 100%;
     
     --tonic-green: 142 71% 45%;
-    --absent-pink: 330 85% 85%;
-    --confirmed-blue: 215 85% 85%;
+    --absent-pink: 330 90% 75%;
+    --confirmed-blue: 215 95% 65%;
     
     /* Note state colors - cyan-tinted blue to distinguish from assignments */
-    --note-confirmed: 195 85% 85%;
-    --note-confirmed-foreground: 195 50% 20%;
+    --note-confirmed: 195 90% 75%;
+    --note-confirmed-foreground: 195 60% 15%;
     
     /* Assignment state colors */
-    --assignment-unconfirmed: 220 14% 70%;
-    --assignment-unconfirmed-foreground: 220 15% 20%;
-    --assignment-confirmed: 215 85% 85%;
-    --assignment-confirmed-foreground: 215 50% 20%;
-    --assignment-invoiced: 0 85% 80%;
-    --assignment-invoiced-foreground: 0 50% 20%;
+    --assignment-unconfirmed: 220 20% 60%;
+    --assignment-unconfirmed-foreground: 220 20% 15%;
+    --assignment-confirmed: 215 95% 65%;
+    --assignment-confirmed-foreground: 215 60% 15%;
+    --assignment-invoiced: 0 90% 70%;
+    --assignment-invoiced-foreground: 0 60% 15%;
 
     /* M3 Surface Elevation */
     --surface-1: 215 90% 55% / 0.05;
@@ -150,20 +150,20 @@ All colors MUST be HSL.
     --warning-foreground: 0 0% 100%;
     
     --tonic-green: 142 71% 50%;
-    --absent-pink: 330 60% 40%;
-    --confirmed-blue: 215 60% 45%;
+    --absent-pink: 330 70% 50%;
+    --confirmed-blue: 215 80% 55%;
     
     /* Note state colors - dark mode */
-    --note-confirmed: 195 60% 35%;
-    --note-confirmed-foreground: 195 80% 90%;
+    --note-confirmed: 195 70% 45%;
+    --note-confirmed-foreground: 195 20% 10%;
     
     /* Assignment state colors - dark mode */
-    --assignment-unconfirmed: 220 15% 35%;
-    --assignment-unconfirmed-foreground: 220 20% 90%;
-    --assignment-confirmed: 215 60% 35%;
-    --assignment-confirmed-foreground: 215 80% 90%;
-    --assignment-invoiced: 0 60% 35%;
-    --assignment-invoiced-foreground: 0 80% 90%;
+    --assignment-unconfirmed: 220 20% 45%;
+    --assignment-unconfirmed-foreground: 220 20% 95%;
+    --assignment-confirmed: 215 80% 55%;
+    --assignment-confirmed-foreground: 215 20% 10%;
+    --assignment-invoiced: 0 80% 55%;
+    --assignment-invoiced-foreground: 0 20% 10%;
 
     /* M3 Surface Elevation - Dark Mode */
     --surface-1: 215 90% 60% / 0.05;

@@ -53,6 +53,7 @@ import {
   getWeekDates,
 } from '@/hooks/usePlanning';
 import { AbsenceManagementDialog } from '@/components/AbsenceManagementDialog';
+import { SearchFilterModal } from '@/components/SearchFilterModal';
 import { useDuplicateAssignment } from '@/hooks/useDuplicateAssignment';
 import { useArchiveTechnician } from '@/hooks/useArchiveTechnician';
 import { useUpdateRelatedAssignments } from '@/hooks/useUpdateRelatedAssignments';
@@ -78,8 +79,9 @@ const Index = () => {
   const [techWeekNoteDialogOpen, setTechWeekNoteDialogOpen] = useState(false);
   const [manageTechsDialogOpen, setManageTechsDialogOpen] = useState(false);
   const [absenceManagementOpen, setAbsenceManagementOpen] = useState(false);
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [sendScheduleOpen, setSendScheduleOpen] = useState(false);
-  const [savAbove, setSavAbove] = useState(false);
+  const [savVisible, setSavVisible] = useState(false);
   const [groupEditAlert, setGroupEditAlert] = useState<{
     open: boolean;
     assignment: Assignment | null;
@@ -243,8 +245,8 @@ const Index = () => {
     });
   };
 
-  const handleAddTechnician = (name: string, isTemp: boolean) => {
-    createTechnician.mutate({ name, isTemp }, {
+  const handleAddTechnician = (name: string, isTemp: boolean, skills?: string) => {
+    createTechnician.mutate({ name, isTemp, skills }, {
       onSuccess: () => {
         toast.success(`Technicien ${name} ajouté`);
       },
@@ -254,8 +256,8 @@ const Index = () => {
     });
   };
 
-  const handleUpdateTechnicianName = (id: string, name?: string, is_interim?: boolean) => {
-    updateTechnician.mutate({ id, name, is_interim }, {
+  const handleUpdateTechnicianName = (id: string, name?: string, is_interim?: boolean, skills?: string) => {
+    updateTechnician.mutate({ id, name, is_interim, skills }, {
       onSuccess: () => {
         toast.success(is_interim !== undefined ? 'Statut intérim mis à jour' : 'Nom mis à jour');
       },
@@ -893,16 +895,7 @@ const Index = () => {
       {/* Issue #10: Mobile responsive layout */}
       <div className="w-full p-2 sm:p-4 lg:p-8">
         <div className="max-w-[2000px] mx-auto">
-          {/* SAV Table - Above position */}
-          {savAbove && savRecords.length > 0 && (
-            <SAVTable
-              savRecords={savRecords}
-              weekStart={weekStart}
-              isAbove={savAbove}
-              onTogglePosition={() => setSavAbove(false)}
-              isAdmin={isAdmin}
-            />
-          )}
+          {/* SAV Table is now at the bottom only */}
           <div className="grid grid-cols-1 gap-4 lg:gap-6">
             <Card className="overflow-hidden shadow-lg" data-schedule-container>
               <PlanningToolbar
@@ -924,12 +917,12 @@ const Index = () => {
                 handleNoteUndo={handleNoteUndo}
                 setSendScheduleOpen={setSendScheduleOpen}
                 savRecordsLength={savRecords.length}
-                savAbove={savAbove}
-                setSavAbove={setSavAbove}
+                savVisible={savVisible}
+                setSavVisible={setSavVisible}
                 handleSignOut={handleSignOut}
-                searchTerm={searchTerm}
-                onSearch={setSearchTerm}
                 setManageTechsDialogOpen={setManageTechsDialogOpen}
+                setAbsenceManagementOpen={setAbsenceManagementOpen}
+                onOpenSearchModal={() => setSearchModalOpen(true)}
               />
               <CardContent className="p-0 max-h-[calc(100vh-12rem)] overflow-y-auto">
                 <WeeklyGrid
@@ -943,7 +936,6 @@ const Index = () => {
                   isAdmin={isAdmin}
                   maxAssignments={maxAssignments}
                   allAssignmentsFormatted={allAssignmentsFormatted}
-                  searchTerm={searchTerm}
                   getGeneralNotesForDate={getGeneralNotesForDate}
                   getAssignmentsForCell={getAssignmentsForCell}
                   handleAddGeneralNote={(date) => handleAddGeneralNote(date, 'Journée')}
@@ -972,14 +964,13 @@ const Index = () => {
             </Card>
         </div>
         
-        {/* SAV Table - Below position */}
-        {!savAbove && savRecords.length > 0 && (
+        {/* SAV Table */}
+        {savVisible && savRecords.length > 0 && (
           <SAVTable
             savRecords={savRecords}
             weekStart={weekStart}
-            isAbove={savAbove}
-            onTogglePosition={() => setSavAbove(true)}
             isAdmin={isAdmin}
+            onClose={() => setSavVisible(false)}
           />
         )}
 
@@ -1065,11 +1056,34 @@ const Index = () => {
             is_archived: t.is_archived || false,
             position: t.position ?? 0,
             team_id: t.team_id,
+            is_temp: t.is_temp,
+            short_id: t.short_id,
+            skills: t.skills
           }))}
           onArchive={handleArchiveTechnician}
           onNameChange={handleUpdateTechnicianName}
           onAdd={handleAddTechnician}
           onAssignTeam={(techId, teamId) => updateTechnician.mutate({ id: techId, team_id: teamId })}
+        />
+
+        <AbsenceManagementDialog
+          open={absenceManagementOpen}
+          onOpenChange={setAbsenceManagementOpen}
+        />
+
+        <SearchFilterModal
+          open={searchModalOpen}
+          onOpenChange={setSearchModalOpen}
+          commandes={commandes.map(c => ({ id: c.id, client: c.client, chantier: c.chantier }))}
+          assignments={assignments.map(a => ({
+            id: a.id,
+            team_id: a.team_id,
+            commande_id: a.commande_id,
+            start_date: a.start_date,
+            end_date: a.end_date,
+            comment: a.comment,
+          }))}
+          teams={teams.map(t => ({ id: t.id, name: t.name, color: t.color }))}
         />
 
         <SendScheduleDialog
@@ -1136,7 +1150,7 @@ const Index = () => {
         <AlertDialog open={!!pendingDrop} onOpenChange={(open) => !open && cancelPendingDrop()}>
           <AlertDialogContent className="bg-card">
             <AlertDialogHeader>
-              <AlertDialogTitle>Déplacer vers un autre technicien</AlertDialogTitle>
+              <AlertDialogTitle>Déplacer vers une autre équipe</AlertDialogTitle>
               <AlertDialogDescription>
                 Voulez-vous vraiment déplacer cette affectation vers {getTargetTeamName()} ?
               </AlertDialogDescription>

@@ -20,7 +20,6 @@ interface WeeklyGridProps {
   isAdmin: boolean;
   maxAssignments: number;
   allAssignmentsFormatted: any[];
-  searchTerm?: string;
 
   // Data getters — NO period arg
   getGeneralNotesForDate: (date: string) => any[];
@@ -58,6 +57,25 @@ interface WeeklyGridProps {
   setHighlightedGroupId: (id: string | null) => void;
 }
 
+const getPastelColor = (hex: string | undefined) => {
+  if (!hex || typeof hex !== 'string') return undefined;
+  
+  // Handle 3-char hex (#RGB) -> (#RRGGBB)
+  let fullHex = hex;
+  if (hex.length === 4 && hex.startsWith('#')) {
+    fullHex = `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}`;
+  }
+  
+  if (!fullHex.startsWith('#') || fullHex.length !== 7) return 'transparent';
+  
+  const r = parseInt(fullHex.slice(1, 3), 16);
+  const g = parseInt(fullHex.slice(3, 5), 16);
+  const b = parseInt(fullHex.slice(5, 7), 16);
+  
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return 'transparent';
+  return `rgba(${r}, ${g}, ${b}, 0.15)`;
+};
+
 export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
   displayTeams,
   activeTechnicians,
@@ -69,7 +87,6 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
   isAdmin,
   maxAssignments,
   allAssignmentsFormatted,
-  searchTerm,
   getGeneralNotesForDate,
   getAssignmentsForCell,
   handleAddGeneralNote,
@@ -103,7 +120,7 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
           style={{ gridTemplateColumns: `220px repeat(${weekDates.length}, minmax(200px, 1fr))` }}
         >
           {/* Top-left admin cell (Blank) */}
-          <div className="p-2 sm:p-4 border-r border-border bg-white" />
+          <div className="p-2 sm:p-4 border-r border-border bg-primary/5" />
 
           {/* Day column headers — no Matin/Après-midi */}
           {weekDates.map((day) => {
@@ -154,13 +171,16 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
           return (
             <div
               key={team.id}
-              className="grid border-b border-border"
-              style={{ gridTemplateColumns: `220px repeat(${weekDates.length}, minmax(200px, 1fr))` }}
+              className="grid border-b border-border transition-colors"
+              style={{ 
+                gridTemplateColumns: `220px repeat(${weekDates.length}, minmax(200px, 1fr))`,
+                backgroundColor: getPastelColor(team.color)
+              }}
             >
               {/* Row Header: Team name */}
               <div
-                className="p-3 sm:p-4 text-center border-r border-border flex flex-col justify-center gap-2"
-                style={{ backgroundColor: team.color }}
+                className="p-3 sm:p-4 text-center border-r border-border flex flex-col justify-center gap-2 transition-colors"
+                style={{ backgroundColor: getPastelColor(team.color) }}
               >
                 <TechnicianHeaderCell
                   name={team.name}
@@ -192,13 +212,16 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
               {/* Day cells — one unified cell per day, no period split */}
               {weekDates.map((day) => {
                 // Absence: block if ANY technician in this team is absent this day
-                const teamIsUnavailable = teamTechs.some(tech =>
+                const absentTechs = teamTechs.filter(tech =>
                   absences?.some(a =>
                     a.technician_id === tech.id &&
                     a.start_date <= day.fullDate &&
                     a.end_date >= day.fullDate
                   )
                 );
+                const teamIsUnavailable = absentTechs.length > 0;
+                const absentTechNames = absentTechs.map(t => t.name);
+                const cellAssignments = getAssignmentsForCell(team.id, day.fullDate);
 
                 const isDropTarget = dropTarget?.teamId === team.id && dropTarget?.date === day.fullDate;
                 const isPreview = previewCells.some(c => c.teamId === team.id && c.date === day.fullDate);
@@ -207,33 +230,36 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                   <div
                     key={day.fullDate}
                     className={[
-                      'border-r border-border bg-background relative group/daycell',
-                      'hover:bg-muted/10 transition-colors',
+                      'border-r border-border relative group/daycell',
+                      'hover:brightness-95 transition-all',
                       teamIsUnavailable
-                        ? 'bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,rgba(0,0,0,0.05)_10px,rgba(0,0,0,0.05)_20px)] pointer-events-none'
+                        ? 'bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,rgba(0,0,0,0.05)_10px,rgba(0,0,0,0.05)_20px)]'
                         : '',
                       isDropTarget ? 'ring-2 ring-inset ring-primary' : '',
                       isPreview ? 'bg-primary/5' : '',
                     ].join(' ')}
-                    style={{ minHeight: '120px' }}
+                    style={{ 
+                      minHeight: '120px', 
+                      backgroundColor: team.color && !teamIsUnavailable && !isPreview ? getPastelColor(team.color) : undefined 
+                    }}
                     onDragOver={isAdmin && !teamIsUnavailable ? (e) => handleDragOver(e, team.id, day.fullDate) : undefined}
                     onDragLeave={isAdmin ? handleDragLeave : undefined}
                     onDrop={isAdmin && !teamIsUnavailable ? (e) => handleDrop(e, team.id, day.fullDate) : undefined}
                     onClick={isAdmin && !teamIsUnavailable ? () => handleCellClick(team.id, day.fullDate) : undefined}
                   >
-                    {teamIsUnavailable && (
+                    {teamIsUnavailable && cellAssignments.length === 0 && (
                       <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
-                        <span className="text-xs text-muted-foreground/60 font-medium bg-background/70 px-2 py-0.5 rounded">
-                          Absent
+                        <span className="text-xs text-muted-foreground/60 font-medium bg-background/70 px-2 py-0.5 rounded text-red-600/80">
+                          Absence {absentTechNames.join(', ')}
                         </span>
                       </div>
                     )}
 
                     <AssignmentCell
-                      assignments={getAssignmentsForCell(team.id, day.fullDate)}
+                      absentTechNames={absentTechNames}
+                      assignments={cellAssignments}
                       notes={[]}
                       teamColor={team.color}
-                      searchTerm={searchTerm}
                       onClick={undefined} // cell-level click handled by outer div
                       onNoteClick={undefined}
                       onAddAssignment={isAdmin && !teamIsUnavailable ? () => handleAddAssignment(team.id, day.fullDate) : undefined}

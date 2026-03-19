@@ -292,6 +292,10 @@ Deno.serve(async (req) => {
     const techMap: Record<string, string> = {};
     (technicians || []).forEach((t: any) => { techMap[t.id] = t.name; });
 
+    const { data: teams } = await supabase.from("teams").select("id, name");
+    const teamMap: Record<string, string> = {};
+    (teams || []).forEach((t: any) => { teamMap[t.id] = t.name; });
+
     // ── 2. Commandes ─────────────────────────────────────────────────────────
     const { data: commandes } = await supabase
       .from("commandes")
@@ -364,21 +368,49 @@ Deno.serve(async (req) => {
       .order("start_date", { ascending: false });
 
     const assignmentRows: string[][] = [
-      ["ID", "Technicien", "Chantier", "Date début", "Période début", "Date fin", "Période fin", "Facturé", "Absent", "Commentaire"],
-      ...(assignments || []).map((a: any) => [
+      ["ID", "Equipe", "Chantier", "Date début", "Date fin", "Facturé", "Commentaire"],
+      ...(assignments || []).filter((a: any) => !a.is_absent).map((a: any) => [
         a.id,
-        techMap[a.technician_id] || a.technician_id,
+        teamMap[a.team_id] || a.team_id || "Équipe Inconnue",
         commandeMap[a.commande_id] || a.name || "",
         fmtDate(a.start_date),
-        a.start_period || "",
         fmtDate(a.end_date),
-        a.end_period || "",
         a.is_billed ? "TRUE" : "FALSE",
-        a.is_absent ? "TRUE" : "FALSE",
         a.comment || "",
       ]),
     ];
     await writeSheet(spreadsheetId, "Affectations", assignmentRows, accessToken);
+
+    // ── 5b. Absences ─────────────────────────────────────────────────────────
+    const absenceRows: string[][] = [
+      ["ID", "Equipe", "Date début", "Date fin", "Motif", "Commentaire"],
+      ...(assignments || []).filter((a: any) => a.is_absent).map((a: any) => [
+        a.id,
+        teamMap[a.team_id] || a.team_id || "Équipe Inconnue",
+        fmtDate(a.start_date),
+        fmtDate(a.end_date),
+        a.absence_reason || a.name || "",
+        a.comment || "",
+      ]),
+    ];
+    await writeSheet(spreadsheetId, "Absences", absenceRows, accessToken);
+
+    // ── 5c. Motifs ─────────────────────────────────────────────────────────
+    const { data: absenceMotives } = await supabase
+      .from("absence_motives")
+      .select("id, name, color, created_at")
+      .order("name");
+
+    const motiveRows: string[][] = [
+      ["ID", "Nom", "Couleur", "Créé le"],
+      ...(absenceMotives || []).map((m: any) => [
+        m.id,
+        m.name || "",
+        m.color || "",
+        fmtDate(m.created_at),
+      ]),
+    ];
+    await writeSheet(spreadsheetId, "Motifs", motiveRows, accessToken);
 
     // ── 6. Notes ─────────────────────────────────────────────────────────────
     const { data: notes } = await supabase
@@ -387,12 +419,11 @@ Deno.serve(async (req) => {
       .order("start_date", { ascending: false });
 
     const noteRows: string[][] = [
-      ["ID", "Technicien", "Date", "Période", "SAV", "Confirmé", "Facturé", "Texte"],
+      ["ID", "Technicien", "Date", "SAV", "Confirmé", "Facturé", "Texte"],
       ...(notes || []).map((n: any) => [
         n.id,
-        techMap[n.technician_id] || n.technician_id,
+        techMap[n.technician_id] || n.technician_id || "",
         fmtDate(n.start_date),
-        n.period || "",
         n.is_sav ? "TRUE" : "FALSE",
         n.is_confirmed ? "TRUE" : "FALSE",
         n.is_invoiced ? "TRUE" : "FALSE",
@@ -423,7 +454,7 @@ Deno.serve(async (req) => {
         .update({
           status: 'success',
           completed_at: new Date().toISOString(),
-          records_synced: (technicians?.length || 0) + (commandes?.length || 0) + (chantiers?.length || 0) + (savRecords?.length || 0) + (assignments?.length || 0) + (notes?.length || 0) + (factures?.length || 0),
+          records_synced: (technicians?.length || 0) + (commandes?.length || 0) + (chantiers?.length || 0) + (savRecords?.length || 0) + (assignments?.length || 0) + (notes?.length || 0) + (factures?.length || 0) + (absenceMotives?.length || 0),
         })
         .eq('id', syncRecord.id);
     }
@@ -438,7 +469,8 @@ Deno.serve(async (req) => {
           affectations: assignments?.length || 0,
           notes: notes?.length || 0,
           factures: factures?.length || 0,
-          chantiers: chantiers?.length || 0
+          chantiers: chantiers?.length || 0,
+          motifs: absenceMotives?.length || 0
         }
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }

@@ -49,10 +49,7 @@ interface Assignment {
   name: string;
   start_date: string;
   end_date: string;
-  start_period: string;
-  end_period: string;
-  technician_id: string;
-  second_technician_id: string | null;
+  team_id: string;
   commande_id: string | null;
   is_absent: boolean | null;
   is_confirmed: boolean | null;
@@ -60,7 +57,7 @@ interface Assignment {
   absence_reason: string | null;
 }
 
-interface Technician {
+interface Team {
   id: string;
   name: string;
 }
@@ -215,18 +212,6 @@ function pemToArrayBuffer(pem: string): ArrayBuffer {
   return bytes.buffer;
 }
 
-function getTimeForPeriod(period: string, isStart: boolean): string {
-  if (period === "Matin") {
-    return isStart ? "08:00:00" : "12:00:00";
-  } else {
-    return isStart ? "14:00:00" : "17:00:00";
-  }
-}
-
-// Convert technician name to email format: "Jean Pierre" -> "jean.pierre@sbi25.eu"
-function technicianNameToEmail(name: string): string {
-  return name.toLowerCase().replace(/\s+/g, ".") + "@sbi25.eu";
-}
 
 function getEventColor(assignment: Assignment, commande: Commande | null): string {
   if (assignment.is_absent) return CALENDAR_COLORS.absent;
@@ -235,12 +220,12 @@ function getEventColor(assignment: Assignment, commande: Commande | null): strin
   return CALENDAR_COLORS.unconfirmed;
 }
 
-function buildEventDescription(assignment: Assignment, commande: Commande | null, techNames: string[]): string {
+function buildEventDescription(assignment: Assignment, commande: Commande | null, teamNames: string[]): string {
   const parts: string[] = [];
 
-  // Add technician names at the top
-  if (techNames.length > 0) {
-    parts.push(`Technicien(s): ${techNames.join(", ")}`);
+  // Add team names at the top
+  if (teamNames.length > 0) {
+    parts.push(`Équipe(s): ${teamNames.join(", ")}`);
   }
 
   if (assignment.is_absent) {
@@ -267,14 +252,13 @@ function buildEventDescription(assignment: Assignment, commande: Commande | null
   return parts.join("\n");
 }
 
-// Group assignments by chantier, date, and period to consolidate duplicates
+// Group assignments by chantier and date to consolidate duplicates
 interface GroupedAssignment {
   key: string;
   assignments: Assignment[];
-  technicianIds: Set<string>;
+  teamIds: Set<string>;
   commande: Commande | null;
   date: string;
-  period: string;
 }
 
 function groupAssignments(assignments: Assignment[], commandes: Map<string, Commande>): GroupedAssignment[] {
@@ -288,31 +272,24 @@ function groupAssignments(assignments: Assignment[], commandes: Map<string, Comm
 
     const commande = assignment.commande_id ? commandes.get(assignment.commande_id) || null : null;
 
-    // Create a key based on chantier (or absence), date, and period
+    // Create a key based on chantier (or absence) and date
     // For absences, we don't group - each absence is separate
     const groupKey = assignment.is_absent
       ? `absent_${assignment.id}` // Unique key for absences
-      : `${assignment.commande_id || "no-commande"}_${assignment.start_date}_${assignment.start_period}`;
+      : `${assignment.commande_id || "no-commande"}_${assignment.start_date}_${assignment.end_date}`;
 
     if (groups.has(groupKey)) {
       const group = groups.get(groupKey)!;
       group.assignments.push(assignment);
-      group.technicianIds.add(assignment.technician_id);
-      if (assignment.second_technician_id) {
-        group.technicianIds.add(assignment.second_technician_id);
-      }
+      group.teamIds.add(assignment.team_id);
     } else {
-      const techIds = new Set<string>([assignment.technician_id]);
-      if (assignment.second_technician_id) {
-        techIds.add(assignment.second_technician_id);
-      }
+      const tIds = new Set<string>([assignment.team_id]);
       groups.set(groupKey, {
         key: groupKey,
         assignments: [assignment],
-        technicianIds: techIds,
+        teamIds: tIds,
         commande,
         date: assignment.start_date,
-        period: assignment.start_period,
       });
     }
   }
@@ -322,29 +299,29 @@ function groupAssignments(assignments: Assignment[], commandes: Map<string, Comm
 
 function buildGroupedCalendarEvent(
   group: GroupedAssignment,
-  technicians: Map<string, Technician>,
+  teams: Map<string, Team>,
 ): any | null {
   const firstAssignment = group.assignments[0];
   const commande = group.commande;
 
-  // Build technician names list
-  const techNames: string[] = [];
-  for (const techId of group.technicianIds) {
-    const tech = technicians.get(techId);
-    if (tech) {
-      techNames.push(tech.name);
+  // Build team names list
+  const teamNames: string[] = [];
+  for (const tId of group.teamIds) {
+    const team = teams.get(tId);
+    if (team) {
+      teamNames.push(team.name);
     }
   }
 
-  if (techNames.length === 0) {
+  if (teamNames.length === 0) {
     return null;
   }
 
   // Build event title
   let title: string;
   if (firstAssignment.is_absent) {
-    const tech = technicians.get(firstAssignment.technician_id);
-    title = `Absent - ${tech?.name || "Inconnu"}`;
+    const tm = teams.get(firstAssignment.team_id);
+    title = `Absent - ${tm?.name || "Inconnu"}`;
     if (firstAssignment.absence_reason) {
       title += ` (${firstAssignment.absence_reason})`;
     } else if (firstAssignment.comment) {
@@ -362,24 +339,21 @@ function buildGroupedCalendarEvent(
   // Build location
   const location = commande?.chantier || "";
 
-  // Calculate start and end times
-  const startTime = getTimeForPeriod(group.period, true);
-  const endTime = getTimeForPeriod(group.period, false);
-
-  const startDateTime = `${group.date}T${startTime}`;
-  const endDateTime = `${group.date}T${endTime}`;
+  // Full day event requires end date to be exclusive in Google Calendar
+  const startDate = new Date(group.date);
+  const endDate = new Date(firstAssignment.end_date || group.date);
+  endDate.setDate(endDate.getDate() + 1);
+  const endDateStr = endDate.toISOString().split('T')[0];
 
   return {
     summary: title,
-    description: buildEventDescription(firstAssignment, commande, techNames),
+    description: buildEventDescription(firstAssignment, commande, teamNames),
     location,
     start: {
-      dateTime: startDateTime,
-      timeZone: "Europe/Paris",
+      date: group.date,
     },
     end: {
-      dateTime: endDateTime,
-      timeZone: "Europe/Paris",
+      date: endDateStr,
     },
     colorId,
     reminders: {
@@ -417,12 +391,12 @@ function eventsAreIdentical(existing: any, target: any): boolean {
   if (cleanString(existing.description) !== cleanString(target.description)) return false;
   if (cleanString(existing.location) !== cleanString(target.location)) return false;
 
-  const eStart = extractLocalTime(existing.start?.dateTime);
-  const tStart = extractLocalTime(target.start?.dateTime);
+  const eStart = existing.start?.date || extractLocalTime(existing.start?.dateTime);
+  const tStart = target.start?.date || extractLocalTime(target.start?.dateTime);
   if (eStart !== tStart) return false;
 
-  const eEnd = extractLocalTime(existing.end?.dateTime);
-  const tEnd = extractLocalTime(target.end?.dateTime);
+  const eEnd = existing.end?.date || extractLocalTime(existing.end?.dateTime);
+  const tEnd = target.end?.date || extractLocalTime(target.end?.dateTime);
   if (eEnd !== tEnd) return false;
 
   if (existing.colorId !== target.colorId) return false;
@@ -657,24 +631,21 @@ Deno.serve(async (req) => {
 
     console.log(`Syncing date range: ${syncStart} to ${syncEnd}`);
 
-    const [assignmentsResult, techniciansResult, commandesResult, notesResult] = await Promise.all([
+    const [assignmentsResult, teamsResult, commandesResult] = await Promise.all([
       supabase.from("assignments").select("*").gte("start_date", syncStart).lte("start_date", syncEnd),
-      supabase.from("technicians").select("id, name").eq("is_archived", false),
+      supabase.from("teams").select("id, name"),
       supabase.from("commandes").select("id, client, chantier, is_invoiced"),
-      supabase.from("notes").select("*").gte("start_date", syncStart).lte("start_date", syncEnd),
     ]);
 
     if (assignmentsResult.error) throw assignmentsResult.error;
-    if (techniciansResult.error) throw techniciansResult.error;
+    if (teamsResult.error) throw teamsResult.error;
     if (commandesResult.error) throw commandesResult.error;
-    if (notesResult.error) throw notesResult.error;
 
     const assignments: Assignment[] = assignmentsResult.data || [];
-    const technicians = new Map<string, Technician>((techniciansResult.data || []).map((t: Technician) => [t.id, t]));
+    const teams = new Map<string, Team>((teamsResult.data || []).map((t: Team) => [t.id, t]));
     const commandes = new Map<string, Commande>((commandesResult.data || []).map((c: Commande) => [c.id, c]));
-    const notes: Note[] = notesResult.data || [];
 
-    console.log(`Found ${assignments.length} assignments, ${notes.length} notes`);
+    console.log(`Found ${assignments.length} assignments for calendar sync`);
 
     // Group assignments to consolidate duplicates and filter weekends/holidays
     const groupedAssignments = groupAssignments(assignments, commandes);
@@ -684,7 +655,7 @@ Deno.serve(async (req) => {
     const targetEvents = new Map<string, any>();
 
     groupedAssignments.forEach(group => {
-      const event = buildGroupedCalendarEvent(group, technicians);
+      const event = buildGroupedCalendarEvent(group, teams);
       if (event) targetEvents.set(event.extendedProperties.private.customKey, event);
     });
 

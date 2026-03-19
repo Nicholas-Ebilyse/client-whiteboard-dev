@@ -87,7 +87,8 @@ interface AssignmentCellProps {
   // For highlighting linked assignments on hover
   highlightedGroupId?: string | null;
   onHighlightGroup?: (groupId: string | null) => void;
-  searchTerm?: string;
+  // For absence overlap display
+  absentTechNames?: string[];
 }
 
 // Helper to remove ", France" from addresses for display
@@ -105,8 +106,12 @@ const getAssignmentDisplayName = (assignment: Assignment, commandes: Commande[])
   if (!commande) return assignment.name;
   
   // Format address to remove ", France"
-  const displayAddress = formatAddressForDisplay(commande.chantier);
-  return `${commande.client} - ${displayAddress}`;
+  // Return only the client and chantier name/reference (not the full address)
+  // Assuming commande.chantier holds the address/name, but they want it simplified.
+  // Actually, we'll just return commande.client if there's no specific name, or we adjust to not show the full address string.
+  // Let's just return `${commande.client} - ${commande.chantier.split(',')[0]} ` to simplify it.
+  const shortChantier = commande.chantier?.split(',')[0] || '';
+  return `${commande.client}${shortChantier ? ` - ${shortChantier}` : ''}`;
 };
 
 export const AssignmentCell = ({ 
@@ -154,7 +159,7 @@ export const AssignmentCell = ({
   technicians = [],
   highlightedGroupId,
   onHighlightGroup,
-  searchTerm = "",
+  absentTechNames = [],
 }: AssignmentCellProps) => {
   const hasContent = assignments.length > 0 || notes.length > 0;
   // Separate notes by display position
@@ -187,7 +192,6 @@ export const AssignmentCell = ({
     return false;
   };
   
-  // Returns CSS classes for assignment background based on state
   const getAssignmentClasses = (assignment: Assignment): string => {
     // Absence: Pink
     if (assignment.isAbsent) {
@@ -202,13 +206,8 @@ export const AssignmentCell = ({
       return "bg-assignment-invoiced text-assignment-invoiced-foreground";
     }
     
-    // Confirmed but not invoiced: Blue
-    if (assignment.isConfirmed) {
-      return "bg-assignment-confirmed text-assignment-confirmed-foreground";
-    }
-    
-    // Not confirmed: Grey
-    return "bg-assignment-unconfirmed text-assignment-unconfirmed-foreground";
+    // Confirmed / Unconfirmed: Handled by inline background color (teamColor)
+    return "text-white border border-black/10 shadow-sm drop-shadow-sm";
   };
 
   const canDrag = (assignment: Assignment) => {
@@ -257,14 +256,14 @@ export const AssignmentCell = ({
     return (
       <div 
         className={cn(
-          "transition-all hover:bg-muted/50 relative group p-2 h-full min-h-[60px]",
+          "transition-all hover:bg-muted/50 relative group p-0.5 h-full flex flex-col min-h-[60px]",
           isValidDrop && "ring-2 ring-primary ring-inset bg-primary/20",
           isInvalidDrop && "ring-2 ring-destructive ring-inset bg-destructive/20",
           isPreviewCell && !isCurrentDropTarget && "ring-2 ring-dashed ring-primary/60 bg-primary/10",
           isNoteDropTarget && "ring-2 ring-amber-500 ring-inset bg-amber-100/50 dark:bg-amber-900/30",
           isNoteDragging && !isNoteDropTarget && "bg-amber-50/20 dark:bg-amber-950/10"
         )}
-        style={{ backgroundColor: (isValidDrop || isInvalidDrop || isPreviewCell || isNoteDropTarget || isNoteDragging) ? undefined : teamColor, cursor: onClick ? 'pointer' : 'default' }}
+        style={{ backgroundColor: (isValidDrop || isInvalidDrop || isPreviewCell || isNoteDropTarget || isNoteDragging) ? undefined : 'transparent', cursor: onClick ? 'pointer' : 'default' }}
         onClick={onClick}
         onDragOver={handleCellDragOver}
         onDragLeave={onDragLeave}
@@ -303,14 +302,14 @@ export const AssignmentCell = ({
   return (
     <div 
       className={cn(
-        "relative group p-2 transition-all",
+        "relative group p-0.5 h-full flex flex-col transition-all min-h-[60px]",
         isValidDrop && "ring-2 ring-primary ring-inset bg-primary/20",
         isInvalidDrop && "ring-2 ring-destructive ring-inset bg-destructive/20",
         isPreviewCell && !isCurrentDropTarget && "ring-2 ring-dashed ring-primary/60 bg-primary/10",
         isNoteDropTarget && "ring-2 ring-amber-500 ring-inset bg-amber-100/50 dark:bg-amber-900/30",
         isNoteDragging && !isNoteDropTarget && "bg-amber-50/20 dark:bg-amber-950/10"
       )}
-      style={{ backgroundColor: (isValidDrop || isInvalidDrop || isPreviewCell || isNoteDropTarget || isNoteDragging) ? undefined : teamColor }}
+      style={{ backgroundColor: (isValidDrop || isInvalidDrop || isPreviewCell || isNoteDropTarget || isNoteDragging) ? undefined : 'transparent' }}
       onDragOver={handleCellDragOver}
       onDragLeave={onDragLeave}
       onDrop={handleCellDrop}
@@ -456,7 +455,7 @@ export const AssignmentCell = ({
 
         {/* Assignments section */}
         {limitedAssignments.length > 0 && (
-          <div className="flex-1 flex flex-col justify-center gap-0.5 px-1.5 py-0.5">
+          <div className="flex-1 flex flex-col justify-stretch gap-0.5">
             {/* Capacity badge - only show when more than 1 assignment */}
             {isAdmin && maxAssignmentsPerPeriod > 0 && limitedAssignments.length > 1 && (
               <div className="flex justify-end mb-0.5">
@@ -536,12 +535,16 @@ export const AssignmentCell = ({
                         if (onAssignmentClick) onAssignmentClick(assignment);
                       }}
                       className={cn(
-                        "w-full px-2 py-1.5 transition-all hover:shadow-md rounded text-lg font-medium leading-tight",
+                        "w-full h-full px-2 py-1.5 transition-all hover:shadow-md rounded text-lg font-medium leading-tight",
                         "flex items-center justify-center text-center relative",
                         draggable && "cursor-grab active:cursor-grabbing",
-                        getAssignmentClasses(assignment)
+                        getAssignmentClasses(assignment),
+                        absentTechNames.length > 0 && "bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,rgba(255,0,0,0.1)_10px,rgba(255,0,0,0.1)_20px)]"
                       )}
-                      style={{ minHeight: '36px' }}
+                      style={{ 
+                        minHeight: '36px', 
+                        backgroundColor: (!assignment.isAbsent && !commande?.is_invoiced && teamColor) ? teamColor : undefined 
+                      }}
                     >
                       {/* Drag handle indicator - shown for all assignments, grayed out if not draggable */}
                       {isAdmin && (
@@ -599,9 +602,21 @@ export const AssignmentCell = ({
                           </Tooltip>
                         </TooltipProvider>
                       )}
-                      <span className="whitespace-pre-wrap break-words">
-                        {getAssignmentDisplayName(assignment, commandes)}
-                      </span>
+                      <div className="flex flex-col text-left justify-center flex-1 py-1">
+                        {absentTechNames.length > 0 && (
+                          <span className="text-red-600 font-bold text-[10px] leading-tight mb-0.5 bg-white/70 px-1 rounded w-fit">
+                            Absence {absentTechNames.join(', ')}
+                          </span>
+                        )}
+                        <span className="whitespace-pre-wrap break-words leading-tight">
+                          {getAssignmentDisplayName(assignment, commandes)}
+                        </span>
+                        {assignment.comment && (
+                          <span className="text-[10px] italic opacity-80 mt-0.5 leading-tight whitespace-pre-wrap break-words">
+                            {assignment.comment}
+                          </span>
+                        )}
+                      </div>
                     </button>
                     {/* Google Maps button using commande address */}
                     {hasAddress && (
