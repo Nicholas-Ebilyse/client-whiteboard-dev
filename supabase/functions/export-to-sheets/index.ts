@@ -349,7 +349,7 @@ Deno.serve(async (req) => {
 
     const assignmentRows: string[][] = [
       ["ID", "Equipe", "Chantier", "Date début", "Date fin", "Commentaire"],
-      ...(assignments || []).filter((a: any) => !a.is_absent).map((a: any) => [
+      ...(assignments || []).map((a: any) => [
         a.id,
         (a.technician_id ? techMap[a.technician_id] : null) || teamMap[a.team_id] || a.team_id || "Équipe Inconnue",
         commandeMap[a.commande_id] || a.name || "",
@@ -361,15 +361,20 @@ Deno.serve(async (req) => {
     await writeSheet(spreadsheetId, "Affectations", assignmentRows, accessToken);
 
     // ── 5b. Absences ─────────────────────────────────────────────────────────
+    const { data: absencesData } = await supabase
+      .from("absences")
+      .select("*")
+      .order("start_date", { ascending: false });
+
     const absenceRows: string[][] = [
-      ["ID", "Equipe", "Date début", "Date fin", "Motif", "Commentaire"],
-      ...(assignments || []).filter((a: any) => a.is_absent).map((a: any) => [
+      ["ID", "Technicien", "Date début", "Date fin", "Motif", "Commentaire"],
+      ...(absencesData || []).map((a: any) => [
         a.id,
-        (a.technician_id ? techMap[a.technician_id] : null) || teamMap[a.team_id] || a.team_id || "Équipe Inconnue",
+        a.technician_id ? (techMap[a.technician_id] || "") : "",
         fmtDate(a.start_date),
         fmtDate(a.end_date),
-        a.absence_reason || a.name || "",
-        a.comment || "",
+        a.reason || "",
+        "", // Comment is not in absences table schema
       ]),
     ];
     await writeSheet(spreadsheetId, "Absences", absenceRows, accessToken);

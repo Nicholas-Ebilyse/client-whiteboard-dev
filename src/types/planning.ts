@@ -39,11 +39,9 @@ export interface Assignment {
   isFixed: boolean;
   comment?: string | null;
   isValid: boolean; // Frontend only
-  isAbsent?: boolean;
   isConfirmed?: boolean;
 
   assignment_group_id?: string | null;
-  absence_reason?: string | null;
 }
 
 // ─── Note ────────────────────────────────────────────────────────────────────

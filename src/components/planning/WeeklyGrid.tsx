@@ -255,10 +255,10 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                     onDrop={isAdmin && !teamIsUnavailable ? (e) => handleDrop(e, team.id, day.fullDate) : undefined}
                     onClick={isAdmin && !teamIsUnavailable ? () => handleCellClick(team.id, day.fullDate) : undefined}
                   >
-                    {teamIsUnavailable && cellAssignments.length === 0 && (
+                    {teamIsUnavailable && (
                       <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
-                        <span className="text-xs text-muted-foreground/60 font-medium bg-background/70 px-2 py-0.5 rounded text-red-600/80">
-                          Absence {absentTechNames.join(', ')}
+                        <span className="text-xs font-bold px-2 py-1 rounded bg-red-600/90 text-white shadow-md">
+                          ABSENCE {absentTechNames.join(', ')}
                         </span>
                       </div>
                     )}

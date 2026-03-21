@@ -38,6 +38,7 @@ interface SendScheduleDialogProps {
 
   commandes: any[];
   savRecords: SAVRecord[];
+  absences?: any[];
 }
 
 export const SendScheduleDialog = ({ 
@@ -51,7 +52,8 @@ export const SendScheduleDialog = ({
   weekDates,
 
   commandes,
-  savRecords
+  savRecords,
+  absences = []
 }: SendScheduleDialogProps) => {
   const [email, setEmail] = useState("direction@sbi25.com");
   const [note, setNote] = useState("");
@@ -139,13 +141,25 @@ export const SendScheduleDialog = ({
               (n: any) => n.technician_id === tech.id && n.start_date === dateInfo.fullDate && n.period === period
             );
 
+            const isTechAbsent = absences.some(
+              (a: any) =>
+                a.technician_id === tech.id &&
+                new Date(a.start_date) <= new Date(dateInfo.fullDate) &&
+                new Date(a.end_date) >= new Date(dateInfo.fullDate)
+            );
+            
+            const absenceReason = absences.find(
+              (a: any) =>
+                a.technician_id === tech.id &&
+                new Date(a.start_date) <= new Date(dateInfo.fullDate) &&
+                new Date(a.end_date) >= new Date(dateInfo.fullDate)
+            )?.reason;
+
             const cellContent = [
+              ...(isTechAbsent ? [`ABSENCE${absenceReason ? ' - ' + absenceReason : ''}`] : []),
               ...techAssignments.map((a: any) => {
                 // Use commandes.chantier field for address
                 const commande = commandes.find((c: any) => c.id === a.commande_id);
-                if (a.is_absent) {
-                  return `ABSENCE${a.absence_reason ? ' - ' + a.absence_reason : ''}`;
-                }
                 if (commande) {
                   // Show client on first line, address on second line without "Adresse:" prefix
                   let text = commande.client;

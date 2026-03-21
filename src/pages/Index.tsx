@@ -335,7 +335,7 @@ const Index = () => {
 
   const handleSaveAssignment = async (updatedAssignment: Assignment) => {
     const commande = updatedAssignment.commandeId ? commandes.find(c => c.id === updatedAssignment.commandeId) : null;
-    const assignmentName = updatedAssignment.isAbsent ? 'Absent' : (commande ? `${commande.client} - ${commande.chantier}` : updatedAssignment.name);
+    const assignmentName = commande ? `${commande.client} - ${commande.chantier}` : updatedAssignment.name;
 
     if (updatedAssignment.id && !updatedAssignment.id.startsWith('new-')) {
       const originalAssignment = assignments.find(a => a.id === updatedAssignment.id);
@@ -350,7 +350,6 @@ const Index = () => {
         end_date: updatedAssignment.endDate,
         is_fixed: updatedAssignment.isFixed,
         comment: updatedAssignment.comment,
-        is_absent: updatedAssignment.isAbsent || false,
         is_confirmed: updatedAssignment.isConfirmed || false,
       };
 
@@ -367,7 +366,6 @@ const Index = () => {
               name: assignmentName,
               is_fixed: updatedAssignment.isFixed,
               comment: updatedAssignment.comment,
-              is_absent: updatedAssignment.isAbsent || false,
               is_confirmed: updatedAssignment.isConfirmed || false,
             },
           },
@@ -431,7 +429,6 @@ const Index = () => {
         end_date: currentDate.toISOString().split('T')[0],
         is_fixed: updatedAssignment.isFixed,
         comment: updatedAssignment.comment,
-        is_absent: updatedAssignment.isAbsent || false,
         is_confirmed: updatedAssignment.isConfirmed || false,
         assignment_group_id: groupId,
       });
@@ -577,8 +574,6 @@ const Index = () => {
       end_date: dbAssignment1.end_date,
       is_fixed: dbAssignment1.is_fixed,
       comment: dbAssignment1.comment,
-      is_absent: dbAssignment1.is_absent,
-      absence_reason: dbAssignment1.absence_reason,
       is_confirmed: dbAssignment1.is_confirmed,
       assignment_group_id: dbAssignment1.assignment_group_id,
       updated_at: now.toISOString(),
@@ -593,8 +588,6 @@ const Index = () => {
       end_date: dbAssignment2.end_date,
       is_fixed: dbAssignment2.is_fixed,
       comment: dbAssignment2.comment,
-      is_absent: dbAssignment2.is_absent,
-      absence_reason: dbAssignment2.absence_reason,
       is_confirmed: dbAssignment2.is_confirmed,
       assignment_group_id: dbAssignment2.assignment_group_id,
       updated_at: new Date(now.getTime() - 1000).toISOString(),
@@ -736,10 +729,8 @@ const Index = () => {
       isFixed: dbAssignment.is_fixed || false,
       isValid: true,
       comment: dbAssignment.comment || undefined,
-      isAbsent: dbAssignment.is_absent || false,
       isConfirmed: dbAssignment.is_confirmed || false,
       assignment_group_id: dbAssignment.assignment_group_id,
-      absence_reason: dbAssignment.absence_reason,
     }));
   };
 
@@ -754,16 +745,13 @@ const Index = () => {
     isFixed: dbAssignment.is_fixed || false,
     isValid: true,
     comment: dbAssignment.comment || undefined,
-    isAbsent: dbAssignment.is_absent || false,
     isConfirmed: dbAssignment.is_confirmed || false,
     assignment_group_id: dbAssignment.assignment_group_id,
-    absence_reason: dbAssignment.absence_reason,
   }));
 
   // Filter assignments by search term (client name or chantier/address)
   const filteredAssignmentsFormatted = searchTerm.trim()
     ? allAssignmentsFormatted.filter(a => {
-        if (a.isAbsent) return false;
         const commande = commandes.find(c => c.id === a.commandeId);
         if (!commande) return false;
         const q = searchTerm.toLowerCase();
@@ -1032,6 +1020,7 @@ const Index = () => {
           technicians={activeTechnicians.map((t) => ({ id: t.id, name: t.name }))}
           assignments={assignments}
           notes={notes}
+          absences={absences}
           weekDates={weekDates}
 
           commandes={commandes}

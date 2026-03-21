@@ -96,10 +96,6 @@ const formatAddressForDisplay = (address: string): string => {
 };
 
 const getAssignmentDisplayName = (assignment: Assignment, commandes: Commande[]): string => {
-  if (assignment.isAbsent) {
-    return assignment.absence_reason ? `ABSENCE : ${assignment.absence_reason}` : 'Absent';
-  }
-  
   // Find the commande for this assignment
   const commande = commandes.find(c => c.id === assignment.commandeId);
   if (!commande) return assignment.name;
@@ -192,11 +188,6 @@ export const AssignmentCell = ({
   };
   
   const getAssignmentClasses = (assignment: Assignment): string => {
-    // Absence: Pink
-    if (assignment.isAbsent) {
-      return "bg-absent-pink text-foreground";
-    }
-    
     // Find the commande for this assignment
     const commande = commandes.find(c => c.id === assignment.commandeId);
     
@@ -536,7 +527,7 @@ export const AssignmentCell = ({
                       )}
                       style={{ 
                         minHeight: '36px', 
-                        backgroundColor: (!assignment.isAbsent && teamColor) ? teamColor : undefined 
+                        backgroundColor: (teamColor) ? teamColor : undefined 
                       }}
                     >
                       {/* Drag handle indicator - shown for all assignments, grayed out if not draggable */}

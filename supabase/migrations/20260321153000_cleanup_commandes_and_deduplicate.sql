@@ -21,13 +21,11 @@ END $$;
 DELETE FROM public.assignments a
 USING (
     SELECT 
-        MIN(id) as keep_id, 
+        MIN(id::text)::uuid as keep_id, 
         technician_id, 
         commande_id, 
         start_date, 
         end_date, 
-        start_period, 
-        end_period, 
         is_absent
     FROM public.assignments
     GROUP BY 
@@ -35,17 +33,12 @@ USING (
         commande_id, 
         start_date, 
         end_date, 
-        start_period, 
-        end_period, 
         is_absent
     HAVING COUNT(*) > 1
 ) b
 WHERE a.technician_id = b.technician_id
   AND (a.commande_id = b.commande_id OR (a.commande_id IS NULL AND b.commande_id IS NULL))
   AND a.start_date = b.start_date
-  AND a.end_date = b.end_date
-  AND a.start_period = b.start_period
-  AND a.end_period = b.end_period
   AND a.is_absent = b.is_absent
   AND a.id > b.keep_id;
 
@@ -54,7 +47,7 @@ WHERE a.technician_id = b.technician_id
 DELETE FROM public.notes n
 USING (
     SELECT 
-        MIN(id) as keep_id, 
+        MIN(id::text)::uuid as keep_id, 
         technician_id, 
         start_date, 
         text

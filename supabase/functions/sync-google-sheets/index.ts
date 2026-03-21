@@ -205,7 +205,7 @@ const COMMANDES_HEADERS = ['ID', 'Numéro', 'Nom client', 'Chantier', 'UUID'];
 const SAV_HEADERS = ['ID', 'Numéro', 'Nom du client', 'Adresse', 'Numéro de téléphone', 'Problème', 'Date', 'Est résolu'];
 const TECHNICIENS_HEADERS = ['ID', 'Nom', 'Couleur', 'Interim', 'Créé le'];
 const AFFECTATIONS_HEADERS = ['ID', 'Equipe', 'Chantier', 'Date début', 'Date fin', 'Commentaire'];
-const ABSENCES_HEADERS = ['ID', 'Equipe', 'Date début', 'Date fin', 'Motif', 'Commentaire'];
+const ABSENCES_HEADERS = ['ID', 'Technicien', 'Date début', 'Date fin', 'Motif', 'Commentaire'];
 const NOTES_HEADERS = ['ID', 'Technicien', 'Date', 'SAV', 'Confirmé', 'Texte'];
 const MOTIFS_HEADERS = ['ID', 'Nom', 'Créé le'];
 
@@ -518,7 +518,7 @@ serve(async (req) => {
         
         const h = absenceData[0];
         const iID = h.indexOf('ID');
-        const iTech = h.indexOf('Equipe');
+        const iTech = h.indexOf('Technicien');
         const iStart = h.indexOf('Date début');
         const iEnd = h.indexOf('Date fin');
         const iMotif = h.indexOf('Motif');
@@ -530,27 +530,34 @@ serve(async (req) => {
           const workerName = row[iTech]?.trim();
 
           let assignedTechId = null;
-          let assignedTeamId = null;
 
           if (workerName && techNameToObj[workerName]) {
             assignedTechId = techNameToObj[workerName].id;
-            assignedTeamId = techNameToObj[workerName].team_id;
-          } else if (workerName && teamNameToObj[workerName]) {
-            assignedTeamId = teamNameToObj[workerName].id;
           } else {
+            // If the name is a team, or doesn't match a technician, we must skip.
+            console.warn(`Absence import: skipping row for unknown technician '${workerName}'`);
             continue;
           }
 
           const motifStr = row[iMotif]?.trim();
 
-          await supabase.from('absences').upsert({
-            id: id && id.length > 10 ? id : undefined,
-            technician_id: assignedTechId,
-            start_date: parseDate(row[iStart]?.trim()),
-            end_date: parseDate(row[iEnd]?.trim()) || parseDate(row[iStart]?.trim()),
-            reason: motifStr || 'Absence',
-          }, { onConflict: 'id' });
-          absenceCount++;
+          try {
+            const { error } = await supabase.from('absences').upsert({
+              id: id && id.length > 10 ? id : undefined,
+              technician_id: assignedTechId,
+              start_date: parseDate(row[iStart]?.trim()),
+              end_date: parseDate(row[iEnd]?.trim()) || parseDate(row[iStart]?.trim()),
+              reason: motifStr || 'Absence',
+            }, { onConflict: 'id' });
+            
+            if (error) {
+              console.error('Row absence sync error:', error, row);
+            } else {
+              absenceCount++;
+            }
+          } catch (rowErr) {
+            console.error('Exception on row absence sync:', rowErr, row);
+          }
         }
       }
     } catch (e) { console.error('Absence sync error:', e); }

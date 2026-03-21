@@ -41,7 +41,6 @@ export const EditGeneralNoteDialog = ({ open, onOpenChange, note, onSave, onDele
       start_date: note?.date,
       end_date: note?.date,
       period: note?.period === 'Journée' ? 'Matin' : note?.period,
-      is_absent: false,
       is_sav: false,
       is_confirmed: false,
     });

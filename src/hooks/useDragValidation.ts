@@ -9,7 +9,6 @@ export interface DragData {
     endDate: string;
     assignment_group_id?: string;
     isConfirmed?: boolean;
-    isAbsent?: boolean;
     [key: string]: unknown;
   };
   sourceDate: string;

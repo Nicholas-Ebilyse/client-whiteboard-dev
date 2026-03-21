@@ -86,8 +86,6 @@ export const useDropExecution = (
               commande_id: original.commande_id,
 
               comment: original.comment,
-              is_absent: original.is_absent,
-              absence_reason: original.absence_reason,
               is_confirmed: false,
               is_fixed: original.is_fixed,
               assignment_group_id: newPositions.length > 1 ? newGroupId : null,

@@ -151,7 +151,6 @@ export const EditAssignmentDialog = ({
         commandeId: selectedCommande,
         startDate: startDateStr,
         endDate: endDateStr,
-        isAbsent: false,
         isConfirmed,
         comment,
       };

@@ -63,7 +63,6 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
-          absence_reason?: string | null
           assignment_group_id?: string | null
           commande_id?: string | null
           comment?: string | null
@@ -72,7 +71,6 @@ export type Database = {
           end_period: string
           external_id?: string | null
           id?: string
-          is_absent?: boolean | null
           is_confirmed?: boolean | null
           is_fixed?: boolean | null
           name: string
@@ -83,7 +81,6 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
-          absence_reason?: string | null
           assignment_group_id?: string | null
           commande_id?: string | null
           comment?: string | null
@@ -92,7 +89,6 @@ export type Database = {
           end_period?: string
           external_id?: string | null
           id?: string
-          is_absent?: boolean | null
           is_confirmed?: boolean | null
           is_fixed?: boolean | null
           name?: string

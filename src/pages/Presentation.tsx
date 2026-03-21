@@ -112,8 +112,6 @@ const Presentation = () => {
     endDate: absence.end_date,
     isFixed: true, // Fixed so they can't be moved (even if we had drag enabled)
     isValid: true,
-    isAbsent: true,
-    absence_reason: absence.reason
   }));
 
   const allDisplayedAssignments = [...assignments, ...absenceAssignments];
@@ -130,10 +128,8 @@ const Presentation = () => {
     isFixed: dbAssignment.isFixed ?? dbAssignment.is_fixed ?? false,
     isValid: true,
     comment: dbAssignment.comment || undefined,
-    isAbsent: dbAssignment.isAbsent || dbAssignment.is_absent || false,
     isConfirmed: dbAssignment.isConfirmed ?? dbAssignment.is_confirmed ?? false,
     assignment_group_id: dbAssignment.assignment_group_id,
-    absence_reason: dbAssignment.absence_reason,
   }));
 
   const activeTechnicians = technicians.filter(t => !t.is_archived);
