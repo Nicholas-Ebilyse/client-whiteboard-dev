@@ -300,7 +300,7 @@ Deno.serve(async (req) => {
     const { data: commandes } = await supabase
       .from("commandes")
       .select("*")
-      .order("date", { ascending: false });
+      .order("numero", { ascending: false });
 
     const commandeRows: string[][] = [
       ["ID", "Numéro", "Nom client", "Chantier", "UUID"],

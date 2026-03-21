@@ -45,7 +45,6 @@ export type Database = {
         Row: {
           absence_reason: string | null
           assignment_group_id: string | null
-          chantier_id: string | null
           commande_id: string | null
           comment: string | null
           created_at: string | null
@@ -66,7 +65,6 @@ export type Database = {
         Insert: {
           absence_reason?: string | null
           assignment_group_id?: string | null
-          chantier_id?: string | null
           commande_id?: string | null
           comment?: string | null
           created_at?: string | null
@@ -87,7 +85,6 @@ export type Database = {
         Update: {
           absence_reason?: string | null
           assignment_group_id?: string | null
-          chantier_id?: string | null
           commande_id?: string | null
           comment?: string | null
           created_at?: string | null
@@ -106,13 +103,6 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "assignments_chantier_id_fkey"
-            columns: ["chantier_id"]
-            isOneToOne: false
-            referencedRelation: "invoices"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "assignments_commande_id_fkey"
             columns: ["commande_id"]
@@ -168,82 +158,36 @@ export type Database = {
       }
       commandes: {
         Row: {
-          achats: number | null
           chantier: string
           client: string
           created_at: string | null
-          date: string | null
           external_id: string | null
-          facture: string | null
           id: string
-          is_invoiced: boolean
-          montant_ht: number | null
           numero: string | null
           updated_at: string | null
         }
         Insert: {
-          achats?: number | null
           chantier: string
           client: string
           created_at?: string | null
-          date?: string | null
           external_id?: string | null
-          facture?: string | null
           id?: string
-          is_invoiced?: boolean
-          montant_ht?: number | null
           numero?: string | null
           updated_at?: string | null
         }
         Update: {
-          achats?: number | null
           chantier?: string
           client?: string
           created_at?: string | null
-          date?: string | null
           external_id?: string | null
-          facture?: string | null
           id?: string
-          is_invoiced?: boolean
-          montant_ht?: number | null
           numero?: string | null
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
-      invoices: {
-        Row: {
-          color: string
-          created_at: string | null
-          external_id: string | null
-          id: string
-          margin: string | null
-          name: string
-          updated_at: string | null
-        }
-        Insert: {
-          color?: string
-          created_at?: string | null
-          external_id?: string | null
-          id?: string
-          margin?: string | null
-          name: string
-          updated_at?: string | null
-        }
-        Update: {
-          color?: string
-          created_at?: string | null
-          external_id?: string | null
-          id?: string
-          margin?: string | null
-          name?: string
           updated_at?: string | null
         }
         Relationships: []
       }
       notes: {
         Row: {
-          chantier_id: string | null
           created_at: string | null
           display_below: boolean
           end_date: string | null
@@ -251,7 +195,6 @@ export type Database = {
           external_id: string | null
           id: string
           is_confirmed: boolean
-          is_invoiced: boolean
           is_sav: boolean
           period: string
           start_date: string
@@ -261,7 +204,6 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
-          chantier_id?: string | null
           created_at?: string | null
           display_below?: boolean
           end_date?: string | null
@@ -269,7 +211,6 @@ export type Database = {
           external_id?: string | null
           id?: string
           is_confirmed?: boolean
-          is_invoiced?: boolean
           is_sav?: boolean
           period: string
           start_date: string
@@ -279,7 +220,6 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
-          chantier_id?: string | null
           created_at?: string | null
           display_below?: boolean
           end_date?: string | null
@@ -287,7 +227,6 @@ export type Database = {
           external_id?: string | null
           id?: string
           is_confirmed?: boolean
-          is_invoiced?: boolean
           is_sav?: boolean
           period?: string
           start_date?: string
@@ -297,13 +236,6 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "notes_chantier_id_fkey"
-            columns: ["chantier_id"]
-            isOneToOne: false
-            referencedRelation: "invoices"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "notes_technician_id_fkey"
             columns: ["technician_id"]
