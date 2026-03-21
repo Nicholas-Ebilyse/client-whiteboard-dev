@@ -322,9 +322,9 @@ Deno.serve(async (req) => {
     const commandeMap: Record<string, string> = {};
     (commandes || []).forEach((c: any) => { commandeMap[c.id] = `${c.client} - ${c.chantier}`; });
 
-    // ── 3. Chantiers ──────────────────────────────────────────────────────────
+    // ── 3. Chantiers (data lives in 'invoices' table) ─────────────────────────
     const { data: chantiers } = await supabase
-      .from("chantiers")
+      .from("invoices")
       .select("id, name, address, color, created_at")
       .order("name");
 
@@ -371,7 +371,7 @@ Deno.serve(async (req) => {
       ["ID", "Equipe", "Chantier", "Date début", "Date fin", "Facturé", "Commentaire"],
       ...(assignments || []).filter((a: any) => !a.is_absent).map((a: any) => [
         a.id,
-        teamMap[a.team_id] || a.team_id || "Équipe Inconnue",
+        (a.technician_id ? techMap[a.technician_id] : null) || teamMap[a.team_id] || a.team_id || "Équipe Inconnue",
         commandeMap[a.commande_id] || a.name || "",
         fmtDate(a.start_date),
         fmtDate(a.end_date),
@@ -386,7 +386,7 @@ Deno.serve(async (req) => {
       ["ID", "Equipe", "Date début", "Date fin", "Motif", "Commentaire"],
       ...(assignments || []).filter((a: any) => a.is_absent).map((a: any) => [
         a.id,
-        teamMap[a.team_id] || a.team_id || "Équipe Inconnue",
+        (a.technician_id ? techMap[a.technician_id] : null) || teamMap[a.team_id] || a.team_id || "Équipe Inconnue",
         fmtDate(a.start_date),
         fmtDate(a.end_date),
         a.absence_reason || a.name || "",
@@ -447,16 +447,26 @@ Deno.serve(async (req) => {
     ];
     await writeSheet(spreadsheetId, "Factures", factureRows, accessToken);
 
-    // Update sync status on success
+    // Update sync status on success — always mark complete even if insert failed
+    const totalRecords = (technicians?.length || 0) + (commandes?.length || 0) + (chantiers?.length || 0) + (savRecords?.length || 0) + (assignments?.length || 0) + (notes?.length || 0) + (factures?.length || 0) + (absenceMotives?.length || 0);
     if (syncRecord) {
       await supabase
         .from('sync_status')
         .update({
           status: 'success',
           completed_at: new Date().toISOString(),
-          records_synced: (technicians?.length || 0) + (commandes?.length || 0) + (chantiers?.length || 0) + (savRecords?.length || 0) + (assignments?.length || 0) + (notes?.length || 0) + (factures?.length || 0) + (absenceMotives?.length || 0),
+          records_synced: totalRecords,
         })
         .eq('id', syncRecord.id);
+    } else {
+      // Fallback: update the most recent 'running' export record
+      await supabase
+        .from('sync_status')
+        .update({ status: 'success', completed_at: new Date().toISOString(), records_synced: totalRecords })
+        .eq('sync_type', 'google_sheets_export')
+        .eq('status', 'running')
+        .order('started_at', { ascending: false })
+        .limit(1);
     }
 
     return new Response(

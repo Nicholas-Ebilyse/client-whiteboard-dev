@@ -4,12 +4,21 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar, Trash2, Plus } from 'lucide-react';
+import { Calendar, Trash2, Plus, ChevronDown, ChevronUp, Pencil, Check, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useAbsences, useSaveAbsence, useDeleteAbsence, useAbsenceMotives, useTeams } from '@/hooks/usePlanning';
-import { useTechnicians } from '@/hooks/usePlanning';
+import {
+  useAbsences,
+  useSaveAbsence,
+  useDeleteAbsence,
+  useAbsenceMotives,
+  useCreateAbsenceMotive,
+  useUpdateAbsenceMotive,
+  useDeleteAbsenceMotive,
+  useTeams,
+  useTechnicians,
+} from '@/hooks/usePlanning';
 
 interface AbsenceManagementDialogProps {
   open: boolean;
@@ -26,15 +35,23 @@ export const AbsenceManagementDialog: React.FC<AbsenceManagementDialogProps> = (
   const { data: teams = [] } = useTeams();
   const saveAbsence = useSaveAbsence();
   const deleteAbsence = useDeleteAbsence();
+  const createMotive = useCreateAbsenceMotive();
+  const updateMotive = useUpdateAbsenceMotive();
+  const deleteMotive = useDeleteAbsenceMotive();
 
   const [technicianId, setTechnicianId] = useState('');
   const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [reason, setReason] = useState('');
 
+  // Motif management state
+  const [showMotiveManager, setShowMotiveManager] = useState(false);
+  const [newMotiveName, setNewMotiveName] = useState('');
+  const [editingMotiveId, setEditingMotiveId] = useState<string | null>(null);
+  const [editingMotiveName, setEditingMotiveName] = useState('');
+
   const activeTechnicians = technicians.filter(t => !t.is_archived);
 
-  // Sort by date (newest first) and filter by selected technician
   const displayedAbsences = absences
     .filter(abs => technicianId ? abs.technician_id === technicianId : true)
     .sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime());
@@ -64,6 +81,47 @@ export const AbsenceManagementDialog: React.FC<AbsenceManagementDialogProps> = (
     try {
       await deleteAbsence.mutateAsync(id);
       toast.success('Absence supprimée');
+    } catch {
+      toast.error('Erreur lors de la suppression');
+    }
+  };
+
+  const handleAddMotive = async () => {
+    const name = newMotiveName.trim();
+    if (!name) return;
+    try {
+      await createMotive.mutateAsync({ name });
+      toast.success(`Motif « ${name} » ajouté`);
+      setNewMotiveName('');
+    } catch {
+      toast.error('Erreur : ce motif existe peut-être déjà');
+    }
+  };
+
+  const handleStartEdit = (id: string, name: string) => {
+    setEditingMotiveId(id);
+    setEditingMotiveName(name);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingMotiveId) return;
+    const name = editingMotiveName.trim();
+    if (!name) return;
+    try {
+      await updateMotive.mutateAsync({ id: editingMotiveId, name });
+      toast.success('Motif mis à jour');
+      setEditingMotiveId(null);
+    } catch {
+      toast.error('Erreur lors de la mise à jour');
+    }
+  };
+
+  const handleDeleteMotive = async (id: string, name: string) => {
+    if (!confirm(`Supprimer le motif « ${name} » ?`)) return;
+    try {
+      await deleteMotive.mutateAsync(id);
+      toast.success('Motif supprimé');
+      if (reason === name) setReason('');
     } catch {
       toast.error('Erreur lors de la suppression');
     }
@@ -150,6 +208,67 @@ export const AbsenceManagementDialog: React.FC<AbsenceManagementDialogProps> = (
             <Plus className="w-4 h-4" />
             Enregistrer l'absence
           </Button>
+        </div>
+
+        {/* ── Motif manager ── */}
+        <div className="border rounded-lg overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setShowMotiveManager(v => !v)}
+            className="w-full flex items-center justify-between px-4 py-3 bg-muted/20 text-sm font-semibold hover:bg-muted/40 transition-colors"
+          >
+            <span>Gérer les motifs d'absence</span>
+            {showMotiveManager ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+
+          {showMotiveManager && (
+            <div className="p-4 space-y-3">
+              {/* Existing motives */}
+              <div className="divide-y rounded-md border overflow-hidden">
+                {motives.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-4">Aucun motif défini.</p>
+                )}
+                {motives.map(m => (
+                  <div key={m.id} className="flex items-center gap-2 px-3 py-2 bg-background">
+                    {editingMotiveId === m.id ? (
+                      <>
+                        <Input
+                          value={editingMotiveName}
+                          onChange={e => setEditingMotiveName(e.target.value)}
+                          className="h-7 text-sm flex-1"
+                          onKeyDown={e => { if (e.key === 'Enter') handleSaveEdit(); if (e.key === 'Escape') setEditingMotiveId(null); }}
+                          autoFocus
+                        />
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600" onClick={handleSaveEdit}><Check className="w-3.5 h-3.5" /></Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={() => setEditingMotiveId(null)}><X className="w-3.5 h-3.5" /></Button>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-sm flex-1">{m.name}</span>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => handleStartEdit(m.id, m.name)}><Pencil className="w-3.5 h-3.5" /></Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteMotive(m.id, m.name)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Add new motive */}
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Nouveau motif…"
+                  value={newMotiveName}
+                  onChange={e => setNewMotiveName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleAddMotive(); }}
+                  className="h-9 text-sm"
+                />
+                <Button size="sm" onClick={handleAddMotive} disabled={!newMotiveName.trim() || createMotive.isPending} className="gap-1.5 shrink-0">
+                  <Plus className="w-3.5 h-3.5" />
+                  Ajouter
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── Existing absences list ── */}

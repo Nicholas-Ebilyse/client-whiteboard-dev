@@ -207,6 +207,7 @@ const TECHNICIENS_HEADERS = ['ID', 'Nom', 'Couleur', 'Interim', 'Créé le'];
 const CHANTIERS_HEADERS = ['ID', 'Nom', 'Adresse', 'Couleur', 'Créé le'];
 const AFFECTATIONS_HEADERS = ['ID', 'Equipe', 'Chantier', 'Date début', 'Date fin', 'Facturé', 'Commentaire'];
 const NOTES_HEADERS = ['ID', 'Technicien', 'Date', 'SAV', 'Confirmé', 'Facturé', 'Texte'];
+const MOTIFS_HEADERS = ['ID', 'Nom', 'Créé le'];
 
 function parseDate(dateStr: string): string | null {
   if (!dateStr) return null;
@@ -483,10 +484,13 @@ serve(async (req) => {
       await ensureHeaders(spreadsheetId, 'Affectations', AFFECTATIONS_HEADERS, accessToken);
       const assignData = await fetchSheetData(spreadsheetId, 'Affectations', accessToken);
       if (assignData.length > 1) {
-        // Prepare tech and commande maps for ID lookup
-        const { data: techs } = await supabase.from('technicians').select('id, name');
+        // Prepare tech, team, and commande maps for ID lookup
+        const { data: techs } = await supabase.from('technicians').select('id, name, team_id');
+        const { data: allTeams } = await supabase.from('teams').select('id, name');
         const { data: cmds } = await supabase.from('commandes').select('id, client, chantier');
-        const techNameToId = Object.fromEntries(techs?.map(t => [t.name, t.id]) || []);
+        
+        const techNameToObj = Object.fromEntries(techs?.map(t => [t.name, t]) || []);
+        const teamNameToObj = Object.fromEntries(allTeams?.map(t => [t.name, t]) || []);
         
         // Map "Client - Chantier" to commande ID
         const cmdMap = Object.fromEntries(cmds?.map(c => [`${c.client} - ${c.chantier}`, c.id]) || []);
@@ -503,11 +507,20 @@ serve(async (req) => {
         for (let i = 1; i < assignData.length; i++) {
           const row = assignData[i];
           const id = row[iID]?.trim();
-          const techName = row[iTech]?.trim();
+          const workerName = row[iTech]?.trim();
           
-          // The export uses teamMap so it could be team name or tech name
-          const techId = techNameToId[techName] || (techs || []).find((t: any) => t.name === techName)?.id || techName;
-          if (!techId) continue;
+          let assignedTechId = null;
+          let assignedTeamId = null;
+
+          if (workerName && techNameToObj[workerName]) {
+            assignedTechId = techNameToObj[workerName].id;
+            assignedTeamId = techNameToObj[workerName].team_id;
+          } else if (workerName && teamNameToObj[workerName]) {
+            assignedTeamId = teamNameToObj[workerName].id;
+          } else {
+            // Unmatched name or empty
+            continue;
+          }
 
           const chantierStr = row[iChan]?.trim();
           const commandeId = cmdMap[chantierStr] || null;
@@ -516,7 +529,8 @@ serve(async (req) => {
 
           await supabase.from('assignments').upsert({
             id: id && id.length > 10 ? id : undefined,
-            technician_id: techId, // Assumes mapping finds the tech/team
+            technician_id: assignedTechId,
+            team_id: assignedTeamId,
             commande_id: commandeId,
             name: assignmentName,
             start_date: parseDate(row[iStart]?.trim()),
@@ -537,7 +551,7 @@ serve(async (req) => {
       const noteData = await fetchSheetData(spreadsheetId, 'Notes', accessToken);
       if (noteData.length > 1) {
         const { data: techs } = await supabase.from('technicians').select('id, name');
-        const techNameToId = Object.fromEntries(techs?.map(t => [t.name, t.id]) || []);
+        const techNameToObj = Object.fromEntries(techs?.map(t => [t.name, t]) || []);
 
         const h = noteData[0];
         const iID = h.indexOf('ID');
@@ -551,13 +565,18 @@ serve(async (req) => {
         for (let i = 1; i < noteData.length; i++) {
           const row = noteData[i];
           const id = row[iID]?.trim();
-          const techId = techNameToId[row[iTech]?.trim()] || row[iTech]?.trim();
+          
+          const workerName = row[iTech]?.trim();
+          let techId = null;
+          if (workerName && techNameToObj[workerName]) {
+            techId = techNameToObj[workerName].id;
+          }
           
           if (!row[iText]?.trim()) continue; // Skip empty notes
 
           await supabase.from('notes').upsert({
             id: id && id.length > 10 ? id : undefined,
-            technician_id: techId || null,
+            technician_id: techId,
             start_date: parseDate(row[iDate]?.trim()),
             end_date: parseDate(row[iDate]?.trim()), // Notes currently single-day in sync
             is_sav: row[iSAV]?.toUpperCase() === 'TRUE',
@@ -569,6 +588,55 @@ serve(async (req) => {
         }
       }
     } catch (e) { console.error('Note sync error:', e); }
+
+    // ── 7. Motifs ─────────────────────────────────────────────────────────────
+    let motifCount = 0;
+    try {
+      await ensureHeaders(spreadsheetId, 'Motifs', MOTIFS_HEADERS, accessToken);
+      const motifData = await fetchSheetData(spreadsheetId, 'Motifs', accessToken);
+      if (motifData.length > 1) {
+        const h = motifData[0];
+        const iID = h.indexOf('ID');
+        const iNom = h.indexOf('Nom');
+
+        for (let i = 1; i < motifData.length; i++) {
+          const row = motifData[i];
+          const id = row[iID]?.trim();
+          const name = row[iNom]?.trim();
+          if (!name) continue;
+
+          // If ID is a valid UUID, upsert by ID; otherwise insert by name (new row from Sheets)
+          const isUuid = id && /^[0-9a-f-]{36}$/i.test(id);
+          if (isUuid) {
+            await supabase.from('absence_motives').upsert({ id, name }, { onConflict: 'id' });
+          } else {
+            // New motive added directly in Sheets — insert it (skip if name already exists)
+            await supabase.from('absence_motives').upsert({ name }, { onConflict: 'name' });
+          }
+          motifCount++;
+        }
+      }
+    } catch (e) { console.error('Motif sync error:', e); }
+
+    // Always mark sync status as success
+    const totalCount = techCount + chantierCount + commandesCount + savCount + assignmentCount + noteCount + motifCount;
+    if (syncRecord) {
+      await supabaseAdmin.from('sync_status').update({
+        status: 'success',
+        completed_at: new Date().toISOString(),
+        records_synced: totalCount,
+      }).eq('id', syncRecord.id);
+    } else {
+      await supabaseAdmin.from('sync_status').update({
+        status: 'success',
+        completed_at: new Date().toISOString(),
+        records_synced: totalCount,
+      })
+        .eq('sync_type', 'google_sheets')
+        .eq('status', 'running')
+        .order('started_at', { ascending: false })
+        .limit(1);
+    }
 
     return new Response(
       JSON.stringify({ 

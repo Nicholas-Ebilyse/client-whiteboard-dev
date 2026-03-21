@@ -7,12 +7,14 @@ export interface Team {
 }
 
 // ─── Technician (member of a team) ──────────────────────────────────────────
-export interface Employee {
+export interface Technician {
   id: string;
-  firstName: string;
-  isTemp: boolean;
-  teamId?: string;
-  comment?: string;
+  name: string;
+  is_temp: boolean;
+  color: string;
+  position: number;
+  team_id?: string | null;
+  skills?: string | null;
 }
 
 // ─── Chantier (job site / project tag) ──────────────────────────────────────
@@ -20,30 +22,28 @@ export interface Chantier {
   id: string;
   name: string;
   color: string;
-  address?: string;
+  address?: string | null;
   attachments?: string[] | null;
 }
 
 // ─── Assignment ──────────────────────────────────────────────────────────────
-// Assignments are now full-day or multi-day. Periods (Matin/Après-midi) are gone.
 export interface Assignment {
   id: string;
-  /** The team row this assignment belongs to (replaces old technician_id logic) */
-  teamId: string;
-  /** The individual technician within the team (still stored on DB row) */
-  technicianId?: string;
+  teamId: string; // The team row this assignment belongs to
+  technicianId?: string | null; // The individual technician within the team
   chantierId: string | null;
   commandeId: string | null;
   name: string;
   startDate: string; // 'yyyy-MM-dd'
   endDate: string;   // 'yyyy-MM-dd'
   isFixed: boolean;
-  comment?: string;
-  isValid: boolean;
+  comment?: string | null;
+  isValid: boolean; // Frontend only
   isAbsent?: boolean;
   isConfirmed?: boolean;
-  assignment_group_id?: string;
-  absence_reason?: string;
+  is_billed?: boolean; // Facturé
+  assignment_group_id?: string | null;
+  absence_reason?: string | null;
 }
 
 // ─── Note ────────────────────────────────────────────────────────────────────
@@ -56,6 +56,7 @@ export interface Note {
   chantierId?: string | null;
   isConfirmed?: boolean;
   isSav?: boolean;
+  is_invoiced?: boolean; // Facturé
 }
 
 // ─── Misc ────────────────────────────────────────────────────────────────────
