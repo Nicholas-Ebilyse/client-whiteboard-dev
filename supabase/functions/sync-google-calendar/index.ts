@@ -608,7 +608,7 @@ Deno.serve(async (req) => {
       console.log("Clear-only mode: Not supported with delta sync directly yet, but skipping for now.");
       await updateSyncStatus(supabase, "success", 0);
       return new Response(
-        JSON.stringify({ success: true, message: "Clear-only mode triggered (noop)", eventsCreated: 0, notesCreated: 0 }),
+        JSON.stringify({ success: true, message: "Clear-only mode triggered (noop)", eventsCreated: 0 }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }

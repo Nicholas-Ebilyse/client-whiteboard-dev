@@ -29,7 +29,7 @@ export const SyncGoogleCalendarButton = ({ onSyncComplete }: SyncGoogleCalendarB
 
       toast({
         title: "Synchronisation réussie",
-        description: `${data.eventsCreated || 0} événements et ${data.notesCreated || 0} notes synchronisés avec Google Agenda.`,
+        description: `${data.eventsCreated || 0} événements synchronisés avec Google Agenda.`,
       });
 
       // Refresh sync status queries
