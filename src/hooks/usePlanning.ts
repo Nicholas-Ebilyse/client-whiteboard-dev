@@ -176,8 +176,8 @@ export const useAssignments = (weekStart: string, weekEnd: string) => {
       const { data, error } = await supabase
         .from('assignments')
         .select('*')
-        .gte('start_date', weekStart)
-        .lte('start_date', weekEnd);
+        .lte('start_date', weekEnd)
+        .gte('end_date', weekStart);
       
       if (error) throw error;
       return data;
@@ -185,6 +185,7 @@ export const useAssignments = (weekStart: string, weekEnd: string) => {
     enabled: !!weekStart && !!weekEnd,
   });
 };
+
 
 export const useNotes = (weekStart: string, weekEnd: string) => {
   return useQuery({

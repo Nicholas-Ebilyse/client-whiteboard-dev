@@ -71,6 +71,9 @@ export const SyncGoogleSheetsButton = () => {
         description: `${c.techniciens || 0} techniciens, ${c.commandes || 0} commandes, ${c.sav || 0} SAV, ${c.affectations || 0} affectations, ${c.notes || 0} notes exportés.`,
       });
 
+      queryClient.invalidateQueries({ queryKey: ['sync-status'] });
+      queryClient.invalidateQueries({ queryKey: ['sync-statuses-all'] });
+
       setOpen(false);
     } catch (error: any) {
       toast({ title: "Erreur d'export", description: await extractError(error), variant: "destructive" });
