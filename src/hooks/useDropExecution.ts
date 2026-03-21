@@ -84,7 +84,7 @@ export const useDropExecution = (
               start_date: pos.newStartDate.toISOString().split('T')[0],
               end_date: pos.newEndDate.toISOString().split('T')[0],
               commande_id: original.commande_id,
-              chantier_id: original.chantier_id,
+
               comment: original.comment,
               is_absent: original.is_absent,
               absence_reason: original.absence_reason,

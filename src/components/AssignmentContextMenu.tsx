@@ -12,8 +12,6 @@ interface Commande {
   id: string;
   client: string;
   chantier: string;
-  facture: string | null;
-  is_invoiced?: boolean;
 }
 
 interface AssignmentContextMenuProps {

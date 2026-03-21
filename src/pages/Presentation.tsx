@@ -75,14 +75,6 @@ const Presentation = () => {
   const { data: technicians = [], isLoading: isTechLoading } = useTechnicians(true);
   const { data: teams = [], isLoading: isTeamsLoading } = useTeams();
   const { data: commandes = [], isLoading: isCommandesLoading } = useCommandes();
-  const { data: chantiers = [], isLoading: isChantiersLoading } = useQuery({
-    queryKey: ['invoices'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('invoices').select('*');
-      if (error) throw error;
-      return data;
-    }
-  });
 
   const weekDates = weekConfig ? getWeekDates(weekConfig.week_number, weekConfig.year) : [];
   const weekStartStr = weekDates[0]?.fullDate;
@@ -91,7 +83,7 @@ const Presentation = () => {
   const { data: assignments = [], isLoading: isAssignmentsLoading } = useAssignments(weekStartStr, weekEndStr);
   const { data: notes = [], isLoading: isNotesLoading } = useNotes(weekStartStr, weekEndStr);
   
-  const isPlanningLoading = isConfigLoading || isTechLoading || isTeamsLoading || isCommandesLoading || isChantiersLoading || isAssignmentsLoading || isNotesLoading;
+  const isPlanningLoading = isConfigLoading || isTechLoading || isTeamsLoading || isCommandesLoading || isAssignmentsLoading || isNotesLoading;
 
   const { data: absences = [], isLoading: isAbsencesLoading } = useAbsences(weekStartStr, weekEndStr);
 
@@ -113,7 +105,7 @@ const Presentation = () => {
     id: `absence-${absence.id}`,
     teamId: absence.technician_id,
     technicianId: absence.technician_id,
-    chantierId: null,
+
     commandeId: null,
     name: 'Absent',
     startDate: absence.start_date,
@@ -130,7 +122,7 @@ const Presentation = () => {
     id: dbAssignment.id,
     teamId: dbAssignment.team_id ?? dbAssignment.technician_id,
     technicianId: dbAssignment.technician_id,
-    chantierId: dbAssignment.chantier_id,
+
     commandeId: dbAssignment.commande_id,
     name: dbAssignment.name,
     startDate: dbAssignment.startDate || dbAssignment.start_date,
@@ -192,7 +184,7 @@ const Presentation = () => {
             notes={notes}
             absences={absences}
             commandes={commandes}
-            chantiers={chantiers}
+
             isAdmin={false} // Disable admin features
             maxAssignments={3}
             allAssignmentsFormatted={allAssignmentsFormatted}

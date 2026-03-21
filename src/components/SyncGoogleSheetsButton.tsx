@@ -48,7 +48,7 @@ export const SyncGoogleSheetsButton = () => {
       queryClient.invalidateQueries({ queryKey: ["assignments"] });
       queryClient.invalidateQueries({ queryKey: ["notes"] });
       queryClient.invalidateQueries({ queryKey: ["sav"] });
-      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+
       queryClient.invalidateQueries({ queryKey: ["sync-status"] });
 
       setOpen(false);
@@ -68,7 +68,7 @@ export const SyncGoogleSheetsButton = () => {
       const c = data?.counts || {};
       toast({
         title: "Export réussi",
-        description: `${c.techniciens || 0} techniciens, ${c.commandes || 0} commandes, ${c.sav || 0} SAV, ${c.affectations || 0} affectations, ${c.notes || 0} notes, ${c.factures || 0} factures exportés.`,
+        description: `${c.techniciens || 0} techniciens, ${c.commandes || 0} commandes, ${c.sav || 0} SAV, ${c.affectations || 0} affectations, ${c.notes || 0} notes exportés.`,
       });
 
       setOpen(false);

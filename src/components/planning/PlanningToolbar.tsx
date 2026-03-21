@@ -26,10 +26,7 @@ interface PlanningToolbarProps {
   handleWeekNavDragOver: (e: React.DragEvent, direction: 'prev' | 'next') => void;
   handleWeekNavDrop: (e: React.DragEvent, direction: 'prev' | 'next') => void;
   isDragging: boolean;
-  invoicedAssignments: number;
-  totalAssignments: number;
-  invoicedNotes: number;
-  totalNotes: number;
+
   isAdmin: boolean;
   copyModeEnabled: boolean;
   toggleCopyMode: () => void;
@@ -53,10 +50,7 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
   handleWeekNavDragOver,
   handleWeekNavDrop,
   isDragging,
-  invoicedAssignments,
-  totalAssignments,
-  invoicedNotes,
-  totalNotes,
+
   isAdmin,
   copyModeEnabled,
   toggleCopyMode,

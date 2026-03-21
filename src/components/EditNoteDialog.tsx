@@ -26,7 +26,7 @@ interface EditNoteDialogProps {
     end_period?: string;
     is_sav?: boolean;
     is_confirmed?: boolean;
-    is_invoiced?: boolean;
+
     display_below?: boolean;
   } | null;
   technicians: { id: string; name: string }[];

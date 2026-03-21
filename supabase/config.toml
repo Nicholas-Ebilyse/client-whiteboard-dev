@@ -6,8 +6,6 @@ verify_jwt = false
 [functions.send-sync-error-notification]
 verify_jwt = false
 
-[functions.update-google-sheets-invoice-status]
-verify_jwt = false
 
 [functions.sync-google-calendar]
 verify_jwt = false

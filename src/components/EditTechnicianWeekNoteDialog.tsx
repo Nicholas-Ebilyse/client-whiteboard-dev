@@ -25,7 +25,7 @@ interface EditTechnicianWeekNoteDialogProps {
     date: string;
     is_sav?: boolean;
     is_confirmed?: boolean;
-    is_invoiced?: boolean;
+
   } | null;
   onSave: (note: any) => void;
   onDelete?: (id: string) => void;
@@ -47,7 +47,7 @@ export const EditTechnicianWeekNoteDialog = ({
   const [text, setText] = useState('');
   const [isSav, setIsSav] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
-  const [isInvoiced, setIsInvoiced] = useState(false);
+
   const [showDuplicateOptions, setShowDuplicateOptions] = useState(false);
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const [selectedTechnicians, setSelectedTechnicians] = useState<string[]>([]);
@@ -57,7 +57,7 @@ export const EditTechnicianWeekNoteDialog = ({
       setText(note.text);
       setIsSav(note.is_sav || false);
       setIsConfirmed(note.is_confirmed || false);
-      setIsInvoiced(note.is_invoiced || false);
+
       setShowDuplicateOptions(false);
       setSelectedDays([]);
       setSelectedTechnicians([]);
@@ -65,7 +65,7 @@ export const EditTechnicianWeekNoteDialog = ({
       setText('');
       setIsSav(false);
       setIsConfirmed(false);
-      setIsInvoiced(false);
+
       setShowDuplicateOptions(false);
       setSelectedDays([]);
       setSelectedTechnicians([]);
@@ -89,7 +89,7 @@ export const EditTechnicianWeekNoteDialog = ({
       end_period: 'Après-midi',
       is_sav: isSav,
       is_confirmed: isConfirmed,
-      is_invoiced: isInvoiced,
+
     });
     onOpenChange(false);
   };
@@ -134,7 +134,7 @@ export const EditTechnicianWeekNoteDialog = ({
           end_period: 'Après-midi',
           is_sav: isSav,
           is_confirmed: isConfirmed,
-          is_invoiced: isInvoiced,
+
         });
       }
     }
@@ -209,15 +209,7 @@ export const EditTechnicianWeekNoteDialog = ({
               />
               <label htmlFor="confirmed" className="text-sm cursor-pointer">Confirmé</label>
             </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox 
-                id="invoiced" 
-                checked={isInvoiced}
-                onCheckedChange={(checked) => setIsInvoiced(checked as boolean)}
-                className="border-red-400 data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500"
-              />
-              <label htmlFor="invoiced" className="text-sm cursor-pointer text-red-600 dark:text-red-400">Facturé</label>
-            </div>
+
           </div>
           
           <div className="space-y-2">

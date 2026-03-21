@@ -261,11 +261,7 @@ Deno.serve(async (req) => {
       const numeroIndex = headers.findIndex(h => h?.toLowerCase().includes('numéro') || h?.toLowerCase().includes('numero'));
       const clientIndex = headers.findIndex(h => h?.toLowerCase().includes('client'));
       const chantierIndex = headers.findIndex(h => h?.toLowerCase().includes('chantier') || h?.toLowerCase().includes('adresse'));
-      const montantHtIndex = headers.findIndex(h => h?.toLowerCase().includes('montant'));
-      const achatsIndex = headers.findIndex(h => h?.toLowerCase().includes('achat'));
-      const dateIndex = headers.findIndex(h => h?.toLowerCase().includes('date'));
-      const factureIndex = headers.findIndex(h => h?.toLowerCase().includes('facture') && !h?.toLowerCase().includes('facturée'));
-      const isInvoicedIndex = headers.findIndex(h => h?.toLowerCase().includes('facturée') || h?.toLowerCase() === 'facturee');
+
 
       if (clientIndex !== -1 && chantierIndex !== -1) {
         for (let i = 1; i < commandesData.length; i++) {
@@ -276,13 +272,7 @@ Deno.serve(async (req) => {
           const numero = numeroIndex >= 0 ? row[numeroIndex]?.toString().trim() || null : null;
           const client = clientIndex >= 0 ? row[clientIndex]?.toString().trim() : null;
           const chantier = chantierIndex >= 0 ? row[chantierIndex]?.toString().trim() : null;
-          const montantHt = montantHtIndex >= 0 ? parseFloat(row[montantHtIndex]) : null;
-          const achats = achatsIndex >= 0 ? parseFloat(row[achatsIndex]) : null;
-          const dateStr = dateIndex >= 0 ? row[dateIndex]?.toString().trim() : null;
-          const date = parseDate(dateStr || '');
-          const facture = factureIndex >= 0 ? row[factureIndex]?.toString().trim() || null : null;
-          const isInvoicedRaw = isInvoicedIndex >= 0 ? row[isInvoicedIndex]?.toString().trim().toLowerCase() : null;
-          const isInvoiced = isInvoicedRaw === 'true' || isInvoicedRaw === 'vrai' || isInvoicedRaw === '1';
+
 
           if (!client || !chantier) {
             commandesErrors.push({ row: i + 1, reason: 'Missing client or chantier', data: { client, chantier } });
@@ -293,12 +283,7 @@ Deno.serve(async (req) => {
             external_id: externalId,
             numero: numero,
             client: client,
-            chantier: chantier,
-            montant_ht: montantHt,
-            achats: achats,
-            date: date,
-            facture: facture || null,
-            is_invoiced: isInvoiced
+            chantier: chantier
           };
 
           const { error } = await supabase

@@ -48,7 +48,7 @@ interface EditAssignmentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   assignment: Assignment | null;
-  chantiers: Chantier[];
+
   commandes: any[]; // Issue #3: Add commandes for address lookup
   teams: any[];
   assignments: Assignment[];
@@ -63,7 +63,7 @@ export const EditAssignmentDialog = ({
   open,
   onOpenChange,
   assignment,
-  chantiers,
+
   commandes, // Issue #3: Receive commandes prop
   teams,
   assignments,
@@ -88,22 +88,7 @@ export const EditAssignmentDialog = ({
   const [isConfirmed, setIsConfirmed] = useState(assignment?.isConfirmed || false);
   const [comment, setComment] = useState(assignment?.comment || '');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [editedChantierAddress, setEditedChantierAddress] = useState<string | null>(null);
-  // Derive invoice status from commandes — read-only, used only for locking
-  const isInvoiced = useMemo(() => {
-    if (!assignment?.commandeId) return false;
-    const commande = commandes.find((c: any) => c.id === assignment.commandeId);
-    return commande?.is_invoiced || false;
-  }, [assignment?.commandeId, commandes]);
 
-  const selectedChantier = useMemo(() => 
-    chantiers.find(c => c.id === selectedCommande),
-  [chantiers, selectedCommande]);
-
-  useEffect(() => {
-    setEditedChantierAddress(null);
-  }, [selectedCommande]);
 
   useEffect(() => {
     if (assignment) {
@@ -157,33 +142,12 @@ export const EditAssignmentDialog = ({
         return;
       }
 
-      // Check for address edit
-      if (editedChantierAddress !== null) {
-        const selectedComm = commandes.find((c: any) => c.id === selectedCommande);
-        if (selectedComm && editedChantierAddress !== selectedComm.chantier) {
-          try {
-            const { supabase } = await import('@/integrations/supabase/client');
-            const { error } = await supabase
-              .from('invoices')
-              .update({ chantier: editedChantierAddress })
-              .eq('id', selectedCommande);
-              
-            if (error) throw error;
-            
-            queryClient.invalidateQueries({ queryKey: ['invoices'] });
-            toast({ title: "Adresse mise à jour", description: "L'adresse du chantier a été enregistrée avec succès." });
-          } catch (error) {
-            console.error("Erreur lors de la mise à jour de l'adresse:", error);
-            toast({ title: "Erreur", description: "Impossible de sauvegarder l'adresse.", variant: "destructive" });
-            return; // Don't save assignment if address failed
-          }
-        }
-      }
+
       
       const updatedAssignment: Assignment = {
         ...assignment,
         teamId: selectedTeam,
-        chantierId: null,
+
         commandeId: selectedCommande,
         startDate: startDateStr,
         endDate: endDateStr,
@@ -232,7 +196,7 @@ export const EditAssignmentDialog = ({
   const chantierOptions = useMemo(() => {
     if (!selectedClient) return [];
     return commandes
-      .filter((c: any) => c.client === selectedClient && (!c.is_invoiced || c.id === assignment?.commandeId))
+      .filter((c: any) => c.client === selectedClient)
       .map((c: any) => ({
         value: c.id,
         label: c.chantier ? getShortChantierName(c.chantier) : c.name,
@@ -274,11 +238,6 @@ export const EditAssignmentDialog = ({
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Client</Label>
-              {isInvoiced && (
-                <p className="text-xs text-red-600 font-medium flex items-center gap-1">
-                  🔒 Ce chantier est marqué comme facturé — affectation verrouillée.
-                </p>
-              )}
               <SearchableSelect
                 value={selectedClient}
                 onValueChange={(val) => {
@@ -287,7 +246,6 @@ export const EditAssignmentDialog = ({
                 }}
                 options={clientOptions}
                 placeholder="Sélectionner un client..."
-                disabled={isInvoiced}
               />
             </div>
 
@@ -299,7 +257,6 @@ export const EditAssignmentDialog = ({
                   onValueChange={setSelectedCommande}
                   options={chantierOptions}
                   placeholder="Sélectionner un chantier..."
-                  disabled={isInvoiced}
                 />
               </div>
             )}
@@ -316,9 +273,9 @@ export const EditAssignmentDialog = ({
                   <div className="flex items-center gap-2">
                     <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                     <Input 
-                      value={editedChantierAddress !== null ? editedChantierAddress : selectedComm.chantier}
-                      onChange={(e) => setEditedChantierAddress(e.target.value)}
-                      className="flex-1 bg-background text-sm"
+                      readOnly
+                      value={selectedComm.chantier}
+                      className="flex-1 bg-muted text-sm text-muted-foreground cursor-default"
                     />
                     <Button
                       type="button"
@@ -337,171 +294,7 @@ export const EditAssignmentDialog = ({
             return null;
           })()}
 
-          {/* Attachments Section */}
-          {selectedCommande && selectedChantier && (
-            <div className="space-y-3 bg-muted/10 p-3 rounded-md border border-border/50">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-semibold flex items-center gap-2">
-                  <FileIcon className="h-4 w-4 text-primary" />
-                  Pièces jointes du chantier
-                </Label>
-                <div className="text-xs text-muted-foreground">
-                  {(selectedChantier.attachments?.length || 0)} / 3 fichiers
-                </div>
-              </div>
-              
-              {/* File list */}
-              {(selectedChantier.attachments?.length || 0) > 0 && (
-                <div className="flex flex-col gap-2">
-                  {selectedChantier.attachments?.map((url, i) => {
-                    const isImage = url.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i);
-                    const fileName = url.split('/').pop()?.split('?')[0] || `Fichier ${i + 1}`;
-                    
-                    return (
-                      <div key={i} className="flex items-center justify-between p-2 pr-1 bg-background rounded border group">
-                        <a 
-                          href={url} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2 overflow-hidden text-sm hover:text-primary transition-colors flex-1"
-                        >
-                          {isImage ? <ImageIcon className="h-4 w-4 flex-shrink-0" /> : <FileIcon className="h-4 w-4 flex-shrink-0" />}
-                          <span className="truncate">{fileName}</span>
-                        </a>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={async (e) => {
-                            e.preventDefault();
-                            if (!window.confirm("Supprimer ce fichier ?")) return;
-                            
-                            try {
-                              const newAttachments = selectedChantier.attachments!.filter(a => a !== url);
-                              
-                              // First update the DB so UI reacts fast
-                              const { supabase } = await import('@/integrations/supabase/client');
-                              const { error } = await supabase
-                                .from('invoices')
-                                .update({ attachments: newAttachments })
-                                .eq('id', selectedCommande);
-                                
-                              if (error) throw error;
-                              
-                              queryClient.invalidateQueries({ queryKey: ['invoices'] });
-                              toast({ title: "Fichier supprimé" });
-                              
-                              // Optionally delete from storage here as background task
-                              const filePathMatch = url.match(/chantier_files\/(.+)$/);
-                              if (filePathMatch && filePathMatch[1]) {
-                                const filePath = filePathMatch[1];
-                                supabase.storage.from('chantier_files').remove([filePath]).catch(console.error);
-                              }
-                            } catch (error) {
-                              console.error('L\'erreur de suppression:', error);
-                              toast({ title: "Erreur", description: "Impossible de supprimer", variant: "destructive" });
-                            }
-                          }}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              
-              {/* Upload button */}
-              {(selectedChantier.attachments?.length || 0) < 3 && (
-                <div>
-                  <input 
-                    type="file" 
-                    id="chantier-file-upload" 
-                    className="hidden" 
-                    accept="image/*,.pdf"
-                    multiple
-                    onChange={async (e) => {
-                      const files = Array.from(e.target.files || []);
-                      if (!files.length) return;
-                      
-                      const currentCount = selectedChantier.attachments?.length || 0;
-                      if (currentCount + files.length > 3) {
-                        toast({ title: "Limite atteinte", description: "Maximum 3 fichiers au total.", variant: "destructive" });
-                        return;
-                      }
-                      
-                      setIsUploading(true);
-                      try {
-                        const { supabase } = await import('@/integrations/supabase/client');
-                        const newUrls = [...(selectedChantier.attachments || [])];
-                        
-                        for (const file of files) {
-                          // Validate file size (max 5MB)
-                          if (file.size > 5 * 1024 * 1024) {
-                            toast({ title: "Fichier trop lourd", description: `${file.name} dépasse 5Mo.`, variant: "destructive" });
-                            continue;
-                          }
-                          
-                          const fileExt = file.name.split('.').pop();
-                          const fileName = `${selectedCommande}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-                          
-                          const { data: uploadData, error: uploadError } = await supabase.storage
-                            .from('chantier_files')
-                            .upload(fileName, file);
-                            
-                          if (uploadError) throw uploadError;
-                          
-                          const { data: { publicUrl } } = supabase.storage
-                            .from('chantier_files')
-                            .getPublicUrl(fileName);
-                            
-                          newUrls.push(publicUrl);
-                        }
-                        
-                        // Update DB
-                        const { error: dbError } = await supabase
-                          .from('invoices')
-                          .update({ attachments: newUrls })
-                          .eq('id', selectedCommande);
-                          
-                        if (dbError) throw dbError;
-                        
-                        queryClient.invalidateQueries({ queryKey: ['invoices'] });
-                        toast({ title: "Fichiers ajoutés avec succès" });
-                      } catch (error) {
-                        console.error('Upload error:', error);
-                        toast({ title: "Erreur d'envoi", description: "Veuillez réessayer.", variant: "destructive" });
-                      } finally {
-                        setIsUploading(false);
-                        // Reset input
-                        e.target.value = '';
-                      }
-                    }}
-                  />
-                  <Label 
-                    htmlFor="chantier-file-upload" 
-                    className={cn(
-                      "flex items-center justify-center gap-2 w-full p-3 border-2 border-dashed rounded-md cursor-pointer transition-colors text-sm font-medium",
-                      isUploading ? "opacity-50 pointer-events-none bg-muted" : "hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary"
-                    )}
-                  >
-                    {isUploading ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Envoi en cours...
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="h-4 w-4" />
-                        Ajouter un fichier (PDF, Image - max 5Mo)
-                      </>
-                    )}
-                  </Label>
-                </div>
-              )}
-            </div>
-          )}
+
 
           <div className="space-y-2">
             <Label htmlFor="assignment-comment">Notes/Commentaires supplémentaires</Label>
@@ -521,7 +314,7 @@ export const EditAssignmentDialog = ({
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
-                    disabled={isConfirmed || isInvoiced}
+                    disabled={isConfirmed}
                     className={cn(
                       'w-full justify-start text-left font-normal bg-background',
                       !startDate && 'text-muted-foreground'
@@ -550,7 +343,7 @@ export const EditAssignmentDialog = ({
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
-                    disabled={isConfirmed || isInvoiced}
+                    disabled={isConfirmed}
                     className={cn(
                       'w-full justify-start text-left font-normal bg-background',
                       !endDate && 'text-muted-foreground'

@@ -128,7 +128,7 @@ export const useDragAndDropAssignment = (
   const isDraggable = useCallback((assignment: Assignment) => {
     if (assignment.isConfirmed) return false;
     const commande = commandes.find(c => c.id === assignment.commandeId);
-    if (commande?.is_invoiced) return false;
+
     return true;
   }, [commandes]);
 

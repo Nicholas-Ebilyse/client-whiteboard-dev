@@ -66,7 +66,6 @@ interface Commande {
   id: string;
   client: string;
   chantier: string;
-  is_invoiced: boolean;
 }
 
 interface Note {
@@ -123,7 +122,6 @@ const FRENCH_HOLIDAYS: Set<string> = new Set([
 // Google Calendar color IDs (limited palette)
 const CALENDAR_COLORS = {
   absent: "8", // Graphite for absence
-  invoiced: "11", // Tomato/Red for invoiced
   confirmed: "10", // Basil/Green for confirmed
   unconfirmed: "5", // Banana/Yellow for not confirmed
   note: "9", // Blueberry for notes
@@ -215,7 +213,6 @@ function pemToArrayBuffer(pem: string): ArrayBuffer {
 
 function getEventColor(assignment: Assignment, commande: Commande | null): string {
   if (assignment.is_absent) return CALENDAR_COLORS.absent;
-  if (commande?.is_invoiced) return CALENDAR_COLORS.invoiced;
   if (assignment.is_confirmed) return CALENDAR_COLORS.confirmed;
   return CALENDAR_COLORS.unconfirmed;
 }
@@ -237,9 +234,7 @@ function buildEventDescription(assignment: Assignment, commande: Commande | null
       parts.push(`Commentaire: ${assignment.comment}`);
     }
   } else {
-    if (commande?.is_invoiced) {
-      parts.push("Statut: Facturé");
-    } else if (assignment.is_confirmed) {
+    if (assignment.is_confirmed) {
       parts.push("Statut: Confirmé");
     } else {
       parts.push("Statut: Non confirmé");
@@ -634,7 +629,7 @@ Deno.serve(async (req) => {
     const [assignmentsResult, teamsResult, commandesResult] = await Promise.all([
       supabase.from("assignments").select("*").gte("start_date", syncStart).lte("start_date", syncEnd),
       supabase.from("teams").select("id, name"),
-      supabase.from("commandes").select("id, client, chantier, is_invoiced"),
+      supabase.from("commandes").select("id, client, chantier"),
     ]);
 
     if (assignmentsResult.error) throw assignmentsResult.error;

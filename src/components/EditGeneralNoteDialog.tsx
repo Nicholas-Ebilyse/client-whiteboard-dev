@@ -44,7 +44,6 @@ export const EditGeneralNoteDialog = ({ open, onOpenChange, note, onSave, onDele
       is_absent: false,
       is_sav: false,
       is_confirmed: false,
-      is_invoiced: false,
     });
     onOpenChange(false);
   };

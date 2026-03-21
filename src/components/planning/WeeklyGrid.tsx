@@ -16,7 +16,7 @@ interface WeeklyGridProps {
   notes: any[];
   absences: any[];
   commandes: any[];
-  chantiers: any[];
+
   isAdmin: boolean;
   maxAssignments: number;
   allAssignmentsFormatted: any[];
@@ -83,7 +83,7 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
   notes,
   absences,
   commandes,
-  chantiers,
+
   isAdmin,
   maxAssignments,
   allAssignmentsFormatted,
@@ -267,7 +267,7 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                       onAssignmentDuplicate={isAdmin ? (a) => handleDuplicateAssignment(a.id) : undefined}
                       onAssignmentDelete={isAdmin ? (a) => handleDeleteAssignment(a.id) : undefined}
                       commandes={commandes}
-                      chantiers={chantiers}
+
                       isAdmin={isAdmin}
                       maxAssignmentsPerPeriod={maxAssignments}
                       cellDate={day.fullDate}

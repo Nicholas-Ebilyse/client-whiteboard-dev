@@ -20,7 +20,6 @@ export const assignments: Assignment[] = [
   {
     id: 'xQKA0ai3PYlgR5e0XrB5Tg',
     teamId: '778f689a-2201-491b-a81c-34d2e3f45678',
-    chantierId: 'ee34ae04-6688-7224-0b3a-ff45bf15115d',
     commandeId: null,
     name: 'ABOU HASSAN (F-25/09-15487)',
     startDate: '29/09/2025',
@@ -31,7 +30,6 @@ export const assignments: Assignment[] = [
   {
     id: 'DOmU2Glkij3URBxkGobkxG',
     teamId: '778f689a-2201-491b-a81c-34d2e3f45679',
-    chantierId: 'a4e68c1d-e97f-4330-b6b2-73cf1c81a2f5',
     commandeId: null,
     name: 'ABOU HASSAN (F-25/09-15487)',
     startDate: '01/10/2025',
@@ -42,7 +40,6 @@ export const assignments: Assignment[] = [
   {
     id: '9GZatjoFLfZCZFa1SfUb3w',
     teamId: '778f689a-2201-491b-a81c-34d2e3f45679',
-    chantierId: 'ef768dfa-6600-525e-eb3a-ff879efb9f6d',
     commandeId: null,
     name: 'LAMBERT FELIX (F-25/09-15489)',
     startDate: '02/10/2025',
@@ -53,7 +50,6 @@ export const assignments: Assignment[] = [
   {
     id: 'Yd7fFD2b7335zs1UFXLxKf',
     teamId: '778f689a-2201-491b-a81c-34d2e3f45679',
-    chantierId: 'ee34ae04-6688-7224-0b3a-ff45bf15115d',
     commandeId: null,
     name: 'SCIENCES ENVIRONNEMENT (F-25/09-15490)',
     startDate: '02/10/2025',
@@ -64,7 +60,6 @@ export const assignments: Assignment[] = [
   {
     id: 'KIcLHRXfwstfd7IIsegBDF',
     teamId: '778f689a-2201-491b-a81c-34d2e3f45682',
-    chantierId: 'ea3f816b-76f6-42c8-ab3a-f07c928c9aed',
     commandeId: null,
     name: 'AKTYA (F-25/09-15491)',
     startDate: '03/10/2025',
@@ -75,7 +70,6 @@ export const assignments: Assignment[] = [
   {
     id: 'A1B2C3D4E5F6G7H8I9J0K1',
     teamId: '778f689a-2201-491b-a81c-34d2e3f45680',
-    chantierId: 'ee34ae04-6688-7224-0b3a-ff45bf15115d',
     commandeId: null,
     name: 'ABOU HASSAN (F-25/09-15487)',
     startDate: '30/09/2025',
@@ -86,7 +80,6 @@ export const assignments: Assignment[] = [
   {
     id: 'B2C3D4E5F6G7H8I9J0K1L2',
     teamId: '778f689a-2201-491b-a81c-34d2e3f45678',
-    chantierId: 'ef768dfa-6600-525e-eb3a-ff879efb9f6d',
     commandeId: null,
     name: 'LAMBERT FELIX (F-25/09-15489)',
     startDate: '01/10/2025',
@@ -97,7 +90,6 @@ export const assignments: Assignment[] = [
   {
     id: 'C3D4E5F6G7H8I9J0K1L2M3',
     teamId: '778f689a-2201-491b-a81c-34d2e3f45683',
-    chantierId: 'ea3f816b-76f6-42c8-ab3a-f07c928c9aed',
     commandeId: null,
     name: 'AKTYA (F-25/09-15491)',
     startDate: '29/09/2025',
@@ -108,7 +100,6 @@ export const assignments: Assignment[] = [
   {
     id: 'D4E5F6G7H8I9J0K1L2M3N4',
     teamId: '778f689a-2201-491b-a81c-34d2e3f45684',
-    chantierId: 'a4e68c1d-e97f-4330-b6b2-73cf1c81a2f5',
     commandeId: null,
     name: 'ABOU HASSAN (F-25/09-15487)',
     startDate: '02/10/2025',
@@ -119,7 +110,6 @@ export const assignments: Assignment[] = [
   {
     id: 'E5F6G7H8I9J0K1L2M3N4O5',
     teamId: '778f689a-2201-491b-a81c-34d2e3f45683',
-    chantierId: 'ee34ae04-6688-7224-0b3a-ff45bf15115d',
     commandeId: null,
     name: 'SCIENCES ENVIRONNEMENT (F-25/09-15490)',
     startDate: '03/10/2025',
@@ -130,7 +120,6 @@ export const assignments: Assignment[] = [
   {
     id: 'F6G7H8I9J0K1L2M3N4O5P6',
     teamId: '778f689a-2201-491b-a81c-34d2e3f45684',
-    chantierId: 'ef768dfa-6600-525e-eb3a-ff879efb9f6d',
     commandeId: null,
     name: 'LAMBERT FELIX (F-25/09-15489)',
     startDate: '01/12/2025',
@@ -141,7 +130,6 @@ export const assignments: Assignment[] = [
   {
     id: 'G7H8I9J0K1L2M3N4O5P6Q7',
     teamId: '778f689a-2201-491b-a81c-34d2e3f45680',
-    chantierId: 'ea3f816b-76f6-42c8-ab3a-f07c928c9aed',
     commandeId: null,
     name: 'AKTYA (F-25/09-15491)',
     startDate: '02/12/2025',
@@ -158,7 +146,6 @@ export const notes: Note[] = [
     technicianId: '778f689a-2201-491b-a81c-34d2e3f45680',
     date: '30/09/2025',
     endDate: '30/09/2025',
-    chantierId: '67fe05e2-fed8-4ac6-e3b2-780f16e317c5',
   },
   {
     id: 'NnitgeApHm0SIZITL8phRg',
@@ -166,7 +153,6 @@ export const notes: Note[] = [
     technicianId: '778f689a-2201-491b-a81c-34d2e3f45678',
     date: '30/09/2025',
     endDate: '30/09/2025',
-    chantierId: 'a4e68c1d-e97f-4330-b6b2-73cf1c81a2f5',
   },
 ];
 

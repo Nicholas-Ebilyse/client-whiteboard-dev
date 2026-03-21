@@ -6,14 +6,12 @@ if (!fs.existsSync(dir)) fs.mkdirSync(dir);
 
 const sheets = {
   "Techniciens": ["ID", "Nom", "Couleur", "Interim", "Créé le"],
-  "Commandes": ["ID", "Numéro", "Nom client", "Chantier", "Montant HT", "Achats", "Date", "Facture", "UUID"],
-  "Chantiers": ["ID", "Nom", "Adresse", "Couleur", "Créé le"],
+  "Commandes": ["ID", "Numéro", "Nom client", "Chantier", "UUID"],
   "SAV": ["ID", "Numéro", "Nom du client", "Adresse", "Numéro de téléphone", "Problème", "Date", "Est résolu"],
-  "Affectations": ["ID", "Equipe", "Chantier", "Date début", "Date fin", "Facturé", "Commentaire"],
+  "Affectations": ["ID", "Equipe", "Chantier", "Date début", "Date fin", "Commentaire"],
   "Absences": ["ID", "Equipe", "Date début", "Date fin", "Motif", "Commentaire"],
   "Motifs": ["ID", "Nom", "Couleur", "Créé le"],
-  "Notes": ["ID", "Technicien", "Date", "SAV", "Confirmé", "Facturé", "Texte"],
-  "Factures": ["Numéro Facture", "Client", "Chantier", "Montant HT", "Achats", "Date"]
+  "Notes": ["ID", "Technicien", "Date", "SAV", "Confirmé", "Texte"]
 };
 
 for (const [name, headers] of Object.entries(sheets)) {

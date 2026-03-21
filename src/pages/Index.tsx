@@ -141,15 +141,7 @@ const Index = () => {
   const { data: teams = [] } = useTeams();
   const activeTechnicians = technicians.filter(t => !t.is_archived);
   const { data: commandes = [] } = useCommandes();
-  const { data: chantiers = [] } = useQuery({
-    queryKey: ['invoices'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('invoices').select('*');
-      if (error) throw error;
-      return data;
-    }
-  });
-  
+
   const weekDates = weekConfig ? getWeekDates(weekConfig.week_number, weekConfig.year) : [];
   const weekStart = weekDates[0]?.fullDate;
   const weekEnd = weekDates[4]?.fullDate;
@@ -282,7 +274,7 @@ const Index = () => {
     const newAssignment: Assignment = {
       id: `new-${Date.now()}`,
       teamId,
-      chantierId: null,
+
       commandeId: commandes[0]?.id || null,
       name: commandes[0] ? `${commandes[0].client} - ${commandes[0].chantier}` : '',
       startDate: date,
@@ -298,7 +290,7 @@ const Index = () => {
     const newAssignment: Assignment = {
       id: `new-${Date.now()}`,
       teamId,
-      chantierId: null,
+
       commandeId: commandes[0]?.id || null,
       name: commandes[0] ? `${commandes[0].client} - ${commandes[0].chantier}` : '',
       startDate: date,
@@ -351,7 +343,7 @@ const Index = () => {
         id: updatedAssignment.id,
         team_id: updatedAssignment.teamId,
         technician_id: originalAssignment?.technician_id ?? updatedAssignment.technicianId,
-        chantier_id: null,
+
         commande_id: updatedAssignment.commandeId,
         name: assignmentName,
         start_date: updatedAssignment.startDate,
@@ -370,7 +362,7 @@ const Index = () => {
           {
             groupId: originalAssignment.assignment_group_id,
             updates: {
-              chantier_id: null,
+      
               commande_id: updatedAssignment.commandeId,
               name: assignmentName,
               is_fixed: updatedAssignment.isFixed,
@@ -432,7 +424,7 @@ const Index = () => {
       assignmentsToCreate.push({
         team_id: updatedAssignment.teamId,
         technician_id: updatedAssignment.technicianId || null,
-        chantier_id: null,
+
         commande_id: updatedAssignment.commandeId,
         name: assignmentName,
         start_date: currentDate.toISOString().split('T')[0],
@@ -645,7 +637,7 @@ const Index = () => {
       period: period,
       is_sav: note.is_sav,
       is_confirmed: note.is_confirmed,
-      is_invoiced: note.is_invoiced,
+
     });
     setGeneralNoteDialogOpen(true);
   };
@@ -687,7 +679,7 @@ const Index = () => {
       date: date,
       is_sav: note.is_sav,
       is_confirmed: note.is_confirmed,
-      is_invoiced: note.is_invoiced,
+
     });
     setTechWeekNoteDialogOpen(true);
   };
@@ -733,7 +725,7 @@ const Index = () => {
       id: dbAssignment.id,
       teamId: dbAssignment.team_id ?? dbAssignment.technician_id,
       technicianId: dbAssignment.technician_id,
-      chantierId: dbAssignment.chantier_id,
+
       commandeId: dbAssignment.commande_id,
       name: dbAssignment.name,
       startDate: dbAssignment.start_date,
@@ -805,41 +797,8 @@ const Index = () => {
       .map((a) => a.commande_id)
       .filter(Boolean) // Remove null values
   );
-  
-  const projectMargins = commandes
-    .filter((c) => visibleCommandeIds.has(c.id))
-    .map((c) => {
-      const margin = (c.montant_ht || 0) - (c.achats || 0);
-      return {
-        name: `${c.client} - ${c.chantier}`,
-        amount: `${margin.toFixed(2)} €`,
-      };
-    });
-
   // Use teams as the display rows — ordered by position (from DB)
   const displayTeams = teams;
-
-  // Calculate invoiced counts for the summary
-  const invoicedAssignments = assignments.filter(a => 
-    weekDates.some(d => d.fullDate >= a.start_date && d.fullDate <= a.end_date) && 
-    (a.commande_id && commandes.find(c => c.id === a.commande_id)?.is_invoiced)
-  ).length;
-  const totalAssignments = assignments.filter(a =>
-    weekDates.some(d => d.fullDate >= a.start_date && d.fullDate <= a.end_date)
-  ).length;
-  const invoicedNotes = notes.filter(n => 
-    weekDates.some(d => {
-      const noteEndDate = n.end_date || n.start_date;
-      return d.fullDate >= n.start_date && d.fullDate <= noteEndDate;
-    }) && 
-    n.is_invoiced
-  ).length;
-  const totalNotes = notes.filter(n =>
-    weekDates.some(d => {
-      const noteEndDate = n.end_date || n.start_date;
-      return d.fullDate >= n.start_date && d.fullDate <= noteEndDate;
-    })
-  ).length;
 
   const handleSignOut = async () => {
     try {
@@ -904,10 +863,7 @@ const Index = () => {
                 handleWeekNavDragOver={handleWeekNavDragOver}
                 handleWeekNavDrop={handleWeekNavDrop}
                 isDragging={isDragging}
-                invoicedAssignments={invoicedAssignments}
-                totalAssignments={totalAssignments}
-                invoicedNotes={invoicedNotes}
-                totalNotes={totalNotes}
+
                 isAdmin={isAdmin}
                 copyModeEnabled={copyModeEnabled}
                 toggleCopyMode={toggleCopyMode}
@@ -932,7 +888,7 @@ const Index = () => {
                   notes={notes}
                   absences={absences}
                   commandes={commandes}
-                  chantiers={chantiers}
+
                   isAdmin={isAdmin}
                   maxAssignments={maxAssignments}
                   allAssignmentsFormatted={allAssignmentsFormatted}
@@ -978,20 +934,13 @@ const Index = () => {
           open={assignmentDialogOpen}
           onOpenChange={setAssignmentDialogOpen}
           assignment={selectedAssignment}
-          chantiers={commandes
-            .filter((c) => !c.is_invoiced || c.id === selectedAssignment?.commandeId)
-            .map((c) => ({ 
-              id: c.id, 
-              name: `${c.client} - ${c.chantier}`, 
-              color: '#dbeafe',
-              facture: c.facture 
-            }))}
+
           commandes={commandes}
           teams={teams}
           assignments={assignments.map(a => ({
             id: a.id,
             teamId: a.team_id,
-            chantierId: a.chantier_id,
+
             commandeId: a.commande_id,
             name: a.name,
             startDate: a.start_date,
@@ -1095,12 +1044,7 @@ const Index = () => {
           assignments={assignments}
           notes={notes}
           weekDates={weekDates}
-          chantiers={commandes.map((c) => ({ 
-            id: c.id, 
-            name: `${c.client} - ${c.chantier}`,
-            client: c.client,
-            invoice: c.numero
-          }))}
+
           commandes={commandes}
           savRecords={savRecords}
         />

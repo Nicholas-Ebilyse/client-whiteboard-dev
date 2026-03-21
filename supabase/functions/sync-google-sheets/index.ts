@@ -201,12 +201,11 @@ async function ensureHeaders(
   }
 }
 
-const COMMANDES_HEADERS = ['ID', 'Numéro', 'Nom client', 'Chantier', 'Montant HT', 'Achats', 'Date', 'Facture', 'UUID'];
+const COMMANDES_HEADERS = ['ID', 'Numéro', 'Nom client', 'Chantier', 'UUID'];
 const SAV_HEADERS = ['ID', 'Numéro', 'Nom du client', 'Adresse', 'Numéro de téléphone', 'Problème', 'Date', 'Est résolu'];
 const TECHNICIENS_HEADERS = ['ID', 'Nom', 'Couleur', 'Interim', 'Créé le'];
-const CHANTIERS_HEADERS = ['ID', 'Nom', 'Adresse', 'Couleur', 'Créé le'];
-const AFFECTATIONS_HEADERS = ['ID', 'Equipe', 'Chantier', 'Date début', 'Date fin', 'Facturé', 'Commentaire'];
-const NOTES_HEADERS = ['ID', 'Technicien', 'Date', 'SAV', 'Confirmé', 'Facturé', 'Texte'];
+const AFFECTATIONS_HEADERS = ['ID', 'Equipe', 'Chantier', 'Date début', 'Date fin', 'Commentaire'];
+const NOTES_HEADERS = ['ID', 'Technicien', 'Date', 'SAV', 'Confirmé', 'Texte'];
 const MOTIFS_HEADERS = ['ID', 'Nom', 'Créé le'];
 
 function parseDate(dateStr: string): string | null {
@@ -375,36 +374,6 @@ serve(async (req) => {
       }
     } catch (e) { console.error('Tech sync error:', e); }
 
-    // ── 2. Chantiers ──────────────────────────────────────────────────────────
-    let chantierCount = 0;
-    try {
-      await ensureHeaders(spreadsheetId, 'Chantiers', CHANTIERS_HEADERS, accessToken);
-      const chantierData = await fetchSheetData(spreadsheetId, 'Chantiers', accessToken);
-      if (chantierData.length > 1) {
-        const h = chantierData[0];
-        const iID = h.indexOf('ID');
-        const iNom = h.indexOf('Nom');
-        const iAddr = h.indexOf('Adresse');
-        const iColor = h.indexOf('Couleur');
-
-        for (let i = 1; i < chantierData.length; i++) {
-          const row = chantierData[i];
-          const id = row[iID]?.trim();
-          const name = row[iNom]?.trim();
-          const address = row[iAddr]?.trim();
-          if (!name && !address) continue;
-
-          await supabase.from('chantiers').upsert({
-            id: id || undefined,
-            name: name || "",
-            address: address || "",
-            color: row[iColor]?.trim() || '#3b82f6',
-          }, { onConflict: 'id' });
-          chantierCount++;
-        }
-      }
-    } catch (e) { console.error('Chantier sync error:', e); }
-
     // ── 3. Commandes ─────────────────────────────────────────────────────────
     // Existing logic for Commandes... (I will keep it mostly as is but ensure it uses the correct headers)
     await ensureHeaders(spreadsheetId, 'Commandes', COMMANDES_HEADERS, accessToken);
@@ -417,10 +386,6 @@ serve(async (req) => {
       const iNum = h.indexOf('Numéro');
       const iClient = h.indexOf('Nom client');
       const iChantier = h.indexOf('Chantier');
-      const iMontant = h.indexOf('Montant HT');
-      const iAchats = h.indexOf('Achats');
-      const iDate = h.indexOf('Date');
-      const iFacture = h.indexOf('Facture');
 
       for (let i = 1; i < commandesData.length; i++) {
         const row = commandesData[i];
@@ -432,11 +397,7 @@ serve(async (req) => {
           external_id: row[iExtID]?.trim(),
           numero: row[iNum]?.trim(),
           client: row[iClient]?.trim(),
-          chantier: row[iChantier]?.trim(),
-          montant_ht: row[iMontant] ? parseFloat(row[iMontant].replace(/,/g, '.')) : null,
-          achats: row[iAchats] ? parseFloat(row[iAchats].replace(/,/g, '.')) : null,
-          date: parseDate(row[iDate]?.trim()),
-          facture: row[iFacture]?.trim() || null
+          chantier: row[iChantier]?.trim()
         }, { onConflict: 'external_id' });
         if (!error) commandesCount++;
       }
@@ -502,7 +463,6 @@ serve(async (req) => {
         const iStart = h.indexOf('Date début');
         const iEnd = h.indexOf('Date fin');
         const iComm = h.indexOf('Commentaire');
-        const iBill = h.indexOf('Facturé');
 
         for (let i = 1; i < assignData.length; i++) {
           const row = assignData[i];
@@ -536,7 +496,6 @@ serve(async (req) => {
             start_date: parseDate(row[iStart]?.trim()),
             end_date: parseDate(row[iEnd]?.trim()) || parseDate(row[iStart]?.trim()),
             is_absent: false,
-            is_billed: row[iBill]?.toUpperCase() === 'TRUE',
             comment: row[iComm]?.trim(),
           }, { onConflict: 'id' });
           assignmentCount++;
@@ -559,7 +518,6 @@ serve(async (req) => {
         const iDate = h.indexOf('Date');
         const iSAV = h.indexOf('SAV');
         const iConf = h.indexOf('Confirmé');
-        const iBill = h.indexOf('Facturé');
         const iText = h.indexOf('Texte');
 
         for (let i = 1; i < noteData.length; i++) {
@@ -581,7 +539,6 @@ serve(async (req) => {
             end_date: parseDate(row[iDate]?.trim()), // Notes currently single-day in sync
             is_sav: row[iSAV]?.toUpperCase() === 'TRUE',
             is_confirmed: row[iConf]?.toUpperCase() === 'TRUE',
-            is_invoiced: row[iBill]?.toUpperCase() === 'TRUE',
             text: row[iText]?.trim(),
           }, { onConflict: 'id' });
           noteCount++;
@@ -619,7 +576,7 @@ serve(async (req) => {
     } catch (e) { console.error('Motif sync error:', e); }
 
     // Always mark sync status as success
-    const totalCount = techCount + chantierCount + commandesCount + savCount + assignmentCount + noteCount + motifCount;
+    const totalCount = techCount + commandesCount + savCount + assignmentCount + noteCount + motifCount;
     if (syncRecord) {
       await supabaseAdmin.from('sync_status').update({
         status: 'success',
@@ -651,7 +608,6 @@ serve(async (req) => {
         message: 'Synchronisation bidirectionnelle réussie',
         counts: {
           techniciens: techCount,
-          chantiers: chantierCount,
           commandes: commandesCount,
           sav: savCount,
           affectations: assignmentCount,

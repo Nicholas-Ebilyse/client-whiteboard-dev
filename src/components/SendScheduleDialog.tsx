@@ -35,7 +35,7 @@ interface SendScheduleDialogProps {
   assignments: any[];
   notes: any[];
   weekDates: any[];
-  chantiers: any[];
+
   commandes: any[];
   savRecords: SAVRecord[];
 }
@@ -49,7 +49,7 @@ export const SendScheduleDialog = ({
   assignments,
   notes,
   weekDates,
-  chantiers,
+
   commandes,
   savRecords
 }: SendScheduleDialogProps) => {

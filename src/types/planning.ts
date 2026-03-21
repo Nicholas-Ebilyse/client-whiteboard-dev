@@ -31,7 +31,7 @@ export interface Assignment {
   id: string;
   teamId: string; // The team row this assignment belongs to
   technicianId?: string | null; // The individual technician within the team
-  chantierId: string | null;
+
   commandeId: string | null;
   name: string;
   startDate: string; // 'yyyy-MM-dd'
@@ -41,7 +41,7 @@ export interface Assignment {
   isValid: boolean; // Frontend only
   isAbsent?: boolean;
   isConfirmed?: boolean;
-  is_billed?: boolean; // Facturé
+
   assignment_group_id?: string | null;
   absence_reason?: string | null;
 }
@@ -53,14 +53,9 @@ export interface Note {
   technicianId?: string | null;
   date: string;
   endDate?: string | null;
-  chantierId?: string | null;
+
   isConfirmed?: boolean;
   isSav?: boolean;
-  is_invoiced?: boolean; // Facturé
+
 }
 
-// ─── Misc ────────────────────────────────────────────────────────────────────
-export interface ProjectMargin {
-  name: string;
-  amount: string;
-}

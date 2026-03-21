@@ -9,7 +9,7 @@ interface DayNote {
   text: string;
   is_sav: boolean;
   is_confirmed?: boolean;
-  is_invoiced?: boolean;
+
 }
 
 interface TechnicianDayCellProps {
@@ -129,11 +129,9 @@ export const TechnicianDayCell = ({
                 onClick={() => onNoteClick?.(note)}
                 className={cn(
                   "w-full text-xs p-1 rounded transition-colors text-left border-l-2 mb-1 flex items-center gap-1 cursor-pointer group/note",
-                  note.is_invoiced 
-                    ? "bg-red-200 dark:bg-red-900/40 text-red-900 dark:text-red-100 hover:bg-red-300 dark:hover:bg-red-900/60 border-red-500"
-                    : note.is_confirmed 
-                      ? "bg-note-confirmed text-note-confirmed-foreground hover:bg-note-confirmed/80 border-cyan-500" 
-                      : "bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-100 hover:bg-amber-200 dark:hover:bg-amber-900/50 border-amber-500"
+                  note.is_confirmed 
+                    ? "bg-note-confirmed text-note-confirmed-foreground hover:bg-note-confirmed/80 border-cyan-500" 
+                    : "bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-100 hover:bg-amber-200 dark:hover:bg-amber-900/50 border-amber-500"
                 )}
                 title={note.text}
               >
@@ -156,7 +154,7 @@ export const TechnicianDayCell = ({
                     <Check className="h-2.5 w-2.5" />
                   </button>
                 )}
-                {note.is_invoiced && <Receipt className="h-3 w-3 flex-shrink-0 text-red-600 dark:text-red-400" />}
+
                 {note.is_sav && <span className="font-bold">SAV: </span>}
                 <span className="truncate flex-1">{note.text}</span>
               </div>

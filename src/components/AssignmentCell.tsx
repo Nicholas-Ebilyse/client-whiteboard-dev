@@ -11,7 +11,7 @@ interface Note {
   text: string;
   is_sav?: boolean;
   is_confirmed?: boolean;
-  is_invoiced?: boolean;
+
   display_below?: boolean;
 }
 
@@ -28,8 +28,7 @@ interface Commande {
   id: string;
   client: string;
   chantier: string;
-  facture: string | null;
-  is_invoiced?: boolean;
+
 }
 
 interface Chantier {
@@ -57,7 +56,7 @@ interface AssignmentCellProps {
   onAssignmentMoveUp?: (assignment: Assignment) => void;
   onAssignmentMoveDown?: (assignment: Assignment) => void;
   commandes: Commande[];
-  chantiers?: Chantier[];
+
   isAdmin?: boolean;
   maxAssignmentsPerPeriod?: number;
   // Drag and drop props for assignments
@@ -133,7 +132,7 @@ export const AssignmentCell = ({
   onAssignmentMoveUp,
   onAssignmentMoveDown,
   commandes, 
-  chantiers = [],
+
   isAdmin = false,
   maxAssignmentsPerPeriod = 3,
   cellDate,
@@ -201,10 +200,6 @@ export const AssignmentCell = ({
     // Find the commande for this assignment
     const commande = commandes.find(c => c.id === assignment.commandeId);
     
-    // Invoiced: Red (takes priority)
-    if (commande?.is_invoiced) {
-      return "bg-assignment-invoiced text-assignment-invoiced-foreground";
-    }
     
     // Confirmed / Unconfirmed: Handled by inline background color (teamColor)
     return "text-white border border-black/10 shadow-sm drop-shadow-sm";
@@ -404,11 +399,9 @@ export const AssignmentCell = ({
                       }}
                     className={cn(
                       "w-full px-1 py-0.5 text-sm font-bold transition-colors text-left flex items-start gap-1 cursor-pointer group/note",
-                      note.is_invoiced 
-                        ? "bg-red-200 dark:bg-red-900/40 text-red-900 dark:text-red-100 hover:bg-red-300 dark:hover:bg-red-900/60"
-                        : note.is_confirmed 
-                          ? "bg-note-confirmed text-note-confirmed-foreground hover:bg-note-confirmed/80" 
-                          : "bg-amber-100 dark:bg-amber-900/30 text-amber-900 dark:text-amber-100 hover:bg-amber-200 dark:hover:bg-amber-900/50"
+                      note.is_confirmed 
+                        ? "bg-note-confirmed text-note-confirmed-foreground hover:bg-note-confirmed/80" 
+                        : "bg-amber-100 dark:bg-amber-900/30 text-amber-900 dark:text-amber-100 hover:bg-amber-200 dark:hover:bg-amber-900/50"
                     )}
                     >
                       <GripVertical className={cn("h-3 w-3 flex-shrink-0 mt-0.5 opacity-30", canDragNote && "group-hover:opacity-60")} />
@@ -429,7 +422,7 @@ export const AssignmentCell = ({
                           <Check className="h-2.5 w-2.5" />
                         </button>
                       )}
-                      {note.is_invoiced && <Receipt className="h-3 w-3 flex-shrink-0 mt-0.5 text-red-600 dark:text-red-400" />}
+
                       <StickyNote className="h-3 w-3 flex-shrink-0 mt-0.5" />
                       {/* Display below toggle button */}
                       {isAdmin && onNoteToggleDisplayBelow && (
@@ -543,7 +536,7 @@ export const AssignmentCell = ({
                       )}
                       style={{ 
                         minHeight: '36px', 
-                        backgroundColor: (!assignment.isAbsent && !commande?.is_invoiced && teamColor) ? teamColor : undefined 
+                        backgroundColor: (!assignment.isAbsent && teamColor) ? teamColor : undefined 
                       }}
                     >
                       {/* Drag handle indicator - shown for all assignments, grayed out if not draggable */}
@@ -581,9 +574,7 @@ export const AssignmentCell = ({
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <span className="absolute bottom-1 right-1 flex items-center justify-center">
-                                {commande?.is_invoiced ? (
-                                  <Lock className="h-3 w-3 text-red-600 dark:text-red-400" />
-                                ) : assignment.isConfirmed ? (
+                                {assignment.isConfirmed ? (
                                   <span className="flex items-center justify-center w-3 h-3 bg-green-500 text-white font-bold text-[10px] rounded-sm">
                                     P
                                   </span>
@@ -593,11 +584,9 @@ export const AssignmentCell = ({
                               </span>
                             </TooltipTrigger>
                             <TooltipContent side="top" className="text-xs">
-                              {commande?.is_invoiced 
-                                ? "Verrouillé : facturé" 
-                                : assignment.isConfirmed 
-                                  ? "Verrouillé : confirmé (Planifié)" 
-                                  : "Verrouillé"}
+                              {assignment.isConfirmed 
+                                ? "Verrouillé : confirmé (Planifié)" 
+                                : "Verrouillé"}
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
@@ -701,11 +690,9 @@ export const AssignmentCell = ({
                       }}
                     className={cn(
                       "w-full px-1 py-0.5 text-sm font-bold transition-colors text-left flex items-start gap-1 cursor-pointer group/note",
-                      note.is_invoiced 
-                        ? "bg-red-200 dark:bg-red-900/40 text-red-900 dark:text-red-100 hover:bg-red-300 dark:hover:bg-red-900/60"
-                        : note.is_confirmed 
-                          ? "bg-note-confirmed text-note-confirmed-foreground hover:bg-note-confirmed/80" 
-                          : "bg-amber-100 dark:bg-amber-900/30 text-amber-900 dark:text-amber-100 hover:bg-amber-200 dark:hover:bg-amber-900/50"
+                      note.is_confirmed 
+                        ? "bg-note-confirmed text-note-confirmed-foreground hover:bg-note-confirmed/80" 
+                        : "bg-amber-100 dark:bg-amber-900/30 text-amber-900 dark:text-amber-100 hover:bg-amber-200 dark:hover:bg-amber-900/50"
                     )}
                     >
                       <GripVertical className={cn("h-3 w-3 flex-shrink-0 mt-0.5 opacity-30", canDragNote && "group-hover:opacity-60")} />
@@ -726,7 +713,7 @@ export const AssignmentCell = ({
                           <Check className="h-2.5 w-2.5" />
                         </button>
                       )}
-                      {note.is_invoiced && <Receipt className="h-3 w-3 flex-shrink-0 mt-0.5 text-red-600 dark:text-red-400" />}
+
                       <StickyNote className="h-3 w-3 flex-shrink-0 mt-0.5" />
                       {/* Arrow down indicator for notes displayed below */}
                       <span title="Note affichée en bas">

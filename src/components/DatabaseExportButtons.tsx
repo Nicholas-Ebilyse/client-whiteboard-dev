@@ -10,7 +10,7 @@ const TABLES = [
   "assignments",
   "commandes",
   "notes",
-  "invoices",
+
   "sav",
   "week_config",
   "app_settings",

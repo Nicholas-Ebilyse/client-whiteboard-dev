@@ -152,20 +152,7 @@ export const useUpdateTechnicianPositions = () => {
   });
 };
 
-export const useChantiers = () => {
-  return useQuery({
-    queryKey: ['invoices'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('invoices')
-        .select('*')
-        .order('name');
-      
-      if (error) throw error;
-      return data;
-    },
-  });
-};
+
 
 export const useCommandes = () => {
   return useQuery({
