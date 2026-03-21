@@ -717,8 +717,11 @@ const Index = () => {
 
   // Returns assignments for a given team + date (full-day model, no period filter)
   const getAssignmentsForCell = (teamId: string, date: string): Assignment[] => {
+    // Find actual technicians that belong to this team
+    const techIdsInTeam = activeTechnicians.filter(t => t.team_id === teamId).map(t => t.id);
+    
     const dbAssignments = assignments.filter(
-      (a) => (a.team_id === teamId || a.technician_id === teamId) &&
+      (a) => (a.team_id === teamId || techIdsInTeam.includes(a.technician_id)) &&
               date >= a.start_date && date <= a.end_date
     );
     return dbAssignments.map(dbAssignment => ({
@@ -914,6 +917,7 @@ const Index = () => {
                   draggedItem={draggedItem}
                   highlightedGroupId={highlightedGroupId}
                   setHighlightedGroupId={setHighlightedGroupId}
+                  handleNoteClick={handleNoteClick}
                 />
               </CardContent>
             </Card>

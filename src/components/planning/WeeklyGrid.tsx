@@ -55,6 +55,7 @@ interface WeeklyGridProps {
   // Highlighting
   highlightedGroupId: string | null;
   setHighlightedGroupId: (id: string | null) => void;
+  handleNoteClick?: (note: any, date: string) => void;
 }
 
 const getPastelColor = (hex: string | undefined) => {
@@ -110,6 +111,7 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
   draggedItem,
   highlightedGroupId,
   setHighlightedGroupId,
+  handleNoteClick,
 }) => {
   return (
     <div className="overflow-x-auto pb-8">
@@ -222,6 +224,12 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                 const teamIsUnavailable = absentTechs.length > 0;
                 const absentTechNames = absentTechs.map(t => t.name);
                 const cellAssignments = getAssignmentsForCell(team.id, day.fullDate);
+                const cellNotes = notes.filter(n => 
+                  n.technician_id && 
+                  teamTechs.some(tech => tech.id === n.technician_id) && 
+                  n.start_date <= day.fullDate && 
+                  (n.end_date || n.start_date) >= day.fullDate
+                );
 
                 const isDropTarget = dropTarget?.teamId === team.id && dropTarget?.date === day.fullDate;
                 const isPreview = previewCells.some(c => c.teamId === team.id && c.date === day.fullDate);
@@ -258,10 +266,15 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                     <AssignmentCell
                       absentTechNames={absentTechNames}
                       assignments={cellAssignments}
-                      notes={[]}
+                      notes={cellNotes}
                       teamColor={team.color}
                       onClick={undefined} // cell-level click handled by outer div
-                      onNoteClick={undefined}
+                      onNoteClick={(noteId) => {
+                        const note = cellNotes.find(n => n.id === noteId);
+                        if (note && handleNoteClick) {
+                          handleNoteClick(note, day.fullDate);
+                        }
+                      }}
                       onAddAssignment={isAdmin && !teamIsUnavailable ? () => handleAddAssignment(team.id, day.fullDate) : undefined}
                       onAssignmentClick={isAdmin ? handleAssignmentClick : undefined}
                       onAssignmentDuplicate={isAdmin ? (a) => handleDuplicateAssignment(a.id) : undefined}
