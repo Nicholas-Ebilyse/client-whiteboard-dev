@@ -88,14 +88,6 @@ serve(async (req) => {
       throw insertError;
     }
 
-    // Log the action
-    await supabaseAdmin.from('audit_logs').insert({
-      admin_user_id: user.id,
-      target_user_id: userId,
-      action: 'grant_admin_role',
-      details: { role: 'admin' }
-    });
-
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

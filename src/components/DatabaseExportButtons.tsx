@@ -15,8 +15,7 @@ const TABLES = [
   "week_config",
   "app_settings",
   "sync_status",
-  "user_roles",
-  "audit_logs",
+  "user_roles"
 ] as const;
 
 type TableName = typeof TABLES[number];
