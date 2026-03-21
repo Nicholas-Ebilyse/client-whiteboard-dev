@@ -36,6 +36,7 @@ const Presentation = () => {
 
   // Auto-redirect back to index after timeout
   const [timeLeft, setTimeLeft] = useState(timeoutMs);
+  const [timedOut, setTimedOut] = useState(false);
 
   useEffect(() => {
     // Token security check
@@ -48,7 +49,7 @@ const Presentation = () => {
       setTimeLeft((prev) => {
         if (prev <= 1000) {
           clearInterval(timer);
-          navigate('/');
+          setTimedOut(true); // Show blank screen instead of navigating
           return 0;
         }
         return prev - 1000;
@@ -56,7 +57,7 @@ const Presentation = () => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [navigate, token, validToken]);
+  }, [token, validToken, navigate]);
 
   const formatTimeLeft = (ms: number) => {
     const totalSeconds = Math.floor(ms / 1000);
@@ -93,6 +94,11 @@ const Presentation = () => {
   const isPlanningLoading = isConfigLoading || isTechLoading || isTeamsLoading || isCommandesLoading || isChantiersLoading || isAssignmentsLoading || isNotesLoading;
 
   const { data: absences = [], isLoading: isAbsencesLoading } = useAbsences(weekStartStr, weekEndStr);
+
+  // After timeout — show a completely blank screen (must be after all hooks)
+  if (timedOut) {
+    return <div className="fixed inset-0 bg-black" />;
+  }
 
   if (isPlanningLoading || isAbsencesLoading) {
     return (
@@ -173,12 +179,6 @@ const Presentation = () => {
           <div className="text-xl font-mono text-muted-foreground bg-muted/50 px-4 py-2 rounded-lg border">
             {formatTimeLeft(timeLeft)}
           </div>
-          <button 
-            onClick={() => navigate('/')} 
-            className="text-sm font-medium text-muted-foreground hover:text-foreground underline underline-offset-4"
-          >
-            Quitter
-          </button>
         </div>
       </div>
 

@@ -100,7 +100,7 @@ export const SyncGoogleSheetsButton = () => {
             <div className="flex items-center gap-2 rounded-md bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">
               <Info className="h-3 w-3" />
               <span>
-                Dernier transfert : {formatDistanceToNow(new Date(syncStatus.started_at), { addSuffix: true, locale: fr })}
+                Dernier transfert : {formatDistanceToNow(new Date(syncStatus.completed_at || syncStatus.started_at), { addSuffix: true, locale: fr })}
                 {syncStatus.status === 'error' && (
                   <span className="text-destructive ml-1.5 font-medium">(Échec)</span>
                 )}
@@ -123,9 +123,6 @@ export const SyncGoogleSheetsButton = () => {
                 <p className="text-xs">Sauvegarde l'intégralité des tables vers votre Google Sheet.</p>
               </div>
             </div>
-            <p className="text-[10px] italic pt-2 border-t text-center">
-              Tables synchronisées : Techniciens, Commandes, SAV, Affectations, Notes, Factures et Chantiers.
-            </p>
           </div>
         </div>
 
