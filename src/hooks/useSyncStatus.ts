@@ -16,23 +16,29 @@ export const useSyncStatus = (syncType?: string) => {
   return useQuery({
     queryKey: ['sync-status', syncType],
     queryFn: async () => {
+      // For 'google_sheets', also check 'google_sheets_export' and return the most recent
+      const typesToCheck = syncType === 'google_sheets'
+        ? ['google_sheets', 'google_sheets_export']
+        : syncType ? [syncType] : undefined;
+
       let query = supabase
         .from('sync_status')
         .select('*')
         .order('started_at', { ascending: false })
-        .limit(1);
+        .limit(typesToCheck ? typesToCheck.length * 2 : 1);
 
-      if (syncType) {
-        query = query.eq('sync_type', syncType);
+      if (typesToCheck) {
+        query = query.in('sync_type', typesToCheck);
       }
 
-      const { data, error } = await query.single();
+      const { data, error } = await query;
 
       if (error && error.code !== 'PGRST116') {
         throw error;
       }
 
-      return data as SyncStatus | null;
+      // Return the most recent record
+      return (data?.[0] as SyncStatus | null) || null;
     },
     refetchInterval: 30000, // Refetch every 30 seconds
   });

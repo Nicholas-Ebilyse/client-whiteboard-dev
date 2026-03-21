@@ -395,18 +395,21 @@ Deno.serve(async (req) => {
     ];
     await writeSheet(spreadsheetId, "Absences", absenceRows, accessToken);
 
-    // ── 5c. Motifs ─────────────────────────────────────────────────────────
-    const { data: absenceMotives } = await supabase
+    // ── 5c. Motifs ────────────────────────────────────────────────
+    const { data: absenceMotives, error: motivesError } = await supabase
       .from("absence_motives")
-      .select("id, name, color, created_at")
+      .select("id, name, created_at") // 'color' column does not exist
       .order("name");
 
+    if (motivesError) {
+      console.error('Error fetching absence_motives:', motivesError.message);
+    }
+
     const motiveRows: string[][] = [
-      ["ID", "Nom", "Couleur", "Créé le"],
+      ["ID", "Nom", "Créé le"],
       ...(absenceMotives || []).map((m: any) => [
         m.id,
         m.name || "",
-        m.color || "",
         fmtDate(m.created_at),
       ]),
     ];
@@ -459,14 +462,21 @@ Deno.serve(async (req) => {
         })
         .eq('id', syncRecord.id);
     } else {
-      // Fallback: update the most recent 'running' export record
-      await supabase
+      // Fallback: find the most recent running export record and update it by ID
+      const { data: latestRunning } = await supabase
         .from('sync_status')
-        .update({ status: 'success', completed_at: new Date().toISOString(), records_synced: totalRecords })
-        .eq('sync_type', 'google_sheets_export')
+        .select('id')
+        .in('sync_type', ['google_sheets_export', 'google_sheets'])
         .eq('status', 'running')
         .order('started_at', { ascending: false })
-        .limit(1);
+        .limit(1)
+        .single();
+      if (latestRunning) {
+        await supabase
+          .from('sync_status')
+          .update({ status: 'success', completed_at: new Date().toISOString(), records_synced: totalRecords })
+          .eq('id', latestRunning.id);
+      }
     }
 
     return new Response(

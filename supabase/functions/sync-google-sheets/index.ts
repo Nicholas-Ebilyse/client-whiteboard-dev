@@ -627,15 +627,22 @@ serve(async (req) => {
         records_synced: totalCount,
       }).eq('id', syncRecord.id);
     } else {
-      await supabaseAdmin.from('sync_status').update({
-        status: 'success',
-        completed_at: new Date().toISOString(),
-        records_synced: totalCount,
-      })
+      // Fallback: find the latest running record by ID, then update it
+      const { data: latestRunning } = await supabaseAdmin
+        .from('sync_status')
+        .select('id')
         .eq('sync_type', 'google_sheets')
         .eq('status', 'running')
         .order('started_at', { ascending: false })
-        .limit(1);
+        .limit(1)
+        .single();
+      if (latestRunning) {
+        await supabaseAdmin.from('sync_status').update({
+          status: 'success',
+          completed_at: new Date().toISOString(),
+          records_synced: totalCount,
+        }).eq('id', latestRunning.id);
+      }
     }
 
     return new Response(
