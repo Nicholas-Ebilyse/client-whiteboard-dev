@@ -744,7 +744,6 @@ const Index = () => {
     id: dbAssignment.id,
     teamId: dbAssignment.team_id ?? dbAssignment.technician_id,
     technicianId: dbAssignment.technician_id,
-    chantierId: dbAssignment.chantier_id,
     commandeId: dbAssignment.commande_id,
     name: dbAssignment.name,
     startDate: dbAssignment.start_date,
@@ -937,21 +936,7 @@ const Index = () => {
 
           commandes={commandes}
           teams={teams}
-          assignments={assignments.map(a => ({
-            id: a.id,
-            teamId: a.team_id,
-
-            commandeId: a.commande_id,
-            name: a.name,
-            startDate: a.start_date,
-            endDate: a.end_date,
-            isFixed: a.is_fixed || false,
-            isValid: true,
-            comment: a.comment,
-            isAbsent: a.is_absent || false,
-            isConfirmed: a.is_confirmed || false,
-            assignment_group_id: a.assignment_group_id,
-          }))}
+          assignments={allAssignmentsFormatted}
           allDbAssignments={assignments}
           onSave={handleSaveAssignment}
           onDelete={handleDeleteAssignment}
