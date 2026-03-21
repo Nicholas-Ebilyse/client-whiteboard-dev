@@ -203,7 +203,7 @@ async function ensureHeaders(
 
 const COMMANDES_HEADERS = ['ID', 'Numéro', 'Nom client', 'Chantier', 'UUID'];
 const SAV_HEADERS = ['ID', 'Numéro', 'Nom du client', 'Adresse', 'Numéro de téléphone', 'Problème', 'Date', 'Est résolu'];
-const TECHNICIENS_HEADERS = ['ID', 'Nom', 'Couleur', 'Interim', 'Créé le'];
+const TECHNICIENS_HEADERS = ['ID', 'Nom', 'Interim', 'Créé le'];
 const AFFECTATIONS_HEADERS = ['ID', 'Equipe', 'Chantier', 'Date début', 'Date fin', 'Commentaire'];
 const ABSENCES_HEADERS = ['ID', 'Technicien', 'Date début', 'Date fin', 'Motif', 'Commentaire'];
 const NOTES_HEADERS = ['ID', 'Technicien', 'Date', 'SAV', 'Confirmé', 'Texte'];
@@ -355,7 +355,6 @@ serve(async (req) => {
         const h = techData[0];
         const iID = h.indexOf('ID');
         const iNom = h.indexOf('Nom');
-        const iColor = h.indexOf('Couleur');
         const iInterim = h.indexOf('Interim');
 
         for (let i = 1; i < techData.length; i++) {
@@ -367,7 +366,6 @@ serve(async (req) => {
           await supabase.from('technicians').upsert({
             id: id || undefined,
             name,
-            color: row[iColor]?.trim() || '#3b82f6',
             is_temp: row[iInterim]?.toUpperCase() === 'TRUE',
           }, { onConflict: 'id' });
           techCount++;

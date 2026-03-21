@@ -309,8 +309,7 @@ export type Database = {
       }
       technicians: {
         Row: {
-          color: string
-          created_at: string | null
+          created_at: string
           external_id: string | null
           id: string
           is_archived: boolean
@@ -318,23 +317,25 @@ export type Database = {
           members: string | null
           name: string
           position: number
-          updated_at: string | null
+          skills: string | null
+          team_id: string | null
+          updated_at: string
         }
         Insert: {
-          color?: string
-          created_at?: string | null
+          created_at?: string
           external_id?: string | null
           id?: string
           is_archived?: boolean
           is_temp?: boolean
           members?: string | null
           name: string
-          position?: number
-          updated_at?: string | null
+          position: number
+          skills?: string | null
+          team_id?: string | null
+          updated_at?: string
         }
         Update: {
-          color?: string
-          created_at?: string | null
+          created_at?: string
           external_id?: string | null
           id?: string
           is_archived?: boolean
@@ -342,9 +343,19 @@ export type Database = {
           members?: string | null
           name?: string
           position?: number
-          updated_at?: string | null
+          skills?: string | null
+          team_id?: string | null
+          updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "technicians_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {

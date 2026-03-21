@@ -11,7 +11,6 @@ export interface Technician {
   id: string;
   name: string;
   is_temp: boolean;
-  color: string;
   position: number;
   team_id?: string | null;
   skills?: string | null;

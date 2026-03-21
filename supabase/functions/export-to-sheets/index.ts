@@ -267,7 +267,7 @@ Deno.serve(async (req) => {
     // ── 1. Techniciens ───────────────────────────────────────────────────────
     const { data: technicians, error: techError } = await supabase
       .from("technicians")
-      .select("id, name, color, is_temp, created_at")
+      .select("id, name, is_temp, created_at")
       .order("position");
 
     if (techError) {
@@ -277,11 +277,10 @@ Deno.serve(async (req) => {
     }
 
     const techRows: string[][] = [
-      ["ID", "Nom", "Couleur", "Interim", "Créé le"],
+      ["ID", "Nom", "Interim", "Créé le"],
       ...(technicians || []).map((t: any) => [
         t.id,
         t.name || "Sans nom",
-        t.color || "#3b82f6",
         t.is_temp ? "TRUE" : "FALSE",
         fmtDate(t.created_at),
       ]),
