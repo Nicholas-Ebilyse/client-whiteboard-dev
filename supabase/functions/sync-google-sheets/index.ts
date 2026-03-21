@@ -490,13 +490,11 @@ serve(async (req) => {
 
           await supabase.from('assignments').upsert({
             id: id && id.length > 10 ? id : undefined,
-            technician_id: assignedTechId,
             team_id: assignedTeamId,
             commande_id: commandeId,
             name: assignmentName,
             start_date: parseDate(row[iStart]?.trim()),
             end_date: parseDate(row[iEnd]?.trim()) || parseDate(row[iStart]?.trim()),
-            is_absent: false,
             comment: row[iComm]?.trim(),
           }, { onConflict: 'id' });
           assignmentCount++;

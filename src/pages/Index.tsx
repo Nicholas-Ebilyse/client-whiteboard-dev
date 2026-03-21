@@ -342,8 +342,6 @@ const Index = () => {
       const dbAssignment = {
         id: updatedAssignment.id,
         team_id: updatedAssignment.teamId,
-        technician_id: originalAssignment?.technician_id ?? updatedAssignment.technicianId,
-
         commande_id: updatedAssignment.commandeId,
         name: assignmentName,
         start_date: updatedAssignment.startDate,
@@ -421,8 +419,6 @@ const Index = () => {
     while (currentDate <= endDate) {
       assignmentsToCreate.push({
         team_id: updatedAssignment.teamId,
-        technician_id: updatedAssignment.technicianId || null,
-
         commande_id: updatedAssignment.commandeId,
         name: assignmentName,
         start_date: currentDate.toISOString().split('T')[0],
@@ -567,7 +563,6 @@ const Index = () => {
     saveAssignment.mutate({
       id: dbAssignment1.id,
       team_id: dbAssignment1.team_id,
-      technician_id: dbAssignment1.technician_id,
       commande_id: dbAssignment1.commande_id,
       name: dbAssignment1.name,
       start_date: dbAssignment1.start_date,
@@ -581,7 +576,6 @@ const Index = () => {
     saveAssignment.mutate({
       id: dbAssignment2.id,
       team_id: dbAssignment2.team_id,
-      technician_id: dbAssignment2.technician_id,
       commande_id: dbAssignment2.commande_id,
       name: dbAssignment2.name,
       start_date: dbAssignment2.start_date,
@@ -710,18 +704,13 @@ const Index = () => {
 
   // Returns assignments for a given team + date (full-day model, no period filter)
   const getAssignmentsForCell = (teamId: string, date: string): Assignment[] => {
-    // Find actual technicians that belong to this team
-    const techIdsInTeam = activeTechnicians.filter(t => t.team_id === teamId).map(t => t.id);
-    
     const dbAssignments = assignments.filter(
-      (a) => (a.team_id === teamId || techIdsInTeam.includes(a.technician_id)) &&
+      (a) => a.team_id === teamId &&
               date >= a.start_date && date <= a.end_date
     );
     return dbAssignments.map(dbAssignment => ({
       id: dbAssignment.id,
-      teamId: dbAssignment.team_id ?? dbAssignment.technician_id,
-      technicianId: dbAssignment.technician_id,
-
+      teamId: dbAssignment.team_id,
       commandeId: dbAssignment.commande_id,
       name: dbAssignment.name,
       startDate: dbAssignment.start_date,
@@ -736,8 +725,7 @@ const Index = () => {
 
   const allAssignmentsFormatted: Assignment[] = assignments.map(dbAssignment => ({
     id: dbAssignment.id,
-    teamId: dbAssignment.team_id ?? dbAssignment.technician_id,
-    technicianId: dbAssignment.technician_id,
+    teamId: dbAssignment.team_id,
     commandeId: dbAssignment.commande_id,
     name: dbAssignment.name,
     startDate: dbAssignment.start_date,

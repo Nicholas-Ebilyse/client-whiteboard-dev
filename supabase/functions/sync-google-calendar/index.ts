@@ -51,10 +51,8 @@ interface Assignment {
   end_date: string;
   team_id: string;
   commande_id: string | null;
-  is_absent: boolean | null;
   is_confirmed: boolean | null;
   comment: string | null;
-  absence_reason: string | null;
 }
 
 interface Team {
@@ -212,7 +210,6 @@ function pemToArrayBuffer(pem: string): ArrayBuffer {
 
 
 function getEventColor(assignment: Assignment, commande: Commande | null): string {
-  if (assignment.is_absent) return CALENDAR_COLORS.absent;
   if (assignment.is_confirmed) return CALENDAR_COLORS.confirmed;
   return CALENDAR_COLORS.unconfirmed;
 }
@@ -225,23 +222,13 @@ function buildEventDescription(assignment: Assignment, commande: Commande | null
     parts.push(`Équipe(s): ${teamNames.join(", ")}`);
   }
 
-  if (assignment.is_absent) {
-    parts.push("Statut: Absence");
-    if (assignment.absence_reason) {
-      parts.push(`Raison: ${assignment.absence_reason}`);
-    }
-    if (assignment.comment) {
-      parts.push(`Commentaire: ${assignment.comment}`);
-    }
+  if (assignment.is_confirmed) {
+    parts.push("Statut: Confirmé");
   } else {
-    if (assignment.is_confirmed) {
-      parts.push("Statut: Confirmé");
-    } else {
-      parts.push("Statut: Non confirmé");
-    }
-    if (assignment.comment) {
-      parts.push(`Commentaire: ${assignment.comment}`);
-    }
+    parts.push("Statut: Non confirmé");
+  }
+  if (assignment.comment) {
+    parts.push(`Commentaire: ${assignment.comment}`);
   }
 
   return parts.join("\n");
@@ -267,11 +254,8 @@ function groupAssignments(assignments: Assignment[], commandes: Map<string, Comm
 
     const commande = assignment.commande_id ? commandes.get(assignment.commande_id) || null : null;
 
-    // Create a key based on chantier (or absence) and date
-    // For absences, we don't group - each absence is separate
-    const groupKey = assignment.is_absent
-      ? `absent_${assignment.id}` // Unique key for absences
-      : `${assignment.commande_id || "no-commande"}_${assignment.start_date}_${assignment.end_date}`;
+    // Group by chantier and date range
+    const groupKey = `${assignment.commande_id || "no-commande"}_${assignment.start_date}_${assignment.end_date}`;
 
     if (groups.has(groupKey)) {
       const group = groups.get(groupKey)!;
@@ -314,15 +298,7 @@ function buildGroupedCalendarEvent(
 
   // Build event title
   let title: string;
-  if (firstAssignment.is_absent) {
-    const tm = teams.get(firstAssignment.team_id);
-    title = `Absent - ${tm?.name || "Inconnu"}`;
-    if (firstAssignment.absence_reason) {
-      title += ` (${firstAssignment.absence_reason})`;
-    } else if (firstAssignment.comment) {
-      title += ` (${firstAssignment.comment})`;
-    }
-  } else if (commande) {
+  if (commande) {
     title = commande.client;
   } else {
     title = firstAssignment.name || "Sans titre";

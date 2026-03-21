@@ -29,8 +29,7 @@ export interface Chantier {
 // ─── Assignment ──────────────────────────────────────────────────────────────
 export interface Assignment {
   id: string;
-  teamId: string; // The team row this assignment belongs to
-  technicianId?: string | null; // The individual technician within the team
+  teamId: string; // The team this assignment belongs to
 
   commandeId: string | null;
   name: string;

@@ -138,8 +138,7 @@ const Presentation = () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dbAssignmentsFormatted: Assignment[] = assignments.map((dbAssignment: any) => ({
     id: dbAssignment.id,
-    teamId: dbAssignment.team_id ?? dbAssignment.technician_id,
-    technicianId: dbAssignment.technician_id,
+    teamId: dbAssignment.team_id,
     commandeId: dbAssignment.commande_id,
     name: dbAssignment.name,
     startDate: dbAssignment.start_date,
@@ -167,14 +166,7 @@ const Presentation = () => {
 
   const getAssignmentsForCell = (teamId: string, date: string) => {
     return allAssignmentsFormatted.filter(a => {
-      // Find actual technicians that belong to this team
-      const techIdsInTeam = activeTechnicians.filter(t => t.team_id === teamId).map(t => t.id);
-      
-      // Keep if assignment is directly for the team, OR for a technician inside the team
-      const isForTeam = a.teamId === teamId;
-      const isForTechInTeam = a.technicianId && techIdsInTeam.includes(a.technicianId);
-      
-      if (!isForTeam && !isForTechInTeam) return false;
+      if (a.teamId !== teamId) return false;
       return date >= a.startDate && date <= a.endDate;
     });
   };

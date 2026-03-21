@@ -351,7 +351,7 @@ Deno.serve(async (req) => {
       ["ID", "Equipe", "Chantier", "Date début", "Date fin", "Commentaire"],
       ...(assignments || []).map((a: any) => [
         a.id,
-        (a.technician_id ? techMap[a.technician_id] : null) || teamMap[a.team_id] || a.team_id || "Équipe Inconnue",
+        teamMap[a.team_id] || a.team_id || "Équipe Inconnue",
         commandeMap[a.commande_id] || a.name || "",
         fmtDate(a.start_date),
         fmtDate(a.end_date),

@@ -43,23 +43,18 @@ export type Database = {
       }
       assignments: {
         Row: {
-          absence_reason: string | null
           assignment_group_id: string | null
           commande_id: string | null
           comment: string | null
           created_at: string | null
           end_date: string
-          end_period: string
           external_id: string | null
           id: string
-          is_absent: boolean | null
           is_confirmed: boolean | null
           is_fixed: boolean | null
           name: string
-          second_technician_id: string | null
           start_date: string
-          start_period: string
-          technician_id: string
+          team_id: string
           updated_at: string | null
         }
         Insert: {
@@ -68,16 +63,13 @@ export type Database = {
           comment?: string | null
           created_at?: string | null
           end_date: string
-          end_period: string
           external_id?: string | null
           id?: string
           is_confirmed?: boolean | null
           is_fixed?: boolean | null
           name: string
-          second_technician_id?: string | null
           start_date: string
-          start_period: string
-          technician_id: string
+          team_id: string
           updated_at?: string | null
         }
         Update: {
@@ -86,16 +78,13 @@ export type Database = {
           comment?: string | null
           created_at?: string | null
           end_date?: string
-          end_period?: string
           external_id?: string | null
           id?: string
           is_confirmed?: boolean | null
           is_fixed?: boolean | null
           name?: string
-          second_technician_id?: string | null
           start_date?: string
-          start_period?: string
-          technician_id?: string
+          team_id?: string
           updated_at?: string | null
         }
         Relationships: [
@@ -107,17 +96,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "assignments_second_technician_id_fkey"
-            columns: ["second_technician_id"]
+            foreignKeyName: "assignments_team_id_fkey"
+            columns: ["team_id"]
             isOneToOne: false
-            referencedRelation: "technicians"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "assignments_technician_id_fkey"
-            columns: ["technician_id"]
-            isOneToOne: false
-            referencedRelation: "technicians"
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
         ]
