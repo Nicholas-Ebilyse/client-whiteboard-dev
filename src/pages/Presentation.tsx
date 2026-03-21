@@ -18,6 +18,25 @@ import { startOfWeek, getWeek, getYear } from 'date-fns';
 import { Loader2 } from 'lucide-react';
 import { Assignment } from '@/types/planning';
 
+// Local types for rows returned by hooks whose tables may not be in auto-generated types.ts
+type AbsenceRow = {
+  id: string;
+  technician_id: string;
+  start_date: string;
+  end_date: string;
+  reason?: string | null;
+};
+
+type TechnicianRow = {
+  id: string;
+  name: string;
+  team_id: string | null;
+  is_archived: boolean;
+  color?: string | null;
+  is_temp?: boolean;
+  position?: number;
+};
+
 const DEFAULT_TIMEOUT_MINUTES = 30;
 
 const Presentation = () => {
@@ -72,7 +91,8 @@ const Presentation = () => {
   const weekConfig = customDate && customWeekNumber && customYear
     ? { week_number: customWeekNumber, year: customYear }
     : dbWeekConfig;
-  const { data: technicians = [], isLoading: isTechLoading } = useTechnicians(true);
+  const { data: techniciansRaw = [], isLoading: isTechLoading } = useTechnicians(true);
+  const technicians = techniciansRaw as unknown as TechnicianRow[];
   const { data: teams = [], isLoading: isTeamsLoading } = useTeams();
   const { data: commandes = [], isLoading: isCommandesLoading } = useCommandes();
 
@@ -85,7 +105,8 @@ const Presentation = () => {
   
   const isPlanningLoading = isConfigLoading || isTechLoading || isTeamsLoading || isCommandesLoading || isAssignmentsLoading || isNotesLoading;
 
-  const { data: absences = [], isLoading: isAbsencesLoading } = useAbsences(weekStartStr, weekEndStr);
+  const { data: absencesRaw = [], isLoading: isAbsencesLoading } = useAbsences(weekStartStr, weekEndStr);
+  const absences = absencesRaw as AbsenceRow[];
 
   // After timeout — show a completely blank screen (must be after all hooks)
   if (timedOut) {
@@ -114,23 +135,23 @@ const Presentation = () => {
     isValid: true,
   }));
 
-  const allDisplayedAssignments = [...assignments, ...absenceAssignments];
-  
-  const allAssignmentsFormatted: Assignment[] = allDisplayedAssignments.map(dbAssignment => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const dbAssignmentsFormatted: Assignment[] = assignments.map((dbAssignment: any) => ({
     id: dbAssignment.id,
     teamId: dbAssignment.team_id ?? dbAssignment.technician_id,
     technicianId: dbAssignment.technician_id,
-
     commandeId: dbAssignment.commande_id,
     name: dbAssignment.name,
-    startDate: dbAssignment.startDate || dbAssignment.start_date,
-    endDate: dbAssignment.endDate || dbAssignment.end_date,
-    isFixed: dbAssignment.isFixed ?? dbAssignment.is_fixed ?? false,
+    startDate: dbAssignment.start_date,
+    endDate: dbAssignment.end_date,
+    isFixed: dbAssignment.is_fixed ?? false,
     isValid: true,
     comment: dbAssignment.comment || undefined,
-    isConfirmed: dbAssignment.isConfirmed ?? dbAssignment.is_confirmed ?? false,
+    isConfirmed: dbAssignment.is_confirmed ?? false,
     assignment_group_id: dbAssignment.assignment_group_id,
   }));
+
+  const allAssignmentsFormatted = [...dbAssignmentsFormatted, ...absenceAssignments];
 
   const activeTechnicians = technicians.filter(t => !t.is_archived);
   
@@ -148,7 +169,12 @@ const Presentation = () => {
     return allAssignmentsFormatted.filter(a => {
       // Find actual technicians that belong to this team
       const techIdsInTeam = activeTechnicians.filter(t => t.team_id === teamId).map(t => t.id);
-      if (!techIdsInTeam.includes(a.teamId)) return false;
+      
+      // Keep if assignment is directly for the team, OR for a technician inside the team
+      const isForTeam = a.teamId === teamId;
+      const isForTechInTeam = a.technicianId && techIdsInTeam.includes(a.technicianId);
+      
+      if (!isForTeam && !isForTechInTeam) return false;
       return date >= a.startDate && date <= a.endDate;
     });
   };
