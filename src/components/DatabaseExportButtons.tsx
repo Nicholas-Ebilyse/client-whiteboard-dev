@@ -10,7 +10,7 @@ const TABLES = [
   "assignments",
   "commandes",
   "notes",
-
+  "absences",
   "sav",
   "week_config",
   "app_settings",
@@ -51,14 +51,14 @@ export function DatabaseExportButtons() {
   const exportTable = async (table: TableName) => {
     setLoading(table);
     try {
-      const { data, error } = await supabase.from(table).select("*");
+      const { data, error } = await supabase.from(table as any).select("*");
       if (error) throw error;
       if (!data || data.length === 0) {
         toast({ title: "Info", description: `La table ${table} est vide.` });
         setLoading(null);
         return;
       }
-      const csv = toCsvString(data as Record<string, unknown>[]);
+      const csv = toCsvString(data as any as Record<string, unknown>[]);
       downloadCsv(`${table}.csv`, csv);
       toast({ title: "Succès", description: `${table}.csv téléchargé (${data.length} lignes)` });
     } catch (e: any) {
@@ -71,10 +71,10 @@ export function DatabaseExportButtons() {
     setLoading("all");
     for (const table of TABLES) {
       try {
-        const { data, error } = await supabase.from(table).select("*");
+        const { data, error } = await supabase.from(table as any).select("*");
         if (error) throw error;
         if (data && data.length > 0) {
-          downloadCsv(`${table}.csv`, toCsvString(data as Record<string, unknown>[]));
+          downloadCsv(`${table}.csv`, toCsvString(data as any as Record<string, unknown>[]));
         }
       } catch {
         // skip tables with access errors

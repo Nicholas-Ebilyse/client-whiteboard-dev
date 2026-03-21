@@ -205,6 +205,7 @@ const COMMANDES_HEADERS = ['ID', 'Numéro', 'Nom client', 'Chantier', 'UUID'];
 const SAV_HEADERS = ['ID', 'Numéro', 'Nom du client', 'Adresse', 'Numéro de téléphone', 'Problème', 'Date', 'Est résolu'];
 const TECHNICIENS_HEADERS = ['ID', 'Nom', 'Couleur', 'Interim', 'Créé le'];
 const AFFECTATIONS_HEADERS = ['ID', 'Equipe', 'Chantier', 'Date début', 'Date fin', 'Commentaire'];
+const ABSENCES_HEADERS = ['ID', 'Equipe', 'Date début', 'Date fin', 'Motif', 'Commentaire'];
 const NOTES_HEADERS = ['ID', 'Technicien', 'Date', 'SAV', 'Confirmé', 'Texte'];
 const MOTIFS_HEADERS = ['ID', 'Nom', 'Créé le'];
 
@@ -502,6 +503,57 @@ serve(async (req) => {
         }
       }
     } catch (e) { console.error('Assignment sync error:', e); }
+    
+    // ── 5b. Absences ─────────────────────────────────────────────────────────
+    let absenceCount = 0;
+    try {
+      await ensureHeaders(spreadsheetId, 'Absences', ABSENCES_HEADERS, accessToken);
+      const absenceData = await fetchSheetData(spreadsheetId, 'Absences', accessToken);
+      if (absenceData.length > 1) {
+        const { data: techs } = await supabase.from('technicians').select('id, name, team_id');
+        const { data: allTeams } = await supabase.from('teams').select('id, name');
+        
+        const techNameToObj = Object.fromEntries(techs?.map(t => [t.name, t]) || []);
+        const teamNameToObj = Object.fromEntries(allTeams?.map(t => [t.name, t]) || []);
+        
+        const h = absenceData[0];
+        const iID = h.indexOf('ID');
+        const iTech = h.indexOf('Equipe');
+        const iStart = h.indexOf('Date début');
+        const iEnd = h.indexOf('Date fin');
+        const iMotif = h.indexOf('Motif');
+        const iComm = h.indexOf('Commentaire');
+
+        for (let i = 1; i < absenceData.length; i++) {
+          const row = absenceData[i];
+          const id = row[iID]?.trim();
+          const workerName = row[iTech]?.trim();
+
+          let assignedTechId = null;
+          let assignedTeamId = null;
+
+          if (workerName && techNameToObj[workerName]) {
+            assignedTechId = techNameToObj[workerName].id;
+            assignedTeamId = techNameToObj[workerName].team_id;
+          } else if (workerName && teamNameToObj[workerName]) {
+            assignedTeamId = teamNameToObj[workerName].id;
+          } else {
+            continue;
+          }
+
+          const motifStr = row[iMotif]?.trim();
+
+          await supabase.from('absences').upsert({
+            id: id && id.length > 10 ? id : undefined,
+            technician_id: assignedTechId,
+            start_date: parseDate(row[iStart]?.trim()),
+            end_date: parseDate(row[iEnd]?.trim()) || parseDate(row[iStart]?.trim()),
+            reason: motifStr || 'Absence',
+          }, { onConflict: 'id' });
+          absenceCount++;
+        }
+      }
+    } catch (e) { console.error('Absence sync error:', e); }
 
     // ── 6. Notes ─────────────────────────────────────────────────────────────
     let noteCount = 0;
@@ -576,7 +628,7 @@ serve(async (req) => {
     } catch (e) { console.error('Motif sync error:', e); }
 
     // Always mark sync status as success
-    const totalCount = techCount + commandesCount + savCount + assignmentCount + noteCount + motifCount;
+    const totalCount = techCount + commandesCount + savCount + assignmentCount + absenceCount + noteCount + motifCount;
     if (syncRecord) {
       await supabaseAdmin.from('sync_status').update({
         status: 'success',
@@ -611,6 +663,7 @@ serve(async (req) => {
           commandes: commandesCount,
           sav: savCount,
           affectations: assignmentCount,
+          absences: absenceCount,
           notes: noteCount
         }
       }),
