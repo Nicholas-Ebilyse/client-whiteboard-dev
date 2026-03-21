@@ -66,9 +66,20 @@ export const useAllSyncStatuses = () => {
         }
       }
 
+      // For 'sheets', pick whichever of google_sheets or google_sheets_export is more recent
+      const sheetsLegacy = statusMap.get('google_sheets') || null;
+      const sheetsExport = statusMap.get('google_sheets_export') || null;
+      let sheets: SyncStatus | null = null;
+      if (sheetsLegacy && sheetsExport) {
+        sheets = new Date(sheetsLegacy.started_at) > new Date(sheetsExport.started_at)
+          ? sheetsLegacy : sheetsExport;
+      } else {
+        sheets = sheetsLegacy || sheetsExport;
+      }
+
       return {
         database: statusMap.get('google_sheets_webhook') || null,
-        sheets: statusMap.get('google_sheets') || statusMap.get('google_sheets_export') || null,
+        sheets,
         calendar: statusMap.get('google_calendar') || null,
       };
     },
