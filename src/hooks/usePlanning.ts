@@ -294,12 +294,23 @@ export const useSaveNote = () => {
   
   return useMutation({
     mutationFn: async (note: any) => {
-      const { id, is_confirmed, isConfirmed, ...rest } = note;
+      const dbNote = {
+        team_id: note.team_id || note.teamId || note.technician_id || note.technicianId || null,
+        start_date: note.start_date || note.startDate,
+        end_date: note.end_date || note.endDate || note.start_date || note.startDate,
+        is_sav: note.is_sav ?? note.isSav ?? false,
+        text: note.text,
+        display_below: note.display_below ?? note.displayBelow ?? false,
+        period: note.period || 'Journée',
+        start_period: note.start_period || note.startPeriod || 'Journée',
+        end_period: note.end_period || note.endPeriod || 'Journée',
+      };
       
+      const id = note.id;
       if (id && !id.startsWith('new-')) {
         const { data, error } = await supabase
           .from('notes')
-          .update(rest)
+          .update(dbNote)
           .eq('id', id)
           .select()
           .single();
@@ -309,7 +320,7 @@ export const useSaveNote = () => {
       } else {
         const { data, error } = await supabase
           .from('notes')
-          .insert(rest)
+          .insert(dbNote)
           .select()
           .single();
         
