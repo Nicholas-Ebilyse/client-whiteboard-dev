@@ -13,7 +13,6 @@ interface EditGeneralNoteDialogProps {
     text: string; 
     date: string;
     period: 'Matin' | 'Après-midi' | 'Journée';
-    is_confirmed?: boolean;
   } | null;
   onSave: (note: Record<string, unknown>) => void;
   onDelete?: (id: string) => void;
@@ -42,7 +41,6 @@ export const EditGeneralNoteDialog = ({ open, onOpenChange, note, onSave, onDele
       end_date: note?.date,
       period: note?.period === 'Journée' ? 'Matin' : note?.period,
       is_sav: false,
-      is_confirmed: false,
     });
     onOpenChange(false);
   };

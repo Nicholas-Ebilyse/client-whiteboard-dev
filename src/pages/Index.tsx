@@ -511,22 +511,7 @@ const Index = () => {
     });
   };
 
-  const handleToggleNoteConfirm = (noteId: string, isConfirmed: boolean) => {
-    const note = notes.find(n => n.id === noteId);
-    if (!note) return;
-    saveNote.mutate({
-      id: noteId,
-      text: note.text,
-      team_id: note.team_id,
-      start_date: note.start_date,
-      end_date: note.end_date || note.start_date,
-      is_sav: note.is_sav,
-      is_confirmed: isConfirmed,
-    }, {
-      onSuccess: () => toast.success(isConfirmed ? 'Note confirmée' : 'Note non confirmée'),
-      onError: () => toast.error('Erreur lors de la mise à jour'),
-    });
-  };
+
 
   const handleToggleNoteDisplayBelow = (noteId: string, displayBelow: boolean) => {
     const note = notes.find(n => n.id === noteId);
@@ -538,7 +523,6 @@ const Index = () => {
       start_date: note.start_date,
       end_date: note.end_date || note.start_date,
       is_sav: note.is_sav,
-      is_confirmed: note.is_confirmed,
       display_below: displayBelow,
     }, {
       onSuccess: () => toast.success(displayBelow ? 'Note déplacée en bas' : 'Note déplacée en haut'),
@@ -623,7 +607,6 @@ const Index = () => {
       date: date,
       period: period,
       is_sav: note.is_sav,
-      is_confirmed: note.is_confirmed,
 
     });
     setGeneralNoteDialogOpen(true);
@@ -667,7 +650,6 @@ const Index = () => {
       team_id: note.team_id,
       date: date,
       is_sav: note.is_sav,
-      is_confirmed: note.is_confirmed,
     });
     setTechWeekNoteDialogOpen(true);
   };
@@ -873,7 +855,6 @@ const Index = () => {
                   handleGeneralNoteClick={handleGeneralNoteClick}
                   saveNote={saveNote}
                   handleDeleteNote={handleDeleteNote}
-                  handleToggleNoteConfirm={handleToggleNoteConfirm}
                   handleCellClick={handleCellClick}
                   handleAddAssignment={handleAddAssignment}
                   handleAssignmentClick={handleAssignmentClick}

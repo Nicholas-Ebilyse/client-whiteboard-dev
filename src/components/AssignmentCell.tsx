@@ -10,7 +10,6 @@ interface Note {
   id: string;
   text: string;
   is_sav?: boolean;
-  is_confirmed?: boolean;
 
   display_below?: boolean;
 }
@@ -400,31 +399,12 @@ export const AssignmentCell = ({
                         e.stopPropagation();
                         if (onNoteClick) onNoteClick(note.id);
                       }}
-                    className={cn(
-                      "w-full px-1 py-0.5 text-sm font-bold transition-colors text-left flex items-start gap-1 cursor-pointer group/note",
-                      note.is_confirmed 
-                        ? "bg-note-confirmed text-note-confirmed-foreground hover:bg-note-confirmed/80" 
-                        : "bg-amber-100 dark:bg-amber-900/30 text-amber-900 dark:text-amber-100 hover:bg-amber-200 dark:hover:bg-amber-900/50"
-                    )}
-                    >
-                      <GripVertical className={cn("h-3 w-3 flex-shrink-0 mt-0.5 opacity-30", canDragNote && "group-hover:opacity-60")} />
-                      {isAdmin && onNoteToggleConfirm && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onNoteToggleConfirm(note.id, !note.is_confirmed);
-                          }}
-                          className={cn(
-                            "flex-shrink-0 p-0.5 rounded transition-all mt-0.5",
-                            note.is_confirmed 
-                              ? "bg-cyan-500 text-white hover:bg-cyan-600" 
-                              : "bg-transparent border border-current opacity-40 hover:opacity-100"
-                          )}
-                          title={note.is_confirmed ? "Marquer comme non confirmé" : "Marquer comme confirmé"}
-                        >
-                          <Check className="h-2.5 w-2.5" />
-                        </button>
+                      className={cn(
+                        "w-full px-1 py-0.5 text-sm font-bold transition-colors text-left flex items-start gap-1 cursor-pointer group/note",
+                        "bg-amber-100 dark:bg-amber-900/30 text-amber-900 dark:text-amber-100 hover:bg-amber-200 dark:hover:bg-amber-900/50"
                       )}
+                      >
+                        <GripVertical className={cn("h-3 w-3 flex-shrink-0 mt-0.5 opacity-30", canDragNote && "group-hover:opacity-60")} />
 
                       <StickyNote className="h-3 w-3 flex-shrink-0 mt-0.5" />
                       {/* Display below toggle button */}
@@ -693,29 +673,10 @@ export const AssignmentCell = ({
                       }}
                     className={cn(
                       "w-full px-1 py-0.5 text-sm font-bold transition-colors text-left flex items-start gap-1 cursor-pointer group/note",
-                      note.is_confirmed 
-                        ? "bg-note-confirmed text-note-confirmed-foreground hover:bg-note-confirmed/80" 
-                        : "bg-amber-100 dark:bg-amber-900/30 text-amber-900 dark:text-amber-100 hover:bg-amber-200 dark:hover:bg-amber-900/50"
+                      "bg-amber-100 dark:bg-amber-900/30 text-amber-900 dark:text-amber-100 hover:bg-amber-200 dark:hover:bg-amber-900/50"
                     )}
                     >
                       <GripVertical className={cn("h-3 w-3 flex-shrink-0 mt-0.5 opacity-30", canDragNote && "group-hover:opacity-60")} />
-                      {isAdmin && onNoteToggleConfirm && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onNoteToggleConfirm(note.id, !note.is_confirmed);
-                          }}
-                          className={cn(
-                            "flex-shrink-0 p-0.5 rounded transition-all mt-0.5",
-                            note.is_confirmed 
-                              ? "bg-cyan-500 text-white hover:bg-cyan-600" 
-                              : "bg-transparent border border-current opacity-40 hover:opacity-100"
-                          )}
-                          title={note.is_confirmed ? "Marquer comme non confirmé" : "Marquer comme confirmé"}
-                        >
-                          <Check className="h-2.5 w-2.5" />
-                        </button>
-                      )}
 
                       <StickyNote className="h-3 w-3 flex-shrink-0 mt-0.5" />
                       {/* Arrow down indicator for notes displayed below */}

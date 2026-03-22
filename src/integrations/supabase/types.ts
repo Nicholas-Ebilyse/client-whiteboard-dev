@@ -205,7 +205,6 @@ export type Database = {
           end_period: string
           external_id: string | null
           id: string
-          is_confirmed: boolean
           is_sav: boolean
           period: string
           start_date: string
@@ -221,7 +220,6 @@ export type Database = {
           end_period?: string
           external_id?: string | null
           id?: string
-          is_confirmed?: boolean
           is_sav?: boolean
           period: string
           start_date: string
@@ -237,7 +235,6 @@ export type Database = {
           end_period?: string
           external_id?: string | null
           id?: string
-          is_confirmed?: boolean
           is_sav?: boolean
           period?: string
           start_date?: string

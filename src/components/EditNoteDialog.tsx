@@ -25,7 +25,6 @@ interface EditNoteDialogProps {
     start_period?: string;
     end_period?: string;
     is_sav?: boolean;
-    is_confirmed?: boolean;
 
     display_below?: boolean;
   } | null;
@@ -42,7 +41,6 @@ export const EditNoteDialog = ({ open, onOpenChange, note, technicians, weekDate
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [displayBelow, setDisplayBelow] = useState(false);
-  const [isConfirmed, setIsConfirmed] = useState(false);
 
   useEffect(() => {
     if (note) {
@@ -57,15 +55,12 @@ export const EditNoteDialog = ({ open, onOpenChange, note, technicians, weekDate
       const dateToUse = note.end_date || note.start_date;
       const parsedEndDate = dateToUse ? new Date(dateToUse) : undefined;
       setEndDate(parsedEndDate && !isNaN(parsedEndDate.getTime()) ? parsedEndDate : undefined);
-
-      setIsConfirmed(note.is_confirmed || false);
       setDisplayBelow(note.display_below || false);
     } else {
       setText('');
       setTechnicianId('');
       setStartDate(today);
       setEndDate(today);
-      setIsConfirmed(false);
       setDisplayBelow(false);
     }
   }, [note]);
@@ -81,8 +76,6 @@ export const EditNoteDialog = ({ open, onOpenChange, note, technicians, weekDate
       text: text.trim(),
       technician_id: technicianId,
       start_date: format(startDate, 'yyyy-MM-dd'),
-      end_date: format(endDate, 'yyyy-MM-dd'),
-      is_confirmed: isConfirmed,
       display_below: displayBelow,
     });
     onOpenChange(false);
@@ -182,14 +175,6 @@ export const EditNoteDialog = ({ open, onOpenChange, note, technicians, weekDate
           <div className="space-y-2">
             {/* Status toggles */}
             <div className="flex items-center space-x-4 mb-2">
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="confirmed" 
-                  checked={isConfirmed}
-                  onCheckedChange={(checked) => setIsConfirmed(checked as boolean)}
-                />
-                <label htmlFor="confirmed" className="text-sm cursor-pointer">Confirmé</label>
-              </div>
               <div className="flex items-center space-x-2">
                 <Checkbox 
                   id="display-below" 

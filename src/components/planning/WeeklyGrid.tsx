@@ -32,7 +32,7 @@ interface WeeklyGridProps {
   // Shared Note Actions
   saveNote: any;
   handleDeleteNote: (id: string) => void;
-  handleToggleNoteConfirm: (id: string, currentStatus: boolean) => void;
+
 
   // Cell Level Actions — NO period arg
   handleCellClick: (teamId: string, date: string) => void;
@@ -94,7 +94,7 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
   handleGeneralNoteClick,
   saveNote,
   handleDeleteNote,
-  handleToggleNoteConfirm,
+
   handleCellClick,
   handleAddAssignment,
   handleAssignmentClick,
@@ -151,7 +151,7 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                     });
                   }}
                   onNoteDelete={handleDeleteNote}
-                  onNoteToggleConfirm={isAdmin ? handleToggleNoteConfirm : undefined}
+
                   fullNotes={notes.filter(n => n.team_id === null).map(n => ({
                     id: n.id,
                     text: n.text,

@@ -50,7 +50,6 @@ export interface Note {
   date: string;
   endDate?: string | null;
 
-  isConfirmed?: boolean;
   isSav?: boolean;
 
 }

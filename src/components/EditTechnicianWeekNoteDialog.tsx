@@ -25,7 +25,6 @@ interface EditTeamNoteDialogProps {
     team_id?: string;
     date: string;
     is_sav?: boolean;
-    is_confirmed?: boolean;
   } | null;
   onSave: (note: Record<string, unknown>) => void;
   onDelete?: (id: string) => void;
@@ -46,7 +45,6 @@ export const EditTechnicianWeekNoteDialog = ({
 }: EditTeamNoteDialogProps) => {
   const [text, setText] = useState('');
   const [isSav, setIsSav] = useState(false);
-  const [isConfirmed, setIsConfirmed] = useState(false);
   const [showDuplicateOptions, setShowDuplicateOptions] = useState(false);
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const [selectedTeams, setSelectedTeams] = useState<string[]>([]);
@@ -55,14 +53,12 @@ export const EditTechnicianWeekNoteDialog = ({
     if (note) {
       setText(note.text);
       setIsSav(note.is_sav || false);
-      setIsConfirmed(note.is_confirmed || false);
       setShowDuplicateOptions(false);
       setSelectedDays([]);
       setSelectedTeams([]);
     } else {
       setText('');
       setIsSav(false);
-      setIsConfirmed(false);
       setShowDuplicateOptions(false);
       setSelectedDays([]);
       setSelectedTeams([]);
@@ -85,7 +81,6 @@ export const EditTechnicianWeekNoteDialog = ({
       start_period: 'Matin',
       end_period: 'Après-midi',
       is_sav: isSav,
-      is_confirmed: isConfirmed,
     });
     onOpenChange(false);
   };
@@ -124,7 +119,6 @@ export const EditTechnicianWeekNoteDialog = ({
           start_period: 'Matin',
           end_period: 'Après-midi',
           is_sav: isSav,
-          is_confirmed: isConfirmed,
         });
       }
     }
@@ -181,27 +175,6 @@ export const EditTechnicianWeekNoteDialog = ({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
-          <div className="flex items-center space-x-4 flex-wrap gap-y-2">
-            {/* SAV option temporarily hidden by user request
-            <div className="flex items-center space-x-2">
-              <Checkbox 
-                id="sav" 
-                checked={isSav}
-                onCheckedChange={(checked) => setIsSav(checked as boolean)}
-              />
-              <label htmlFor="sav" className="text-sm cursor-pointer">SAV</label>
-            </div>
-            */}
-            <div className="flex items-center space-x-2">
-              <Checkbox 
-                id="confirmed" 
-                checked={isConfirmed}
-                onCheckedChange={(checked) => setIsConfirmed(checked as boolean)}
-              />
-              <label htmlFor="confirmed" className="text-sm cursor-pointer">Confirmé</label>
-            </div>
-          </div>
-          
           <div className="space-y-2">
             <Label htmlFor="note-text">Note</Label>
             <Textarea
