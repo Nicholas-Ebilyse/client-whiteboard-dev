@@ -56,6 +56,7 @@ interface EditAssignmentDialogProps {
   onDelete?: (id: string) => void;
   onDeleteGroup?: (id: string) => void;
   onDuplicate?: (id: string) => void;
+  onBulkUpdateName?: (commandeId: string, name: string) => void;
   allDbAssignments?: any[]; // Raw DB assignments for finding linked technicians
 }
 
@@ -71,6 +72,7 @@ export const EditAssignmentDialog = ({
   onDelete,
   onDeleteGroup,
   onDuplicate,
+  onBulkUpdateName,
   allDbAssignments = [],
 }: EditAssignmentDialogProps) => {
   const { toast } = useToast();
@@ -87,6 +89,7 @@ export const EditAssignmentDialog = ({
   );
   const [isConfirmed, setIsConfirmed] = useState(assignment?.isConfirmed || false);
   const [comment, setComment] = useState(assignment?.comment || '');
+  const [chantierDisplayName, setChantierDisplayName] = useState(assignment?.name || '');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
 
@@ -100,6 +103,7 @@ export const EditAssignmentDialog = ({
       setEndDate(new Date(assignment.endDate));
       setIsConfirmed(assignment.isConfirmed || false);
       setComment(assignment.comment || '');
+      setChantierDisplayName(assignment.name || '');
     }
   }, [assignment, commandes]);
 
@@ -144,16 +148,22 @@ export const EditAssignmentDialog = ({
 
 
       
+      const trimmedName = chantierDisplayName.trim() || assignment.name;
       const updatedAssignment: Assignment = {
         ...assignment,
         teamId: selectedTeam,
-
+        name: trimmedName,
         commandeId: selectedCommande,
         startDate: startDateStr,
         endDate: endDateStr,
         isConfirmed,
         comment,
       };
+
+      // Propagate the name change to all other assignments with the same commande
+      if (onBulkUpdateName && selectedCommande && trimmedName !== assignment.name) {
+        onBulkUpdateName(selectedCommande, trimmedName);
+      }
       
       onSave(updatedAssignment);
       onOpenChange(false);
@@ -253,9 +263,29 @@ export const EditAssignmentDialog = ({
                 <Label>Chantier</Label>
                 <SearchableSelect
                   value={selectedCommande}
-                  onValueChange={setSelectedCommande}
+                  onValueChange={(val) => {
+                    setSelectedCommande(val);
+                    // Pre-fill display name from the new commande's existing name
+                    const newComm = commandes.find((c: any) => c.id === val);
+                    if (newComm) {
+                      const autoName = newComm.name || getShortChantierName(newComm.chantier || '');
+                      setChantierDisplayName(autoName);
+                    }
+                  }}
                   options={chantierOptions}
                   placeholder="Sélectionner un chantier..."
+                />
+              </div>
+            )}
+
+            {selectedCommande && (
+              <div className="space-y-2">
+                <Label htmlFor="chantier-name">Nom affiché sur le planning</Label>
+                <Input
+                  id="chantier-name"
+                  value={chantierDisplayName}
+                  onChange={(e) => setChantierDisplayName(e.target.value)}
+                  placeholder="Nom abrégé du chantier"
                 />
               </div>
             )}

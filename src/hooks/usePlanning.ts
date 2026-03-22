@@ -169,6 +169,19 @@ export const useCommandes = () => {
   });
 };
 
+export const useBulkUpdateAssignmentName = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ commandeId, name }: { commandeId: string; name: string }) => {
+      const { error } = await supabase
+        .from('assignments')
+        .update({ name })
+        .eq('commande_id', commandeId);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['assignments'] }),
+  });
+};
 export const useAssignments = (weekStart: string, weekEnd: string) => {
   return useQuery({
     queryKey: ['assignments', weekStart, weekEnd],

@@ -18,7 +18,11 @@ serve(async (req) => {
   };
 
   try {
-    console.log('Nightly Sync Orchestrator started...');
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    console.log('Sync Orchestrator started...');
 
     // 1. Fetch settings
     const { data: settings } = await supabase

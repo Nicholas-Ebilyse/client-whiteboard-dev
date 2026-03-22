@@ -48,6 +48,7 @@ import {
   useAbsences,
   useSaveAssignment,
   useDeleteAssignment,
+  useBulkUpdateAssignmentName,
   useSaveNote,
   useDeleteNote,
   getWeekDates,
@@ -165,6 +166,7 @@ const Index = () => {
   const deleteRelatedAssignments = useDeleteRelatedAssignments();
   const saveNote = useSaveNote();
   const deleteNote = useDeleteNote();
+  const bulkUpdateAssignmentName = useBulkUpdateAssignmentName();
 
   // Drag and drop for assignments
   const {
@@ -903,6 +905,7 @@ const Index = () => {
           onDelete={handleDeleteAssignment}
           onDeleteGroup={handleDeleteAssignmentGroup}
           onDuplicate={handleDuplicateAssignment}
+          onBulkUpdateName={(commandeId, name) => bulkUpdateAssignmentName.mutate({ commandeId, name })}
         />
 
         <EditNoteDialog

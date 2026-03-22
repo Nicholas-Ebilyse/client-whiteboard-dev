@@ -82,13 +82,11 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
           isDragging={isDragging}
         />
         </div>
-        <CardTitle className="flex-none text-lg sm:text-xl font-semibold flex items-center justify-center gap-2">
-          RPS Planning - {(() => {
+        <CardTitle className="flex-none text-xl sm:text-2xl font-bold text-primary/80 flex items-center justify-center gap-2">
+          {(() => {
             const weekStart = startOfWeek(new Date(weekConfig.year, 0, 1 + (weekConfig.week_number - 1) * 7), { weekStartsOn: 1 });
-            const day = weekStart.getDate().toString();
-            const month = ['jan', 'fév', 'mar', 'avr', 'mai', 'juin', 'juil', 'août', 'sep', 'oct', 'nov', 'déc'][weekStart.getMonth()];
-            const year = format(weekStart, 'yy');
-            return `${day} ${month} ${year}`;
+            const month = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'][weekStart.getMonth()];
+            return `Planning des équipes • Semaine ${weekConfig.week_number} • ${month} ${weekConfig.year}`;
           })()}
         </CardTitle>
         <div className="flex-1 flex items-center justify-end gap-1.5">

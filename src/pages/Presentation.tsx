@@ -211,7 +211,6 @@ const Presentation = () => {
             handleGeneralNoteClick={() => {}}
             saveNote={() => {}}
             handleDeleteNote={() => {}}
-            handleToggleNoteConfirm={() => {}}
             handleCellClick={() => {}}
             handleAddAssignment={() => {}}
             handleAssignmentClick={() => {}}
