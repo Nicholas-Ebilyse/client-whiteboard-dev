@@ -59,7 +59,7 @@ export function CreateUserDialog({ open, onOpenChange, onUserCreated }: CreateUs
         if (error instanceof Error && error.name === 'FunctionsHttpError' && 'context' in error) {
           const context = error.context as Response;
           const errorBody = await context.json().catch(() => null);
-          errorMessage = errorBody?.error || errorBody?.message || errorMessage;
+          errorMessage = (errorBody?.error || errorBody?.message || errorMessage) + (errorBody?.stage ? ` (Stage: ${errorBody.stage})` : '');
         }
         throw new Error(errorMessage);
       }

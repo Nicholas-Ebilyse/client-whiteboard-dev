@@ -80,14 +80,14 @@ const handler = async (req: Request): Promise<Response> => {
     });
 
     if (createError) {
-      return new Response(JSON.stringify({ error: createError.message }), {
+      return new Response(JSON.stringify({ error: createError.message, stage: "admin_createUser" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    if (!newUser.user) {
-      return new Response(JSON.stringify({ error: "Failed to create user" }), {
+    if (!newUser?.user) {
+      return new Response(JSON.stringify({ error: "Failed to create user", stage: "missing_newUser" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -104,7 +104,7 @@ const handler = async (req: Request): Promise<Response> => {
     if (roleInsertError) {
       // Try to delete the user if role assignment fails
       await supabase.auth.admin.deleteUser(newUser.user.id);
-      return new Response(JSON.stringify({ error: "Failed to assign role" }), {
+      return new Response(JSON.stringify({ error: roleInsertError.message || "Failed to assign role", stage: "roleInsertError" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -128,7 +128,7 @@ const handler = async (req: Request): Promise<Response> => {
   } catch (error: any) {
     console.error("Error in create-user function:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error.message, stage: "catch_all" }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
