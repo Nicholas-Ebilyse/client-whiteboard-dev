@@ -340,6 +340,30 @@ export type Database = {
         }
         Relationships: []
       }
+      teams: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          color: string
+          position: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          color?: string
+          position?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          color?: string
+          position?: number
+        }
+        Relationships: []
+      }
       technicians: {
         Row: {
           created_at: string

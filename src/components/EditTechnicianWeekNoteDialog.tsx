@@ -182,6 +182,7 @@ export const EditTechnicianWeekNoteDialog = ({
         </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="flex items-center space-x-4 flex-wrap gap-y-2">
+            {/* SAV option temporarily hidden by user request
             <div className="flex items-center space-x-2">
               <Checkbox 
                 id="sav" 
@@ -190,6 +191,7 @@ export const EditTechnicianWeekNoteDialog = ({
               />
               <label htmlFor="sav" className="text-sm cursor-pointer">SAV</label>
             </div>
+            */}
             <div className="flex items-center space-x-2">
               <Checkbox 
                 id="confirmed" 

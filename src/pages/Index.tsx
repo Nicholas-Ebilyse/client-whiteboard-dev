@@ -898,6 +898,7 @@ const Index = () => {
         </div>
         
         {/* SAV Table */}
+        {/* SAV Table temporarily hidden by user request
         {savVisible && savRecords.length > 0 && (
           <SAVTable
             savRecords={savRecords}
@@ -906,6 +907,7 @@ const Index = () => {
             onClose={() => setSavVisible(false)}
           />
         )}
+        */}
 
         <EditAssignmentDialog
           open={assignmentDialogOpen}

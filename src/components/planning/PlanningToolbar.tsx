@@ -263,12 +263,14 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
                   <span>Envoyer par email</span>
                 </DropdownMenuItem>
               )}
+              {/* SAV option temporarily hidden by user request
               {savRecordsLength > 0 && (
                 <DropdownMenuItem onClick={() => setSavVisible(prev => !prev)}>
                   <Wrench className={cn("mr-2 h-4 w-4", savVisible ? "text-orange-500" : "text-muted-foreground")} />
                   <span>{savVisible ? 'Masquer SAV' : 'Afficher SAV'}</span>
                 </DropdownMenuItem>
               )}
+              */}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleSignOut} className="text-rose-600">
                 <LogOut className="mr-2 h-4 w-4" />
