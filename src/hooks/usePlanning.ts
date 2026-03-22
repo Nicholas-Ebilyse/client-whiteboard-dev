@@ -111,10 +111,10 @@ export const useUpdateTechnician = () => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async ({ id, name, is_interim, team_id, skills }: { id: string; name?: string; is_interim?: boolean; team_id?: string | null; skills?: string }) => {
+    mutationFn: async ({ id, name, is_temp, team_id, skills }: { id: string; name?: string; is_temp?: boolean; team_id?: string | null; skills?: string }) => {
       const updates: any = {};
       if (name !== undefined) updates.name = name;
-      if (is_interim !== undefined) updates.is_temp = is_interim;
+      if (is_temp !== undefined) updates.is_temp = is_temp;
       if (team_id !== undefined) updates.team_id = team_id;
       if (skills !== undefined) updates.skills = skills;
 

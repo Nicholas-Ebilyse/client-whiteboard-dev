@@ -248,10 +248,10 @@ const Index = () => {
     });
   };
 
-  const handleUpdateTechnicianName = (id: string, name?: string, is_interim?: boolean, skills?: string) => {
-    updateTechnician.mutate({ id, name, is_interim, skills }, {
+  const handleUpdateTechnicianName = (id: string, name?: string, is_temp?: boolean, skills?: string) => {
+    updateTechnician.mutate({ id, name, is_temp, skills }, {
       onSuccess: () => {
-        toast.success(is_interim !== undefined ? 'Statut intérim mis à jour' : 'Nom mis à jour');
+        toast.success(is_temp !== undefined ? 'Statut intérim mis à jour' : 'Nom mis à jour');
       },
       onError: () => {
         toast.error('Erreur lors de la mise à jour');

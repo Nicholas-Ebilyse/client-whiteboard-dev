@@ -28,7 +28,7 @@ interface TechnicianManagementDialogProps {
   onOpenChange: (open: boolean) => void;
   technicians: Technician[];
   onArchive: (technicianId: string, archived: boolean) => void;
-  onNameChange: (technicianId: string, newName?: string, is_interim?: boolean) => void;
+  onNameChange: (technicianId: string, newName?: string, is_temp?: boolean) => void;
   onAdd: (name: string, isTemp: boolean) => void;
   onReorder: (positions: { id: string; position: number }[]) => void;
 }

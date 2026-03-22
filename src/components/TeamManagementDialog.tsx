@@ -42,7 +42,7 @@ interface TeamManagementDialogProps {
   teams: Team[];
   technicians: Technician[];
   onArchive: (technicianId: string, archived: boolean) => void;
-  onNameChange: (technicianId: string, newName?: string, is_interim?: boolean, skills?: string) => void;
+  onNameChange: (technicianId: string, newName?: string, is_temp?: boolean, skills?: string) => void;
   onAdd: (name: string, isTemp: boolean, skills?: string) => void;
   onAssignTeam: (technicianId: string, teamId: string | null) => void;
 }
