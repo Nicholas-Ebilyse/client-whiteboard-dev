@@ -643,13 +643,14 @@ const Index = () => {
     });
   };
 
-  // Handler for adding day notes for a specific technician (per day, not week)
-  const handleAddTechDayNote = (technicianId: string, technicianName: string, date: string) => {
+  // Handler for adding day notes for a specific team (per day, not week)
+  const handleAddTechDayNote = (teamId: string, teamName: string, date: string) => {
     setSelectedTechWeekNote({
       id: '',
       text: '',
-      technician_id: technicianId,
-      technician_name: technicianName,
+      technician_id: '',
+      technician_name: '',
+      team_id: teamId,
       date: date,
       is_sav: false,
     });
@@ -893,7 +894,8 @@ const Index = () => {
                   draggedItem={draggedItem}
                   highlightedGroupId={highlightedGroupId}
                   setHighlightedGroupId={setHighlightedGroupId}
-                  handleNoteClick={handleNoteClick}
+                  handleTechDayNoteClick={handleTechDayNoteClick}
+                  handleAddTechDayNote={handleAddTechDayNote}
                 />
               </CardContent>
             </Card>

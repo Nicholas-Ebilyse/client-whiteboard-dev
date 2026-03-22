@@ -52,10 +52,10 @@ interface WeeklyGridProps {
   previewCells: any[];
   draggedItem: any;
 
-  // Highlighting
   highlightedGroupId: string | null;
   setHighlightedGroupId: (id: string | null) => void;
-  handleNoteClick?: (note: any, date: string) => void;
+  handleTechDayNoteClick?: (note: any, technicianId: string, technicianName: string, date: string) => void;
+  handleAddTechDayNote?: (teamId: string, teamName: string, date: string) => void;
 }
 
 const getPastelColor = (hex: string | undefined) => {
@@ -111,7 +111,8 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
   draggedItem,
   highlightedGroupId,
   setHighlightedGroupId,
-  handleNoteClick,
+  handleTechDayNoteClick,
+  handleAddTechDayNote,
 }) => {
   return (
     <div className="overflow-x-auto pb-0 flex-1 flex flex-col min-h-0 overflow-y-auto">
@@ -271,12 +272,14 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                       notes={cellNotes}
                       teamColor={team.color}
                       onClick={undefined} // cell-level click handled by outer div
-                      onNoteClick={(noteId) => {
+                      onNoteClick={handleTechDayNoteClick ? (noteId) => {
                         const note = cellNotes.find(n => n.id === noteId);
-                        if (note && handleNoteClick) {
-                          handleNoteClick(note, day.fullDate);
+                        if (note) {
+                          const techName = activeTechnicians.find(t => t.id === note.technician_id)?.name || '';
+                          handleTechDayNoteClick(note, note.technician_id || '', techName, day.fullDate);
                         }
-                      }}
+                      } : undefined}
+                      onAddNote={isAdmin && !teamIsUnavailable && handleAddTechDayNote ? () => handleAddTechDayNote(team.id, team.name, day.fullDate) : undefined}
                       onAddAssignment={isAdmin && !teamIsUnavailable ? () => handleAddAssignment(team.id, day.fullDate) : undefined}
                       onAssignmentClick={isAdmin ? handleAssignmentClick : undefined}
                       onAssignmentDuplicate={isAdmin ? (a) => handleDuplicateAssignment(a.id) : undefined}

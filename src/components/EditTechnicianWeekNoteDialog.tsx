@@ -12,6 +12,7 @@ import { Copy } from 'lucide-react';
 interface Technician {
   id: string;
   name: string;
+  team_id?: string;
 }
 
 interface EditTechnicianWeekNoteDialogProps {
@@ -22,6 +23,7 @@ interface EditTechnicianWeekNoteDialogProps {
     text: string; 
     technician_id: string;
     technician_name: string;
+    team_id?: string;
     date: string;
     is_sav?: boolean;
     is_confirmed?: boolean;
@@ -51,6 +53,7 @@ export const EditTechnicianWeekNoteDialog = ({
   const [showDuplicateOptions, setShowDuplicateOptions] = useState(false);
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const [selectedTechnicians, setSelectedTechnicians] = useState<string[]>([]);
+  const [selectedTechId, setSelectedTechId] = useState('');
 
   useEffect(() => {
     if (note) {
@@ -61,6 +64,7 @@ export const EditTechnicianWeekNoteDialog = ({
       setShowDuplicateOptions(false);
       setSelectedDays([]);
       setSelectedTechnicians([]);
+      setSelectedTechId(note.technician_id || '');
     } else {
       setText('');
       setIsSav(false);
@@ -69,6 +73,7 @@ export const EditTechnicianWeekNoteDialog = ({
       setShowDuplicateOptions(false);
       setSelectedDays([]);
       setSelectedTechnicians([]);
+      setSelectedTechId('');
     }
   }, [note]);
 
@@ -81,7 +86,7 @@ export const EditTechnicianWeekNoteDialog = ({
     onSave({
       id: note?.id,
       text: text.trim(),
-      technician_id: note?.technician_id,
+      technician_id: selectedTechId || note?.technician_id,
       start_date: note?.date,
       end_date: note?.date,
       period: 'Matin',
@@ -188,10 +193,28 @@ export const EditTechnicianWeekNoteDialog = ({
         <DialogHeader>
           <DialogTitle>{note?.id ? 'Modifier la note' : 'Nouvelle note'}</DialogTitle>
           <DialogDescription>
-            Note pour {note?.technician_name} - {note?.date ? formatDate(note.date) : ''}
+            {note?.id ? 
+              `Note pour ${note?.technician_name} - ${note?.date ? formatDate(note.date) : ''}` 
+              : `Nouvelle note pour le ${note?.date ? formatDate(note.date) : ''}`
+            }
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
+          {!note?.id && note?.team_id && technicians.filter(t => t.team_id === note.team_id).length > 0 ? (
+            <div className="space-y-2">
+              <Label>Concerne (Technicien)</Label>
+              <select 
+                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={selectedTechId} 
+                onChange={e => setSelectedTechId(e.target.value)}
+              >
+                {technicians.filter(t => t.team_id === note.team_id).map(t => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+
           <div className="flex items-center space-x-4 flex-wrap gap-y-2">
             <div className="flex items-center space-x-2">
               <Checkbox 
