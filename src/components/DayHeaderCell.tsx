@@ -7,9 +7,6 @@ import type { DraggedNote } from '@/hooks/useDragAndDropNote';
 interface GeneralNote {
   id: string;
   text: string;
-  is_sav: boolean;
-
-
   start_period: string;
   end_period: string;
 }
@@ -143,7 +140,6 @@ export const DayHeaderCell = ({
               >
                 {canDragNote && <GripVertical className="h-3 w-3 flex-shrink-0 opacity-30" />}
 
-                {note.is_sav && <span className="font-bold">SAV: </span>}
                 <span className="truncate flex-1">{note.text}</span>
               </div>
             </div>

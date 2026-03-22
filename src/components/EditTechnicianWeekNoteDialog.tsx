@@ -3,7 +3,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
-import { Checkbox } from './ui/checkbox';
 import { toast } from 'sonner';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -24,7 +23,6 @@ interface EditTeamNoteDialogProps {
     technician_name?: string;
     team_id?: string;
     date: string;
-    is_sav?: boolean;
   } | null;
   onSave: (note: Record<string, unknown>) => void;
   onDelete?: (id: string) => void;
@@ -44,7 +42,6 @@ export const EditTechnicianWeekNoteDialog = ({
   weekDates = [],
 }: EditTeamNoteDialogProps) => {
   const [text, setText] = useState('');
-  const [isSav, setIsSav] = useState(false);
   const [showDuplicateOptions, setShowDuplicateOptions] = useState(false);
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const [selectedTeams, setSelectedTeams] = useState<string[]>([]);
@@ -52,13 +49,11 @@ export const EditTechnicianWeekNoteDialog = ({
   useEffect(() => {
     if (note) {
       setText(note.text);
-      setIsSav(note.is_sav || false);
       setShowDuplicateOptions(false);
       setSelectedDays([]);
       setSelectedTeams([]);
     } else {
       setText('');
-      setIsSav(false);
       setShowDuplicateOptions(false);
       setSelectedDays([]);
       setSelectedTeams([]);
@@ -77,10 +72,6 @@ export const EditTechnicianWeekNoteDialog = ({
       team_id: note?.team_id || null,
       start_date: note?.date,
       end_date: note?.date,
-      period: 'Matin',
-      start_period: 'Matin',
-      end_period: 'Après-midi',
-      is_sav: isSav,
     });
     onOpenChange(false);
   };
@@ -115,10 +106,6 @@ export const EditTechnicianWeekNoteDialog = ({
           team_id: teamId,
           start_date: day,
           end_date: day,
-          period: 'Matin',
-          start_period: 'Matin',
-          end_period: 'Après-midi',
-          is_sav: isSav,
         });
       }
     }

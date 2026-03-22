@@ -9,15 +9,11 @@ import { toast } from 'sonner';
 interface Note {
   id: string;
   text: string;
-  is_sav?: boolean;
-
-  display_below?: boolean;
 }
 
 interface DraggableNote {
   id: string;
   text: string;
-  is_sav: boolean;
   technician_id: string | null;
   start_date: string;
   end_date: string;
@@ -45,8 +41,6 @@ interface AssignmentCellProps {
   onNoteDuplicate?: (note: Note) => void;
   onNoteDelete?: (noteId: string) => void;
   onNoteToggleConfirm?: (noteId: string, isConfirmed: boolean) => void;
-  onNoteToggleDisplayBelow?: (noteId: string, displayBelow: boolean) => void;
-  onBulkToggleNotesDisplayBelow?: (noteIds: string[], displayBelow: boolean) => void;
   onAddNote?: () => void;
   onAddAssignment?: () => void;
   onAssignmentClick?: (assignment: Assignment) => void;
@@ -111,8 +105,6 @@ export const AssignmentCell = ({
   onNoteDuplicate,
   onNoteDelete,
   onNoteToggleConfirm,
-  onNoteToggleDisplayBelow,
-  onBulkToggleNotesDisplayBelow,
   onAddNote, 
   onAddAssignment, 
   onAssignmentClick,
@@ -150,9 +142,7 @@ export const AssignmentCell = ({
   absentTechNames = [],
 }: AssignmentCellProps) => {
   const hasContent = assignments.length > 0 || notes.length > 0;
-  // Separate notes by display position
-  const notesAbove = notes.filter(n => !n.display_below).slice(0, 3);
-  const notesBelow = notes.filter(n => n.display_below).slice(0, 3);
+  const limitedNotes = notes.slice(0, 3);
   // Issue #5 & #9: Show ALL assignments
   const limitedAssignments = assignments;
 
@@ -319,40 +309,12 @@ export const AssignmentCell = ({
           <StickyNote className="h-3 w-3" />
         </button>
       )}
-      {/* Bulk move notes buttons - only show when there are notes and admin */}
-      {isAdmin && onBulkToggleNotesDisplayBelow && notes.length > 1 && (
-        <div className="absolute top-1 left-8 z-10 opacity-0 group-hover:opacity-100 transition-opacity flex gap-0.5">
-          {notesAbove.length > 0 && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onBulkToggleNotesDisplayBelow(notesAbove.map(n => n.id), true);
-              }}
-              className="p-1 hover:bg-accent rounded bg-background"
-              title="Déplacer toutes les notes en bas"
-            >
-              <ChevronsDown className="h-3 w-3" />
-            </button>
-          )}
-          {notesBelow.length > 0 && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onBulkToggleNotesDisplayBelow(notesBelow.map(n => n.id), false);
-              }}
-              className="p-1 hover:bg-accent rounded bg-background"
-              title="Déplacer toutes les notes en haut"
-            >
-              <ChevronsUp className="h-3 w-3" />
-            </button>
-          )}
-        </div>
-      )}
+
       <div className="h-full flex flex-col">
-        {/* Notes displayed above assignments (display_below = false, default) */}
-        {notesAbove.length > 0 && (
+        {/* Notes section */}
+        {limitedNotes.length > 0 && (
           <div className="flex-shrink-0">
-            {notesAbove.map((note) => {
+            {limitedNotes.map((note) => {
               const fullNote = getFullNote(note.id);
               const canDragNote = isAdmin && fullNote && onNoteDragStart;
               
@@ -387,22 +349,8 @@ export const AssignmentCell = ({
                       )}
                       >
                         <GripVertical className={cn("h-3 w-3 flex-shrink-0 mt-0.5 opacity-30", canDragNote && "group-hover:opacity-60")} />
-
                       <StickyNote className="h-3 w-3 flex-shrink-0 mt-0.5" />
-                      {/* Display below toggle button */}
-                      {isAdmin && onNoteToggleDisplayBelow && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onNoteToggleDisplayBelow(note.id, true);
-                          }}
-                          className="flex-shrink-0 p-0.5 rounded transition-all opacity-40 hover:opacity-100 hover:bg-black/10"
-                          title="Déplacer en bas (après les affectations)"
-                        >
-                          <ArrowDown className="h-2.5 w-2.5" />
-                        </button>
-                      )}
-                      <span className="break-words flex-1">{note.is_sav ? `SAV - ${note.text}` : note.text}</span>
+                      <span className="break-words flex-1">{note.text}</span>
                     </div>
                   </div>
                 </NoteContextMenu>
@@ -616,72 +564,6 @@ export const AssignmentCell = ({
                     )}
                   </div>
                 </AssignmentContextMenu>
-              );
-            })}
-          </div>
-        )}
-        
-        {/* Notes displayed below assignments (display_below = true) */}
-        {notesBelow.length > 0 && (
-          <div className="flex-shrink-0">
-            {notesBelow.map((note) => {
-              const fullNote = getFullNote(note.id);
-              const canDragNote = isAdmin && fullNote && onNoteDragStart;
-              
-              return (
-                <NoteContextMenu
-                  key={note.id}
-                  note={note}
-                  onEdit={(n) => onNoteClick?.(n.id)}
-                  onDuplicate={onNoteDuplicate}
-                  onDelete={(n) => onNoteDelete?.(n.id)}
-                  disabled={!isAdmin}
-                >
-                  <div
-                    draggable={!!canDragNote}
-                    onDragStart={(e) => {
-                      if (canDragNote && fullNote) {
-                        e.stopPropagation();
-                        onNoteDragStart(e, fullNote);
-                      }
-                    }}
-                    onDragEnd={onNoteDragEnd}
-                    className={cn(canDragNote && "cursor-grab active:cursor-grabbing")}
-                  >
-                    <div
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (onNoteClick) onNoteClick(note.id);
-                      }}
-                    className={cn(
-                      "w-full px-1 py-0.5 text-sm font-bold transition-colors text-left flex items-start gap-1 cursor-pointer group/note",
-                      "bg-amber-100 dark:bg-amber-900/30 text-amber-900 dark:text-amber-100 hover:bg-amber-200 dark:hover:bg-amber-900/50"
-                    )}
-                    >
-                      <GripVertical className={cn("h-3 w-3 flex-shrink-0 mt-0.5 opacity-30", canDragNote && "group-hover:opacity-60")} />
-
-                      <StickyNote className="h-3 w-3 flex-shrink-0 mt-0.5" />
-                      {/* Arrow down indicator for notes displayed below */}
-                      <span title="Note affichée en bas">
-                        <ArrowDown className="h-2.5 w-2.5 flex-shrink-0 text-orange-600 dark:text-orange-400" />
-                      </span>
-                      {/* Display above toggle button */}
-                      {isAdmin && onNoteToggleDisplayBelow && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onNoteToggleDisplayBelow(note.id, false);
-                          }}
-                          className="flex-shrink-0 p-0.5 rounded transition-all opacity-40 hover:opacity-100 hover:bg-black/10"
-                          title="Déplacer en haut (avant les affectations)"
-                        >
-                          <ArrowUp className="h-2.5 w-2.5" />
-                        </button>
-                      )}
-                      <span className="break-words flex-1">{note.is_sav ? `SAV - ${note.text}` : note.text}</span>
-                    </div>
-                  </div>
-                </NoteContextMenu>
               );
             })}
           </div>

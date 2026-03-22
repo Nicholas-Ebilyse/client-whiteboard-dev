@@ -6,7 +6,6 @@ import { toast } from 'sonner';
 export interface DraggedNote {
   id: string;
   text: string;
-  is_sav: boolean;
   team_id: string | null;
   start_date: string;
   end_date: string;

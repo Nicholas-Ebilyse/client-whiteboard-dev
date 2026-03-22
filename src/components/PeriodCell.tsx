@@ -7,9 +7,7 @@ import type { DraggedNote } from '@/hooks/useDragAndDropNote';
 interface GeneralNote {
   id: string;
   text: string;
-  is_sav: boolean;
   is_confirmed?: boolean;
-
   start_period: string;
   end_period: string;
 }
@@ -163,7 +161,6 @@ export const PeriodCell = ({
                   </button>
                 )}
 
-                {note.is_sav && <span className="font-bold">SAV: </span>}
                 <span className="truncate flex-1">{note.text}</span>
               </div>
             </div>

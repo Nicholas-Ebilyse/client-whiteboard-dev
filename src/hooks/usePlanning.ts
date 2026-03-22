@@ -294,16 +294,11 @@ export const useSaveNote = () => {
   
   return useMutation({
     mutationFn: async (note: any) => {
-      const dbNote = {
+      const dbNote: any = { // eslint-disable-line @typescript-eslint/no-explicit-any
         team_id: note.team_id || note.teamId || note.technician_id || note.technicianId || null,
         start_date: note.start_date || note.startDate,
         end_date: note.end_date || note.endDate || note.start_date || note.startDate,
-        is_sav: note.is_sav ?? note.isSav ?? false,
         text: note.text,
-        display_below: note.display_below ?? note.displayBelow ?? false,
-        period: note.period || 'Journée',
-        start_period: note.start_period || note.startPeriod || 'Journée',
-        end_period: note.end_period || note.endPeriod || 'Journée',
       };
       
       const id = note.id;

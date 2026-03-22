@@ -4,7 +4,6 @@ import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Checkbox } from './ui/checkbox';
 import { Calendar } from './ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { CalendarIcon } from 'lucide-react';
@@ -21,12 +20,9 @@ interface EditNoteDialogProps {
     technician_id: string; 
     start_date: string; 
     end_date?: string;
-    period: string;
+    period?: string;
     start_period?: string;
     end_period?: string;
-    is_sav?: boolean;
-
-    display_below?: boolean;
   } | null;
   technicians: { id: string; name: string }[];
   weekDates: { fullDate: string; date: string }[];
@@ -40,7 +36,6 @@ export const EditNoteDialog = ({ open, onOpenChange, note, technicians, weekDate
   const [technicianId, setTechnicianId] = useState('');
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
-  const [displayBelow, setDisplayBelow] = useState(false);
 
   useEffect(() => {
     if (note) {
@@ -55,13 +50,11 @@ export const EditNoteDialog = ({ open, onOpenChange, note, technicians, weekDate
       const dateToUse = note.end_date || note.start_date;
       const parsedEndDate = dateToUse ? new Date(dateToUse) : undefined;
       setEndDate(parsedEndDate && !isNaN(parsedEndDate.getTime()) ? parsedEndDate : undefined);
-      setDisplayBelow(note.display_below || false);
     } else {
       setText('');
       setTechnicianId('');
       setStartDate(today);
       setEndDate(today);
-      setDisplayBelow(false);
     }
   }, [note]);
 
@@ -76,7 +69,6 @@ export const EditNoteDialog = ({ open, onOpenChange, note, technicians, weekDate
       text: text.trim(),
       technician_id: technicianId,
       start_date: format(startDate, 'yyyy-MM-dd'),
-      display_below: displayBelow,
     });
     onOpenChange(false);
   };
@@ -173,17 +165,6 @@ export const EditNoteDialog = ({ open, onOpenChange, note, technicians, weekDate
           </div>
 
           <div className="space-y-2">
-            {/* Status toggles */}
-            <div className="flex items-center space-x-4 mb-2">
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="display-below" 
-                  checked={displayBelow}
-                  onCheckedChange={(checked) => setDisplayBelow(checked as boolean)}
-                />
-                <label htmlFor="display-below" className="text-sm cursor-pointer">Note en bas</label>
-              </div>
-            </div>
             <Label htmlFor="note-text">Note</Label>
             <Textarea
               id="note-text"

@@ -170,10 +170,8 @@ export const SendScheduleDialog = ({
                 }
                 return a.name;
               }),
-              ...techNotes.map((n: any) => {
-                let text = n.is_sav ? 'SAV: ' : 'Note: ';
-                text += n.text;
-                return text;
+              ...techNotes.map((n: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+                return 'Note: ' + n.text;
               })
             ].join('\n\n');
 

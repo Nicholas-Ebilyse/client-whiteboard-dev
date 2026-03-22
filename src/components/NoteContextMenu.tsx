@@ -10,7 +10,6 @@ import { Edit, Copy, Trash2 } from 'lucide-react';
 interface Note {
   id: string;
   text: string;
-  is_sav?: boolean;
 }
 
 interface NoteContextMenuProps {

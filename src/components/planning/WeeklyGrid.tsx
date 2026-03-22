@@ -144,7 +144,6 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                       team_id: null,
                       start_date: day.fullDate,
                       end_date: day.fullDate,
-                      is_sav: note.is_sav,
                     }, {
                       onSuccess: () => toast.success('Note dupliquée'),
                       onError: () => toast.error('Erreur lors de la duplication'),
@@ -155,7 +154,6 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                   fullNotes={notes.filter(n => n.team_id === null).map(n => ({
                     id: n.id,
                     text: n.text,
-                    is_sav: n.is_sav,
                     team_id: n.team_id,
                     start_date: n.start_date,
                     end_date: n.end_date || n.start_date,

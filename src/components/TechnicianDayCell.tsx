@@ -7,9 +7,7 @@ import type { DraggedNote } from '@/hooks/useDragAndDropNote';
 interface DayNote {
   id: string;
   text: string;
-  is_sav: boolean;
   is_confirmed?: boolean;
-
 }
 
 interface TechnicianDayCellProps {
@@ -155,7 +153,6 @@ export const TechnicianDayCell = ({
                   </button>
                 )}
 
-                {note.is_sav && <span className="font-bold">SAV: </span>}
                 <span className="truncate flex-1">{note.text}</span>
               </div>
             </div>

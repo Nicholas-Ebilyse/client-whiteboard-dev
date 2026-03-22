@@ -507,28 +507,13 @@ const Index = () => {
 
 
 
-  const handleToggleNoteDisplayBelow = (noteId: string, displayBelow: boolean) => {
-    const note = notes.find(n => n.id === noteId);
-    if (!note) return;
-    saveNote.mutate({
-      id: noteId,
-      text: note.text,
-      team_id: note.team_id,
-      start_date: note.start_date,
-      end_date: note.end_date || note.start_date,
-      is_sav: note.is_sav,
-      display_below: displayBelow,
-    }, {
-      onSuccess: () => toast.success(displayBelow ? 'Note déplacée en bas' : 'Note déplacée en haut'),
-      onError: () => toast.error('Erreur lors de la mise à jour'),
-    });
+  const handleToggleNoteDisplayBelow = (_noteId: string, _displayBelow: boolean) => {
+    // display_below removed
   };
 
   // Handler for bulk toggling notes display_below
-  const handleBulkToggleNotesDisplayBelow = (noteIds: string[], displayBelow: boolean) => {
-    noteIds.forEach(noteId => {
-      handleToggleNoteDisplayBelow(noteId, displayBelow);
-    });
+  const handleBulkToggleNotesDisplayBelow = (_noteIds: string[], _displayBelow: boolean) => {
+    // display_below removed
   };
 
   // Handler for swapping assignment positions (reordering within a cell)
@@ -583,7 +568,6 @@ const Index = () => {
       text: '',
       date,
       period,
-      is_sav: false,
     });
     setGeneralNoteDialogOpen(true);
   };
@@ -598,8 +582,6 @@ const Index = () => {
       text: note.text,
       date: date,
       period: period,
-      is_sav: note.is_sav,
-
     });
     setGeneralNoteDialogOpen(true);
   };
@@ -627,7 +609,6 @@ const Index = () => {
       technician_name: teamName,
       team_id: teamId,
       date: date,
-      is_sav: false,
     });
     setTechWeekNoteDialogOpen(true);
   };
@@ -641,7 +622,6 @@ const Index = () => {
       technician_name: '',
       team_id: note.team_id,
       date: date,
-      is_sav: note.is_sav,
     });
     setTechWeekNoteDialogOpen(true);
   };
