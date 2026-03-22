@@ -40,6 +40,7 @@ export const AbsenceManagementDialog: React.FC<AbsenceManagementDialogProps> = (
   const deleteMotive = useDeleteAbsenceMotive();
 
   const [technicianId, setTechnicianId] = useState('');
+  const [filterTeamId, setFilterTeamId] = useState('ALL');
   const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [reason, setReason] = useState('');
@@ -53,7 +54,14 @@ export const AbsenceManagementDialog: React.FC<AbsenceManagementDialogProps> = (
   const activeTechnicians = technicians.filter(t => !t.is_archived);
 
   const displayedAbsences = absences
-    .filter(abs => technicianId ? abs.technician_id === technicianId : true)
+    .filter(abs => {
+      if (technicianId && abs.technician_id !== technicianId) return false;
+      if (filterTeamId !== 'ALL') {
+        const tech = technicians.find(t => t.id === abs.technician_id);
+        if (!tech || tech.team_id !== filterTeamId) return false;
+      }
+      return true;
+    })
     .sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime());
 
   const handleAdd = async () => {
@@ -272,8 +280,24 @@ export const AbsenceManagementDialog: React.FC<AbsenceManagementDialogProps> = (
         </div>
 
         {/* ── Existing absences list ── */}
-        <div className="space-y-2">
-          <h3 className="font-semibold text-sm">Absences enregistrées</h3>
+        <div className="space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <h3 className="font-semibold text-sm">Absences enregistrées</h3>
+            
+            <Select value={filterTeamId} onValueChange={setFilterTeamId}>
+              <SelectTrigger className="w-full sm:w-[220px] h-8 text-xs bg-muted/20">
+                <SelectValue placeholder="Toutes les équipes" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Toutes les équipes</SelectItem>
+                {teams.map(team => (
+                  <SelectItem key={team.id} value={team.id}>
+                    {team.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           {displayedAbsences.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">Aucune absence enregistrée.</p>
           ) : (
