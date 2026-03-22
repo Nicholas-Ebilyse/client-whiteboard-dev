@@ -677,30 +677,6 @@ const Index = () => {
     });
   };
 
-  // Returns assignments for a given team + date (full-day model, no period filter)
-  const getAssignmentsForCell = (teamId: string, date: string): Assignment[] => {
-    const dbAssignments = assignments.filter(
-      (a) => a.team_id === teamId &&
-              date >= a.start_date && date <= a.end_date
-    );
-    return dbAssignments.map(dbAssignment => {
-      const a = dbAssignment as any;
-      return {
-        id: a.id,
-        teamId: a.team_id || a.teamId,
-        commandeId: a.commande_id || a.commandeId,
-        startDate: a.start_date || a.startDate,
-        endDate: a.end_date || a.endDate,
-        isFixed: a.is_fixed ?? a.isFixed ?? false,
-        isValid: true,
-        comment: a.comment ?? undefined,
-        isConfirmed: a.is_confirmed ?? a.isConfirmed ?? false,
-        assignment_group_id: a.assignment_group_id,
-        commandes: a.commandes
-      };
-    });
-  };
-
   const allAssignmentsFormatted: Assignment[] = assignments.map(dbAssignment => {
     const a = dbAssignment as any;
     return {
@@ -731,6 +707,13 @@ const Index = () => {
         );
       })
     : allAssignmentsFormatted;
+
+  // Returns assignments for a given team + date (full-day model, no period filter)
+  const getAssignmentsForCell = (teamId: string, date: string): Assignment[] => {
+    return filteredAssignmentsFormatted.filter(
+      (a) => a.teamId === teamId && date >= a.startDate && date <= a.endDate
+    );
+  };
 
   const getNotesForCell = (teamId: string, date: string) => {
     return notes.filter((n) => {

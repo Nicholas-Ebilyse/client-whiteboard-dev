@@ -255,7 +255,7 @@ export const useSaveAssignment = () => {
       } else {
         const { data, error } = await supabase
           .from('assignments')
-          .insert(rest)
+          .insert(dbAssignment)
           .select()
           .single();
         
