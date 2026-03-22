@@ -350,8 +350,8 @@ Deno.serve(async (req) => {
       ["ID", "Equipe", "Chantier", "Date début", "Date fin", "Commentaire"],
       ...(assignments || []).map((a: any) => [
         a.id,
-        teamMap[a.team_id] || a.team_id || "Équipe Inconnue",
-        commandeMap[a.commande_id] || a.name || "",
+        a.team_id || "",
+        a.commande_id || "",
         fmtDate(a.start_date),
         fmtDate(a.end_date),
         a.comment || "",
@@ -369,10 +369,10 @@ Deno.serve(async (req) => {
       ["ID", "Technicien", "Date début", "Date fin", "Motif", "Commentaire"],
       ...(absencesData || []).map((a: any) => [
         a.id,
-        a.technician_id ? (techMap[a.technician_id] || "") : "",
+        a.technician_id || "",
         fmtDate(a.start_date),
         fmtDate(a.end_date),
-        a.motive?.name || "",
+        a.motive_id || "",
         "", // Comment is not in absences table schema
       ]),
     ];
@@ -405,10 +405,10 @@ Deno.serve(async (req) => {
       .order("start_date", { ascending: false });
 
     const noteRows: string[][] = [
-      ["ID", "Technicien", "Date", "SAV", "Confirmé", "Texte"],
+      ["ID", "Equipe", "Date", "SAV", "Confirmé", "Texte"],
       ...(notes || []).map((n: any) => [
         n.id,
-        techMap[n.technician_id] || n.technician_id || "",
+        n.team_id || "",
         fmtDate(n.start_date),
         n.is_sav ? "TRUE" : "FALSE",
         n.is_confirmed ? "TRUE" : "FALSE",

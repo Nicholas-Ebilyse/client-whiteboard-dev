@@ -206,7 +206,7 @@ const SAV_HEADERS = ['ID', 'Numéro', 'Nom du client', 'Adresse', 'Numéro de t�
 const TECHNICIENS_HEADERS = ['ID', 'Nom', 'Interim', 'Créé le'];
 const AFFECTATIONS_HEADERS = ['ID', 'Equipe', 'Chantier', 'Date début', 'Date fin', 'Commentaire'];
 const ABSENCES_HEADERS = ['ID', 'Technicien', 'Date début', 'Date fin', 'Motif', 'Commentaire'];
-const NOTES_HEADERS = ['ID', 'Technicien', 'Date', 'SAV', 'Confirmé', 'Texte'];
+const NOTES_HEADERS = ['ID', 'Equipe', 'Date', 'SAV', 'Confirmé', 'Texte'];
 const MOTIFS_HEADERS = ['ID', 'Nom', 'Créé le'];
 
 function parseDate(dateStr: string): string | null {
@@ -466,31 +466,14 @@ serve(async (req) => {
         for (let i = 1; i < assignData.length; i++) {
           const row = assignData[i];
           const id = row[iID]?.trim();
-          const workerName = row[iTech]?.trim();
+          let assignedTeamId = row[iTech]?.trim() || null;
+          let commandeId = row[iChan]?.trim() || null;
           
-          let assignedTechId = null;
-          let assignedTeamId = null;
-
-          if (workerName && techNameToObj[workerName]) {
-            assignedTechId = techNameToObj[workerName].id;
-            assignedTeamId = techNameToObj[workerName].team_id;
-          } else if (workerName && teamNameToObj[workerName]) {
-            assignedTeamId = teamNameToObj[workerName].id;
-          } else {
-            // Unmatched name or empty
-            continue;
-          }
-
-          const chantierStr = row[iChan]?.trim();
-          const commandeId = cmdMap[chantierStr] || null;
-          
-          const assignmentName = chantierStr || 'Nouvelle affectation';
-
           await supabase.from('assignments').upsert({
             id: id && id.length > 10 ? id : undefined,
             team_id: assignedTeamId,
             commande_id: commandeId,
-            name: assignmentName,
+            name: row[iChan]?.trim() || 'Nouvelle affectation',
             start_date: parseDate(row[iStart]?.trim()),
             end_date: parseDate(row[iEnd]?.trim()) || parseDate(row[iStart]?.trim()),
             comment: row[iComm]?.trim(),
@@ -553,34 +536,8 @@ serve(async (req) => {
         for (let i = 1; i < absenceData.length; i++) {
           const row = absenceData[i];
           const id = row[iID]?.trim();
-          const workerName = row[iTech]?.trim();
-
-          let assignedTechId = null;
-
-          if (workerName && techNameToObj[workerName]) {
-            assignedTechId = techNameToObj[workerName].id;
-          } else {
-            // If the name is a team, or doesn't match a technician, we must skip.
-            console.warn(`Absence import: skipping row for unknown technician '${workerName}'`);
-            continue;
-          }
-
-          const motifStr = row[iMotif]?.trim();
-          let motiveId = null;
-
-          if (motifStr) {
-            const matchedMotive = motivesArray.find(m => m.name === motifStr);
-            if (!matchedMotive) {
-                // Insert it on the fly if user manually typed it in Absences sheet
-                const { data: newMotive, error: err } = await supabase.from('absence_motives').insert({ name: motifStr }).select().single();
-                if (!err && newMotive) {
-                   motivesArray.push(newMotive);
-                   motiveId = newMotive.id;
-                }
-            } else {
-                motiveId = matchedMotive.id;
-            }
-          }
+          let assignedTechId = row[iTech]?.trim() || null;
+          let motiveId = row[iMotif]?.trim() || null;
 
           try {
             const { error } = await supabase.from('absences').upsert({
@@ -612,9 +569,9 @@ serve(async (req) => {
         const { data: techs } = await supabase.from('technicians').select('id, name');
         const techNameToObj = Object.fromEntries(techs?.map(t => [t.name, t]) || []);
 
-        const h = noteData[0];
+          const h = noteData[0];
         const iID = h.indexOf('ID');
-        const iTech = h.indexOf('Technicien');
+        const iEquipe = h.indexOf('Equipe'); // Changed from Technicien
         const iDate = h.indexOf('Date');
         const iSAV = h.indexOf('SAV');
         const iConf = h.indexOf('Confirmé');
@@ -624,17 +581,13 @@ serve(async (req) => {
           const row = noteData[i];
           const id = row[iID]?.trim();
           
-          const workerName = row[iTech]?.trim();
-          let techId = null;
-          if (workerName && techNameToObj[workerName]) {
-            techId = techNameToObj[workerName].id;
-          }
+          let teamId = row[iEquipe]?.trim() || null;
           
           if (!row[iText]?.trim()) continue; // Skip empty notes
 
           await supabase.from('notes').upsert({
             id: id && id.length > 10 ? id : undefined,
-            technician_id: techId,
+            team_id: teamId,
             start_date: parseDate(row[iDate]?.trim()),
             end_date: parseDate(row[iDate]?.trim()), // Notes currently single-day in sync
             is_sav: row[iSAV]?.toUpperCase() === 'TRUE',
