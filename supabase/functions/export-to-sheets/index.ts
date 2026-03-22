@@ -362,7 +362,7 @@ Deno.serve(async (req) => {
     // ── 5b. Absences ─────────────────────────────────────────────────────────
     const { data: absencesData } = await supabase
       .from("absences")
-      .select("*")
+      .select("*, motive:absence_motives(name)")
       .order("start_date", { ascending: false });
 
     const absenceRows: string[][] = [
@@ -372,7 +372,7 @@ Deno.serve(async (req) => {
         a.technician_id ? (techMap[a.technician_id] || "") : "",
         fmtDate(a.start_date),
         fmtDate(a.end_date),
-        a.reason || "",
+        a.motive?.name || "",
         "", // Comment is not in absences table schema
       ]),
     ];

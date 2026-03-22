@@ -315,7 +315,7 @@ export const useAbsences = (weekStart?: string, weekEnd?: string) => {
   return useQuery({
     queryKey: ['absences', weekStart, weekEnd],
     queryFn: async () => {
-      let query = supabase.from('absences').select('*');
+      let query = supabase.from('absences').select('*, absence_motives(name)');
       if (weekStart && weekEnd) {
         query = query.lte('start_date', weekEnd).gte('end_date', weekStart);
       }
@@ -330,7 +330,7 @@ export const useAbsences = (weekStart?: string, weekEnd?: string) => {
 export const useSaveAbsence = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (absence: { id?: string; technician_id: string; start_date: string; end_date: string; reason?: string }) => {
+    mutationFn: async (absence: { id?: string; technician_id: string; start_date: string; end_date: string; motive_id?: string | null }) => {
       const { id, ...rest } = absence;
       if (id) {
         const { data, error } = await supabase.from('absences').update(rest).eq('id', id).select().single();

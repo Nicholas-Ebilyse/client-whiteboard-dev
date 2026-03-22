@@ -14,6 +14,69 @@ export type Database = {
   }
   public: {
     Tables: {
+      absence_motives: {
+        Row: {
+          created_at: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      absences: {
+        Row: {
+          created_at: string | null
+          end_date: string
+          id: string
+          motive_id: string | null
+          start_date: string
+          technician_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          end_date: string
+          id?: string
+          motive_id?: string | null
+          start_date: string
+          technician_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          end_date?: string
+          id?: string
+          motive_id?: string | null
+          start_date?: string
+          technician_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "absences_motive_id_fkey"
+            columns: ["motive_id"]
+            isOneToOne: false
+            referencedRelation: "absence_motives"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "absences_technician_id_fkey"
+            columns: ["technician_id"]
+            isOneToOne: false
+            referencedRelation: "technicians"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       app_settings: {
         Row: {
           created_at: string | null

@@ -153,7 +153,7 @@ export const SendScheduleDialog = ({
                 a.technician_id === tech.id &&
                 new Date(a.start_date) <= new Date(dateInfo.fullDate) &&
                 new Date(a.end_date) >= new Date(dateInfo.fullDate)
-            )?.reason;
+            )?.absence_motives?.name;
 
             const cellContent = [
               ...(isTechAbsent ? [`ABSENCE${absenceReason ? ' - ' + absenceReason : ''}`] : []),

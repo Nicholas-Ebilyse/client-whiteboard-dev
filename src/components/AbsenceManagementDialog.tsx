@@ -43,7 +43,7 @@ export const AbsenceManagementDialog: React.FC<AbsenceManagementDialogProps> = (
   const [filterTeamId, setFilterTeamId] = useState('ALL');
   const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [reason, setReason] = useState('');
+  const [motiveId, setMotiveId] = useState('');
 
   // Motif management state
   const [showMotiveManager, setShowMotiveManager] = useState(false);
@@ -74,12 +74,12 @@ export const AbsenceManagementDialog: React.FC<AbsenceManagementDialogProps> = (
       return;
     }
     try {
-      await saveAbsence.mutateAsync({ technician_id: technicianId, start_date: startDate, end_date: endDate, reason: reason || undefined });
+      await saveAbsence.mutateAsync({ technician_id: technicianId, start_date: startDate, end_date: endDate, motive_id: motiveId || undefined });
       toast.success('Absence enregistrée');
       setTechnicianId('');
       setStartDate('');
       setEndDate('');
-      setReason('');
+      setMotiveId('');
     } catch {
       toast.error("Erreur lors de l'enregistrement");
     }
@@ -129,7 +129,7 @@ export const AbsenceManagementDialog: React.FC<AbsenceManagementDialogProps> = (
     try {
       await deleteMotive.mutateAsync(id);
       toast.success('Motif supprimé');
-      if (reason === name) setReason('');
+      if (motiveId === id) setMotiveId('');
     } catch {
       toast.error('Erreur lors de la suppression');
     }
@@ -201,9 +201,9 @@ export const AbsenceManagementDialog: React.FC<AbsenceManagementDialogProps> = (
                   <Button
                     key={motive.id}
                     type="button"
-                    variant={reason === motive.name ? "default" : "outline"}
+                    variant={motiveId === motive.id ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setReason(reason === motive.name ? '' : motive.name)}
+                    onClick={() => setMotiveId(motiveId === motive.id ? '' : motive.id)}
                     className="text-xs h-8"
                   >
                     {motive.name}
@@ -309,7 +309,7 @@ export const AbsenceManagementDialog: React.FC<AbsenceManagementDialogProps> = (
                     <span className="text-xs text-muted-foreground">
                       {formatDate(abs.start_date)}
                       {abs.end_date !== abs.start_date ? ` → ${formatDate(abs.end_date)}` : ''}
-                      {abs.reason ? ` · ${abs.reason}` : ''}
+                      {(abs as any).absence_motives?.name ? ` · ${(abs as any).absence_motives.name}` : ''}
                     </span>
                   </div>
                   <Button

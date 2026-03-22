@@ -24,7 +24,8 @@ type AbsenceRow = {
   technician_id: string;
   start_date: string;
   end_date: string;
-  reason?: string | null;
+  motive_id?: string | null;
+  absence_motives?: { name: string } | null;
 };
 
 type TechnicianRow = {

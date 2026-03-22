@@ -500,17 +500,47 @@ serve(async (req) => {
       }
     } catch (e) { console.error('Assignment sync error:', e); }
     
-    // ── 5b. Absences ─────────────────────────────────────────────────────────
+    // ── 5b. Motifs ─────────────────────────────────────────────────────────────
+    let motifCount = 0;
+    try {
+      await ensureHeaders(spreadsheetId, 'Motifs', MOTIFS_HEADERS, accessToken);
+      const motifData = await fetchSheetData(spreadsheetId, 'Motifs', accessToken);
+      if (motifData.length > 1) {
+        const h = motifData[0];
+        const iID = h.indexOf('ID');
+        const iNom = h.indexOf('Nom');
+
+        for (let i = 1; i < motifData.length; i++) {
+          const row = motifData[i];
+          const id = row[iID]?.trim();
+          const name = row[iNom]?.trim();
+          if (!name) continue;
+
+          // If ID is a valid UUID, upsert by ID; otherwise insert by name (new row from Sheets)
+          const isUuid = id && /^[0-9a-f-]{36}$/i.test(id);
+          if (isUuid) {
+            await supabase.from('absence_motives').upsert({ id, name }, { onConflict: 'id' });
+          } else {
+            // New motive added directly in Sheets — insert it (skip if name already exists)
+            await supabase.from('absence_motives').upsert({ name }, { onConflict: 'name' });
+          }
+          motifCount++;
+        }
+      }
+    } catch (e) { console.error('Motif sync error:', e); }
+
+    // Fetch all motives into a map for Absences mapping
+    const { data: allMotives } = await supabase.from('absence_motives').select('id, name');
+    const motivesArray = allMotives || [];
+
+    // ── 5c. Absences ─────────────────────────────────────────────────────────
     let absenceCount = 0;
     try {
       await ensureHeaders(spreadsheetId, 'Absences', ABSENCES_HEADERS, accessToken);
       const absenceData = await fetchSheetData(spreadsheetId, 'Absences', accessToken);
       if (absenceData.length > 1) {
         const { data: techs } = await supabase.from('technicians').select('id, name, team_id');
-        const { data: allTeams } = await supabase.from('teams').select('id, name');
-        
         const techNameToObj = Object.fromEntries(techs?.map(t => [t.name, t]) || []);
-        const teamNameToObj = Object.fromEntries(allTeams?.map(t => [t.name, t]) || []);
         
         const h = absenceData[0];
         const iID = h.indexOf('ID');
@@ -536,6 +566,21 @@ serve(async (req) => {
           }
 
           const motifStr = row[iMotif]?.trim();
+          let motiveId = null;
+
+          if (motifStr) {
+            const matchedMotive = motivesArray.find(m => m.name === motifStr);
+            if (!matchedMotive) {
+                // Insert it on the fly if user manually typed it in Absences sheet
+                const { data: newMotive, error: err } = await supabase.from('absence_motives').insert({ name: motifStr }).select().single();
+                if (!err && newMotive) {
+                   motivesArray.push(newMotive);
+                   motiveId = newMotive.id;
+                }
+            } else {
+                motiveId = matchedMotive.id;
+            }
+          }
 
           try {
             const { error } = await supabase.from('absences').upsert({
@@ -543,7 +588,7 @@ serve(async (req) => {
               technician_id: assignedTechId,
               start_date: parseDate(row[iStart]?.trim()),
               end_date: parseDate(row[iEnd]?.trim()) || parseDate(row[iStart]?.trim()),
-              reason: motifStr || 'Absence',
+              motive_id: motiveId,
             }, { onConflict: 'id' });
             
             if (error) {
@@ -600,35 +645,6 @@ serve(async (req) => {
         }
       }
     } catch (e) { console.error('Note sync error:', e); }
-
-    // ── 7. Motifs ─────────────────────────────────────────────────────────────
-    let motifCount = 0;
-    try {
-      await ensureHeaders(spreadsheetId, 'Motifs', MOTIFS_HEADERS, accessToken);
-      const motifData = await fetchSheetData(spreadsheetId, 'Motifs', accessToken);
-      if (motifData.length > 1) {
-        const h = motifData[0];
-        const iID = h.indexOf('ID');
-        const iNom = h.indexOf('Nom');
-
-        for (let i = 1; i < motifData.length; i++) {
-          const row = motifData[i];
-          const id = row[iID]?.trim();
-          const name = row[iNom]?.trim();
-          if (!name) continue;
-
-          // If ID is a valid UUID, upsert by ID; otherwise insert by name (new row from Sheets)
-          const isUuid = id && /^[0-9a-f-]{36}$/i.test(id);
-          if (isUuid) {
-            await supabase.from('absence_motives').upsert({ id, name }, { onConflict: 'id' });
-          } else {
-            // New motive added directly in Sheets — insert it (skip if name already exists)
-            await supabase.from('absence_motives').upsert({ name }, { onConflict: 'name' });
-          }
-          motifCount++;
-        }
-      }
-    } catch (e) { console.error('Motif sync error:', e); }
 
     // Always mark sync status as success
     const totalCount = techCount + commandesCount + savCount + assignmentCount + absenceCount + noteCount + motifCount;
