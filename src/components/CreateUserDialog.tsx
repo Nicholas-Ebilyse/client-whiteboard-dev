@@ -54,8 +54,17 @@ export function CreateUserDialog({ open, onOpenChange, onUserCreated }: CreateUs
         }
       });
 
-      if (error) throw error;
-      if (!data.success) throw new Error(data.error || "Erreur lors de la création de l'utilisateur");
+      if (error) {
+        let errorMessage = error instanceof Error ? error.message : String(error);
+        if (error instanceof Error && error.name === 'FunctionsHttpError' && 'context' in error) {
+          const context = error.context as Response;
+          const errorBody = await context.json().catch(() => null);
+          errorMessage = errorBody?.error || errorBody?.message || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
+
+      if (!data?.success) throw new Error(data?.error || "Erreur lors de la création de l'utilisateur");
 
       toast.success(`Compte créé avec succès pour ${email}`);
       setEmail("");
@@ -63,9 +72,10 @@ export function CreateUserDialog({ open, onOpenChange, onUserCreated }: CreateUs
       setRole("user");
       onUserCreated();
       onOpenChange(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error creating user:", error);
-      toast.error(error.message || "Erreur lors de la création du compte");
+      const err = error as Error;
+      toast.error(err.message || "Erreur lors de la création du compte");
     } finally {
       setIsCreating(false);
     }
