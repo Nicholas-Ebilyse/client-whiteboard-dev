@@ -206,7 +206,7 @@ const SAV_HEADERS = ['ID', 'Numéro', 'Nom du client', 'Adresse', 'Numéro de t�
 const TECHNICIENS_HEADERS = ['ID', 'Nom', 'Interim', 'Créé le'];
 const AFFECTATIONS_HEADERS = ['ID', 'Equipe', 'Chantier', 'Date début', 'Date fin', 'Commentaire'];
 const ABSENCES_HEADERS = ['ID', 'Technicien', 'Date début', 'Date fin', 'Motif', 'Commentaire'];
-const NOTES_HEADERS = ['ID', 'Equipe', 'Date', 'SAV', 'Confirmé', 'Texte'];
+const NOTES_HEADERS = ['ID', 'Equipe', 'Date', 'SAV', 'Texte'];
 const MOTIFS_HEADERS = ['ID', 'Nom', 'Créé le'];
 
 function parseDate(dateStr: string): string | null {
@@ -575,12 +575,11 @@ serve(async (req) => {
         const { data: techs } = await supabase.from('technicians').select('id, name');
         const techNameToObj = Object.fromEntries(techs?.map(t => [t.name, t]) || []);
 
-          const h = noteData[0];
+        const h = noteData[0];
         const iID = h.indexOf('ID');
         const iEquipe = h.indexOf('Equipe'); // Changed from Technicien
         const iDate = h.indexOf('Date');
         const iSAV = h.indexOf('SAV');
-        const iConf = h.indexOf('Confirmé');
         const iText = h.indexOf('Texte');
 
         for (let i = 1; i < noteData.length; i++) {
@@ -597,7 +596,6 @@ serve(async (req) => {
             start_date: parseDate(row[iDate]?.trim()),
             end_date: parseDate(row[iDate]?.trim()), // Notes currently single-day in sync
             is_sav: row[iSAV]?.toUpperCase() === 'TRUE',
-            is_confirmed: row[iConf]?.toUpperCase() === 'TRUE',
             text: row[iText]?.trim(),
           }, { onConflict: 'id' });
           noteCount++;

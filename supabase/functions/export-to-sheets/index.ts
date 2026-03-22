@@ -407,13 +407,12 @@ Deno.serve(async (req) => {
       .order("start_date", { ascending: false });
 
     const noteRows: string[][] = [
-      ["ID", "Equipe", "Date", "SAV", "Confirmé", "Texte"],
+      ["ID", "Equipe", "Date", "SAV", "Texte"],
       ...(notes || []).map((n: any) => [
         n.id,
         n.team_id || "",
         fmtDate(n.start_date),
         n.is_sav ? "TRUE" : "FALSE",
-        n.is_confirmed ? "TRUE" : "FALSE",
         n.text || "",
       ]),
     ];
