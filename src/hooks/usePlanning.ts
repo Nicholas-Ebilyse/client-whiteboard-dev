@@ -294,7 +294,7 @@ export const useSaveNote = () => {
   
   return useMutation({
     mutationFn: async (note: any) => {
-      const { id, ...rest } = note;
+      const { id, is_confirmed, isConfirmed, ...rest } = note;
       
       if (id && !id.startsWith('new-')) {
         const { data, error } = await supabase
