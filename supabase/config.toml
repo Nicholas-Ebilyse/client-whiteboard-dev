@@ -19,6 +19,9 @@ verify_jwt = false
 [functions.export-to-sheets]
 verify_jwt = false
 
+[functions.create-user]
+verify_jwt = false
+
 [functions.nightly-sync-orchestrator]
 enabled = true
 verify_jwt = true
