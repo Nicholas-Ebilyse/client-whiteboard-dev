@@ -7,19 +7,19 @@ export interface DraggedNote {
   id: string;
   text: string;
   is_sav: boolean;
-  technician_id: string | null;
+  team_id: string | null;
   start_date: string;
   end_date: string;
 }
 
 interface NoteDropTarget {
-  technicianId: string | null;
+  teamId: string | null;
   date: string;
 }
 
 interface NoteUndoState {
   id: string;
-  technician_id: string | null;
+  team_id: string | null;
   start_date: string;
   end_date: string;
 }
@@ -50,7 +50,7 @@ export const useDragAndDropNote = () => {
       const { error } = await supabase
         .from('notes')
         .update({
-          technician_id: noteUndoState.technician_id,
+          team_id: noteUndoState.team_id,
           start_date: noteUndoState.start_date,
           end_date: noteUndoState.end_date,
         })
@@ -85,7 +85,7 @@ export const useDragAndDropNote = () => {
 
   const handleNoteDragOver = useCallback((
     e: React.DragEvent,
-    technicianId: string | null,
+    teamId: string | null,
     date: string
   ) => {
     // Only handle if we're dragging a note
@@ -93,7 +93,7 @@ export const useDragAndDropNote = () => {
     
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    setNoteDropTarget({ technicianId, date });
+    setNoteDropTarget({ teamId, date });
   }, []);
 
   const handleNoteDragLeave = useCallback(() => {
@@ -102,7 +102,7 @@ export const useDragAndDropNote = () => {
 
   const handleNoteDrop = useCallback(async (
     e: React.DragEvent,
-    targetTechnicianId: string | null,
+    targetTeamId: string | null,
     targetDate: string,
     preserveDuration: boolean = true
   ) => {
@@ -117,7 +117,7 @@ export const useDragAndDropNote = () => {
       // Save state for undo
       setNoteUndoState({
         id: note.id,
-        technician_id: note.technician_id,
+        team_id: note.team_id,
         start_date: note.start_date,
         end_date: note.end_date,
       });
@@ -143,7 +143,7 @@ export const useDragAndDropNote = () => {
       const { error } = await supabase
         .from('notes')
         .update({
-          technician_id: targetTechnicianId,
+          team_id: targetTeamId,
           start_date: targetDate,
           end_date: endDate,
         })

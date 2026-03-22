@@ -147,7 +147,7 @@ export type Database = {
           period: string
           start_date: string
           start_period: string
-          technician_id: string | null
+          team_id: string | null
           text: string
           updated_at: string | null
         }
@@ -163,7 +163,7 @@ export type Database = {
           period: string
           start_date: string
           start_period?: string
-          technician_id?: string | null
+          team_id?: string | null
           text: string
           updated_at?: string | null
         }
@@ -179,16 +179,16 @@ export type Database = {
           period?: string
           start_date?: string
           start_period?: string
-          technician_id?: string | null
+          team_id?: string | null
           text?: string
           updated_at?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "notes_technician_id_fkey"
-            columns: ["technician_id"]
+            foreignKeyName: "notes_team_id_fkey"
+            columns: ["team_id"]
             isOneToOne: false
-            referencedRelation: "technicians"
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
         ]

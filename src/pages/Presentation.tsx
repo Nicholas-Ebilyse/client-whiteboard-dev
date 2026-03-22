@@ -159,7 +159,7 @@ const Presentation = () => {
 
   const getGeneralNotesForDate = (date: string) => {
     return notes.filter(n => {
-      if (n.technician_id !== null) return false;
+      if (n.team_id !== null) return false;
       return date >= n.start_date && date <= (n.end_date || n.start_date);
     });
   };

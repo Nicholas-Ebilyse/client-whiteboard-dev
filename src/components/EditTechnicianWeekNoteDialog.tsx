@@ -5,34 +5,32 @@ import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
 import { Checkbox } from './ui/checkbox';
 import { toast } from 'sonner';
-import { format, parseISO, addDays, startOfWeek } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Copy } from 'lucide-react';
 
-interface Technician {
+interface Team {
   id: string;
   name: string;
-  team_id?: string;
 }
 
-interface EditTechnicianWeekNoteDialogProps {
+interface EditTeamNoteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   note: { 
     id?: string; 
     text: string; 
-    technician_id: string;
-    technician_name: string;
+    technician_id?: string; // kept for backward compat during state passing, ignored on save
+    technician_name?: string;
     team_id?: string;
     date: string;
     is_sav?: boolean;
     is_confirmed?: boolean;
-
   } | null;
-  onSave: (note: any) => void;
+  onSave: (note: Record<string, unknown>) => void;
   onDelete?: (id: string) => void;
-  onDuplicate?: (notes: any[]) => void;
-  technicians?: Technician[];
+  onDuplicate?: (notes: Record<string, unknown>[]) => void;
+  technicians?: Team[]; // kept for backward compat with interface; used as teams list
   weekDates?: string[];
 }
 
@@ -43,37 +41,31 @@ export const EditTechnicianWeekNoteDialog = ({
   onSave, 
   onDelete,
   onDuplicate,
-  technicians = [],
+  technicians: teams = [],
   weekDates = [],
-}: EditTechnicianWeekNoteDialogProps) => {
+}: EditTeamNoteDialogProps) => {
   const [text, setText] = useState('');
   const [isSav, setIsSav] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
-
   const [showDuplicateOptions, setShowDuplicateOptions] = useState(false);
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
-  const [selectedTechnicians, setSelectedTechnicians] = useState<string[]>([]);
-  const [selectedTechId, setSelectedTechId] = useState('');
+  const [selectedTeams, setSelectedTeams] = useState<string[]>([]);
 
   useEffect(() => {
     if (note) {
       setText(note.text);
       setIsSav(note.is_sav || false);
       setIsConfirmed(note.is_confirmed || false);
-
       setShowDuplicateOptions(false);
       setSelectedDays([]);
-      setSelectedTechnicians([]);
-      setSelectedTechId(note.technician_id || '');
+      setSelectedTeams([]);
     } else {
       setText('');
       setIsSav(false);
       setIsConfirmed(false);
-
       setShowDuplicateOptions(false);
       setSelectedDays([]);
-      setSelectedTechnicians([]);
-      setSelectedTechId('');
+      setSelectedTeams([]);
     }
   }, [note]);
 
@@ -86,7 +78,7 @@ export const EditTechnicianWeekNoteDialog = ({
     onSave({
       id: note?.id,
       text: text.trim(),
-      technician_id: selectedTechId || note?.technician_id,
+      team_id: note?.team_id || null,
       start_date: note?.date,
       end_date: note?.date,
       period: 'Matin',
@@ -94,7 +86,6 @@ export const EditTechnicianWeekNoteDialog = ({
       end_period: 'Après-midi',
       is_sav: isSav,
       is_confirmed: isConfirmed,
-
     });
     onOpenChange(false);
   };
@@ -112,26 +103,21 @@ export const EditTechnicianWeekNoteDialog = ({
       return;
     }
 
-    if (selectedDays.length === 0 && selectedTechnicians.length === 0) {
-      toast.error('Sélectionnez au moins un jour ou un technicien');
+    if (selectedDays.length === 0 && selectedTeams.length === 0) {
+      toast.error('Sélectionnez au moins un jour ou une équipe');
       return;
     }
 
-    const notesToCreate: any[] = [];
-    
-    // Get days to duplicate to
+    const notesToCreate: Record<string, unknown>[] = [];
     const targetDays = selectedDays.length > 0 ? selectedDays : [note?.date || ''];
-    // Get technicians to duplicate to  
-    const targetTechs = selectedTechnicians.length > 0 ? selectedTechnicians : [note?.technician_id || ''];
+    const targetTeams = selectedTeams.length > 0 ? selectedTeams : [note?.team_id || ''];
 
     for (const day of targetDays) {
-      for (const techId of targetTechs) {
-        // Skip the original note
-        if (day === note?.date && techId === note?.technician_id) continue;
-        
+      for (const teamId of targetTeams) {
+        if (day === note?.date && teamId === note?.team_id) continue;
         notesToCreate.push({
           text: text.trim(),
-          technician_id: techId,
+          team_id: teamId,
           start_date: day,
           end_date: day,
           period: 'Matin',
@@ -139,7 +125,6 @@ export const EditTechnicianWeekNoteDialog = ({
           end_period: 'Après-midi',
           is_sav: isSav,
           is_confirmed: isConfirmed,
-
         });
       }
     }
@@ -156,15 +141,11 @@ export const EditTechnicianWeekNoteDialog = ({
   };
 
   const toggleDay = (day: string) => {
-    setSelectedDays(prev => 
-      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
-    );
+    setSelectedDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]);
   };
 
-  const toggleTechnician = (techId: string) => {
-    setSelectedTechnicians(prev => 
-      prev.includes(techId) ? prev.filter(t => t !== techId) : [...prev, techId]
-    );
+  const toggleTeam = (teamId: string) => {
+    setSelectedTeams(prev => prev.includes(teamId) ? prev.filter(t => t !== teamId) : [...prev, teamId]);
   };
 
   const formatDate = (dateStr: string) => {
@@ -183,9 +164,9 @@ export const EditTechnicianWeekNoteDialog = ({
     }
   };
 
-  // Filter out current day/technician from options
+  const currentTeamName = teams.find(t => t.id === note?.team_id)?.name || note?.technician_name || '';
   const otherDays = weekDates.filter(d => d !== note?.date);
-  const otherTechnicians = technicians.filter(t => t.id !== note?.technician_id);
+  const otherTeams = teams.filter(t => t.id !== note?.team_id);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -193,28 +174,13 @@ export const EditTechnicianWeekNoteDialog = ({
         <DialogHeader>
           <DialogTitle>{note?.id ? 'Modifier la note' : 'Nouvelle note'}</DialogTitle>
           <DialogDescription>
-            {note?.id ? 
-              `Note pour ${note?.technician_name} - ${note?.date ? formatDate(note.date) : ''}` 
+            {currentTeamName 
+              ? `Note pour ${currentTeamName} - ${note?.date ? formatDate(note.date) : ''}`
               : `Nouvelle note pour le ${note?.date ? formatDate(note.date) : ''}`
             }
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
-          {!note?.id && note?.team_id && technicians.filter(t => t.team_id === note.team_id).length > 0 ? (
-            <div className="space-y-2">
-              <Label>Concerne (Technicien)</Label>
-              <select 
-                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={selectedTechId} 
-                onChange={e => setSelectedTechId(e.target.value)}
-              >
-                {technicians.filter(t => t.team_id === note.team_id).map(t => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
-            </div>
-          ) : null}
-
           <div className="flex items-center space-x-4 flex-wrap gap-y-2">
             <div className="flex items-center space-x-2">
               <Checkbox 
@@ -232,7 +198,6 @@ export const EditTechnicianWeekNoteDialog = ({
               />
               <label htmlFor="confirmed" className="text-sm cursor-pointer">Confirmé</label>
             </div>
-
           </div>
           
           <div className="space-y-2">
@@ -248,7 +213,7 @@ export const EditTechnicianWeekNoteDialog = ({
           </div>
 
           {/* Duplicate options */}
-          {(otherDays.length > 0 || otherTechnicians.length > 0) && (
+          {(otherDays.length > 0 || otherTeams.length > 0) && (
             <div className="border-t pt-4">
               <Button
                 type="button"
@@ -263,7 +228,6 @@ export const EditTechnicianWeekNoteDialog = ({
 
               {showDuplicateOptions && (
                 <div className="mt-4 space-y-4">
-                  {/* Days selection */}
                   {otherDays.length > 0 && (
                     <div className="space-y-2">
                       <Label className="text-sm text-muted-foreground">Autres jours de la semaine</Label>
@@ -284,28 +248,27 @@ export const EditTechnicianWeekNoteDialog = ({
                     </div>
                   )}
 
-                  {/* Technicians selection */}
-                  {otherTechnicians.length > 0 && (
+                  {otherTeams.length > 0 && (
                     <div className="space-y-2">
-                      <Label className="text-sm text-muted-foreground">Autres techniciens</Label>
+                      <Label className="text-sm text-muted-foreground">Autres équipes</Label>
                       <div className="flex flex-wrap gap-2">
-                        {otherTechnicians.map(tech => (
+                        {otherTeams.map(team => (
                           <Button
-                            key={tech.id}
+                            key={team.id}
                             type="button"
-                            variant={selectedTechnicians.includes(tech.id) ? "default" : "outline"}
+                            variant={selectedTeams.includes(team.id) ? "default" : "outline"}
                             size="sm"
-                            onClick={() => toggleTechnician(tech.id)}
+                            onClick={() => toggleTeam(team.id)}
                             className="text-xs"
                           >
-                            {tech.name}
+                            {team.name}
                           </Button>
                         ))}
                       </div>
                     </div>
                   )}
 
-                  {(selectedDays.length > 0 || selectedTechnicians.length > 0) && (
+                  {(selectedDays.length > 0 || selectedTeams.length > 0) && (
                     <Button
                       type="button"
                       onClick={handleDuplicate}
@@ -313,7 +276,7 @@ export const EditTechnicianWeekNoteDialog = ({
                       variant="secondary"
                     >
                       <Copy className="h-4 w-4" />
-                      Créer {Math.max(1, selectedDays.length || 1) * Math.max(1, selectedTechnicians.length || 1) - (selectedDays.length === 0 && selectedTechnicians.length === 0 ? 1 : 0)} copie(s)
+                      Créer {Math.max(1, selectedDays.length || 1) * Math.max(1, selectedTeams.length || 1)} copie(s)
                     </Button>
                   )}
                 </div>

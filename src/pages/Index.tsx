@@ -517,7 +517,7 @@ const Index = () => {
     saveNote.mutate({
       id: noteId,
       text: note.text,
-      technician_id: note.technician_id,
+      team_id: note.team_id,
       start_date: note.start_date,
       end_date: note.end_date || note.start_date,
       is_sav: note.is_sav,
@@ -534,7 +534,7 @@ const Index = () => {
     saveNote.mutate({
       id: noteId,
       text: note.text,
-      technician_id: note.technician_id,
+      team_id: note.team_id,
       start_date: note.start_date,
       end_date: note.end_date || note.start_date,
       is_sav: note.is_sav,
@@ -643,13 +643,13 @@ const Index = () => {
     });
   };
 
-  // Handler for adding day notes for a specific team (per day, not week)
+  // Handler for adding day notes for a specific team (per day)
   const handleAddTechDayNote = (teamId: string, teamName: string, date: string) => {
     setSelectedTechWeekNote({
       id: '',
       text: '',
       technician_id: '',
-      technician_name: '',
+      technician_name: teamName,
       team_id: teamId,
       date: date,
       is_sav: false,
@@ -657,17 +657,17 @@ const Index = () => {
     setTechWeekNoteDialogOpen(true);
   };
 
-  // Handler for clicking on an existing technician day note
-  const handleTechDayNoteClick = (note: any, technicianId: string, technicianName: string, date: string) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+  // Handler for clicking on an existing team day note
+  const handleTechDayNoteClick = (note: any, _technicianId: string, _technicianName: string, date: string) => { // eslint-disable-line @typescript-eslint/no-explicit-any
     setSelectedTechWeekNote({
       id: note.id,
       text: note.text,
-      technician_id: technicianId,
-      technician_name: technicianName,
+      technician_id: '',
+      technician_name: '',
+      team_id: note.team_id,
       date: date,
       is_sav: note.is_sav,
       is_confirmed: note.is_confirmed,
-
     });
     setTechWeekNoteDialogOpen(true);
   };
@@ -686,18 +686,18 @@ const Index = () => {
     });
   };
 
-  // Get general notes for a specific date (notes without technician_id)
+  // Get general notes for a specific date (notes without team_id)
   const getGeneralNotesForDate = (date: string) => {
     return notes.filter((n) => {
-      if (n.technician_id !== null) return false;
+      if (n.team_id !== null) return false;
       const noteEndDate = n.end_date || n.start_date;
       return date >= n.start_date && date <= noteEndDate;
     });
   };
 
-  const getDayNotesForTechnician = (technicianId: string, date: string) => {
+  const getDayNotesForTechnician = (teamId: string, date: string) => {
     return notes.filter((n) => {
-      if (n.technician_id !== technicianId) return false;
+      if (n.team_id !== teamId) return false;
       const noteEndDate = n.end_date || n.start_date;
       return n.start_date === date && noteEndDate === date;
     });
@@ -751,16 +751,12 @@ const Index = () => {
       })
     : allAssignmentsFormatted;
 
-  const getNotesForCell = (technicianId: string, date: string) => {
+  const getNotesForCell = (teamId: string, date: string) => {
     return notes.filter((n) => {
-      if (n.technician_id !== technicianId) return false;
-      
-      const cellDate = date;
+      if (n.team_id !== teamId) return false;
       const noteStartDate = n.start_date;
       const noteEndDate = n.end_date || n.start_date;
-      
-      // If cell date falls within the note's date range, return true
-      return cellDate >= noteStartDate && cellDate <= noteEndDate;
+      return date >= noteStartDate && date <= noteEndDate;
     });
   };
 
@@ -958,7 +954,7 @@ const Index = () => {
             });
             toast.success(`${notes.length} note(s) créée(s)`);
           }}
-          technicians={activeTechnicians.map((t) => ({ id: t.id, name: t.name }))}
+          technicians={teams.map((t) => ({ id: t.id, name: t.name }))}
           weekDates={weekDates.map(d => d.fullDate)}
         />
 

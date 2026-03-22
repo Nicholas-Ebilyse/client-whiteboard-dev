@@ -141,7 +141,7 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                   onNoteDuplicate={(note) => {
                     saveNote.mutate({
                       text: note.text,
-                      technician_id: null,
+                      team_id: null,
                       start_date: day.fullDate,
                       end_date: day.fullDate,
                       is_sav: note.is_sav,
@@ -152,11 +152,11 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                   }}
                   onNoteDelete={handleDeleteNote}
                   onNoteToggleConfirm={isAdmin ? handleToggleNoteConfirm : undefined}
-                  fullNotes={notes.filter(n => n.technician_id === null).map(n => ({
+                  fullNotes={notes.filter(n => n.team_id === null).map(n => ({
                     id: n.id,
                     text: n.text,
                     is_sav: n.is_sav,
-                    technician_id: n.technician_id,
+                    team_id: n.team_id,
                     start_date: n.start_date,
                     end_date: n.end_date || n.start_date,
                   }))}
@@ -228,8 +228,7 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                 const absentTechNames = absentTechs.map(t => t.name);
                 const cellAssignments = getAssignmentsForCell(team.id, day.fullDate);
                 const cellNotes = notes.filter(n => 
-                  n.technician_id && 
-                  teamTechs.some(tech => tech.id === n.technician_id) && 
+                  n.team_id === team.id && 
                   n.start_date <= day.fullDate && 
                   (n.end_date || n.start_date) >= day.fullDate
                 );
@@ -275,8 +274,7 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                       onNoteClick={handleTechDayNoteClick ? (noteId) => {
                         const note = cellNotes.find(n => n.id === noteId);
                         if (note) {
-                          const techName = activeTechnicians.find(t => t.id === note.technician_id)?.name || '';
-                          handleTechDayNoteClick(note, note.technician_id || '', techName, day.fullDate);
+                          handleTechDayNoteClick(note, note.team_id || '', team.name, day.fullDate);
                         }
                       } : undefined}
                       onAddNote={isAdmin && !teamIsUnavailable && handleAddTechDayNote ? () => handleAddTechDayNote(team.id, team.name, day.fullDate) : undefined}
