@@ -165,7 +165,6 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
             );
           })}
         </div>
-        </div>
 
         {/* ── Team Rows ── */}
         <div className="flex-1 flex flex-col min-h-[600px]">
@@ -304,6 +303,7 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
           );
         })}
       </div>
+    </div>
     </div>
   );
 };
