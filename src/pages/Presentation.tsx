@@ -175,9 +175,9 @@ const Presentation = () => {
   const month = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'][weekStart.getMonth()];
 
   return (
-    <div className="min-h-screen bg-background p-4 relative">
+    <div className="h-screen bg-background p-4 flex flex-col relative overflow-hidden">
       {/* Floating Header */}
-      <div className="flex items-center justify-between mb-4 px-2">
+      <div className="flex items-center justify-between mb-4 px-2 shrink-0">
         <h1 className="text-3xl font-bold tracking-tight text-primary/80">
           Planning des équipes • Semaine {weekConfig.week_number} • {month} {weekConfig.year}
         </h1>
@@ -188,8 +188,8 @@ const Presentation = () => {
         </div>
       </div>
 
-      <Card className="border-2 shadow-xl overflow-hidden bg-card/50 backdrop-blur-sm">
-        <CardContent className="p-0 max-h-[calc(100vh-8rem)] overflow-y-auto pointer-events-none">
+      <Card className="border-2 shadow-xl bg-card/50 backdrop-blur-sm flex-1 flex flex-col min-h-0 overflow-hidden">
+        <CardContent className="p-0 flex-1 flex flex-col relative overflow-hidden pointer-events-none">
           {/* pointer-events-none disables all clicking, dragging, and hover effects entirely */}
           <WeeklyGrid
             displayTeams={displayTeams}

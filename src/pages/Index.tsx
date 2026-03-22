@@ -858,7 +858,7 @@ const Index = () => {
                 setAbsenceManagementOpen={setAbsenceManagementOpen}
                 onOpenSearchModal={() => setSearchModalOpen(true)}
               />
-              <CardContent className="p-0 max-h-[calc(100vh-12rem)] overflow-y-auto">
+              <CardContent className="p-0 h-[calc(100vh-12rem)] flex flex-col relative overflow-hidden">
                 <WeeklyGrid
                   displayTeams={displayTeams}
                   activeTechnicians={activeTechnicians}

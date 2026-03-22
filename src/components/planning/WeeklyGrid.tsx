@@ -114,11 +114,11 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
   handleNoteClick,
 }) => {
   return (
-    <div className="overflow-x-auto pb-8">
-      <div className="min-w-[1200px] lg:min-w-0">
+    <div className="overflow-x-auto pb-0 flex-1 flex flex-col min-h-0 overflow-y-auto">
+      <div className="min-w-[1200px] lg:min-w-0 flex-1 flex flex-col">
         {/* ── Header Row (Days) ── */}
         <div
-          className="grid border-b-2 border-border bg-muted/50"
+          className="grid border-b-2 border-border bg-muted/50 shrink-0"
           style={{ gridTemplateColumns: `220px repeat(${weekDates.length}, minmax(200px, 1fr))` }}
         >
           {/* Top-left admin cell (Blank) */}
@@ -164,16 +164,18 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
             );
           })}
         </div>
+        </div>
 
         {/* ── Team Rows ── */}
-        {displayTeams.map((team) => {
-          // Technicians belonging to this team
-          const teamTechs = activeTechnicians.filter(t => t.team_id === team.id);
+        <div className="flex-1 flex flex-col min-h-[600px]">
+          {displayTeams.map((team) => {
+            // Technicians belonging to this team
+            const teamTechs = activeTechnicians.filter(t => t.team_id === team.id);
 
-          return (
-            <div
-              key={team.id}
-              className="grid border-b border-border transition-colors"
+            return (
+              <div
+                key={team.id}
+                className="grid border-b border-border transition-colors flex-1"
               style={{ 
                 gridTemplateColumns: `220px repeat(${weekDates.length}, minmax(200px, 1fr))`,
                 backgroundColor: getPastelColor(team.color)
@@ -247,7 +249,7 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                       isPreview ? 'bg-primary/5' : '',
                     ].join(' ')}
                     style={{ 
-                      minHeight: '120px', 
+                      minHeight: 'auto', 
                       backgroundColor: team.color && !teamIsUnavailable && !isPreview ? getPastelColor(team.color) : undefined 
                     }}
                     onDragOver={isAdmin && !teamIsUnavailable ? (e) => handleDragOver(e, team.id, day.fullDate) : undefined}
