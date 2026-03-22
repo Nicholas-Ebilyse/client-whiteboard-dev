@@ -100,13 +100,25 @@ const getAssignmentDisplayName = (assignment: Assignment, commandes: Commande[])
   const commande = commandes.find(c => c.id === assignment.commandeId);
   if (!commande) return assignment.name;
   
-  // Format address to remove ", France"
-  // Return only the client and chantier name/reference (not the full address)
-  // Assuming commande.chantier holds the address/name, but they want it simplified.
-  // Actually, we'll just return commande.client if there's no specific name, or we adjust to not show the full address string.
-  // Let's just return `${commande.client} - ${commande.chantier.split(',')[0]} ` to simplify it.
-  const shortChantier = commande.chantier?.split(',')[0] || '';
-  return `${commande.client}${shortChantier ? ` - ${shortChantier}` : ''}`;
+  // Format client name: max 2 words
+  const clientWords = (commande.client || '').trim().split(/\s+/);
+  const shortClient = clientWords.slice(0, 2).join(' ');
+
+  // Format chantier: extract city from postal code, otherwise first part
+  let shortChantier = '';
+  if (commande.chantier) {
+    const chantierStr = commande.chantier;
+    // Extract city from after postal code (e.g. "75001 Paris")
+    const postalMatch = chantierStr.match(/\b\d{4,5}\b\s+([^,]+)/);
+    if (postalMatch && postalMatch[1]) {
+      shortChantier = postalMatch[1].replace(/france$/i, '').trim();
+    } else {
+      // Fallback: take the first part
+      shortChantier = chantierStr.split(',')[0].trim();
+    }
+  }
+
+  return `${shortClient}${shortChantier ? ` - ${shortChantier}` : ''}`;
 };
 
 export const AssignmentCell = ({ 
