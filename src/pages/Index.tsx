@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { getShortChantierName } from '@/lib/utils';
 import { EditAssignmentDialog } from '@/components/EditAssignmentDialog';
 import { EditNoteDialog } from '@/components/EditNoteDialog';
 import { EditGeneralNoteDialog } from '@/components/EditGeneralNoteDialog';
@@ -294,7 +295,7 @@ const Index = () => {
       teamId,
 
       commandeId: commandes[0]?.id || null,
-      name: commandes[0] ? `${commandes[0].client} - ${commandes[0].chantier}` : '',
+      name: commandes[0] ? `${commandes[0].client} - ${getShortChantierName(commandes[0].chantier || '')}` : '',
       startDate: date,
       endDate: date,
       isFixed: false,

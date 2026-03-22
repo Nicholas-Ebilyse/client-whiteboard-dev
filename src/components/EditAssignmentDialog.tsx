@@ -15,7 +15,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CalendarIcon, Copy, MapPin, ExternalLink, Upload, X, FileIcon, ImageIcon, Loader2 } from 'lucide-react';
 import { format, isBefore, isAfter, startOfDay } from 'date-fns';
-import { cn } from '@/lib/utils';
+import { cn, getShortChantierName } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { SearchableSelect } from './SearchableSelect';
@@ -23,26 +23,6 @@ import { DeleteAssignmentConfirmDialog } from './DeleteAssignmentConfirmDialog';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { useMaxAssignmentsPerPeriod } from '@/hooks/useAppSettings';
-
-const getShortChantierName = (address: string) => {
-  if (!address) return '';
-  // Try to match standard French format: zip code followed by city
-  const match = address.match(/\b\d{5}\s+([A-Za-zÀ-ÖØ-öø-ÿ\-\s]+?)(?:,|$)/);
-  if (match) {
-    return match[1].trim();
-  }
-  
-  // Fallback splitting by comma
-  const parts = address.split(',').map(p => p.trim());
-  if (parts.length > 0) {
-    const lastPart = parts[parts.length - 1];
-    if (lastPart.toLowerCase() === 'france' && parts.length > 1) {
-      return parts[parts.length - 2].replace(/^\d{5}\s+/, '').trim();
-    }
-    return lastPart.replace(/^\d{5}\s+/, '').trim();
-  }
-  return address;
-};
 
 interface EditAssignmentDialogProps {
   open: boolean;
@@ -268,7 +248,7 @@ export const EditAssignmentDialog = ({
                     // Pre-fill display name from the new commande's existing name
                     const newComm = commandes.find((c: any) => c.id === val);
                     if (newComm) {
-                      const autoName = newComm.name || getShortChantierName(newComm.chantier || '');
+                      const autoName = `${newComm.client} - ${getShortChantierName(newComm.chantier || '')}`;
                       setChantierDisplayName(autoName);
                     }
                   }}
