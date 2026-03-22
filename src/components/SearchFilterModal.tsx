@@ -29,18 +29,28 @@ interface Team {
   color: string;
 }
 
+interface Note {
+  id: string;
+  team_id: string | null;
+  text: string;
+  start_date: string;
+  end_date?: string | null;
+}
+
 interface SearchFilterModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   commandes: Commande[];
   assignments: Assignment[];
   teams: Team[];
+  notes?: Note[];
 }
 
-type SearchMode = 'client' | 'chantier' | 'team';
+type SearchMode = 'tous' | 'client' | 'chantier' | 'team' | 'note';
 
 interface ResultRow {
-  assignmentId: string;
+  id: string;
+  type: 'assignment' | 'note';
   client: string;
   chantier: string;
   teamName: string;
@@ -49,33 +59,41 @@ interface ResultRow {
   comment?: string | null;
 }
 
+const normalizeSearch = (str: string | null | undefined) => {
+  if (!str) return '';
+  return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+};
+
 export const SearchFilterModal = ({
   open,
   onOpenChange,
   commandes,
   assignments,
   teams,
+  notes = [],
 }: SearchFilterModalProps) => {
-  const [searchMode, setSearchMode] = useState<SearchMode>('client');
+  const [searchMode, setSearchMode] = useState<SearchMode>('tous');
   const [query, setQuery] = useState('');
 
   const results = useMemo<ResultRow[]>(() => {
-    const q = query.trim().toLowerCase();
+    const q = normalizeSearch(query.trim());
     if (!q) return [];
 
-    return assignments
+    const assignmentResults: ResultRow[] = assignments
       .filter((a) => {
         const commande = commandes.find((c) => c.id === a.commande_id);
         const team = teams.find((t) => t.id === a.team_id);
+        
+        const normClient = normalizeSearch(commande?.client);
+        const normChantier = normalizeSearch(commande?.chantier);
+        const normTeam = normalizeSearch(team?.name);
+        const normComment = normalizeSearch(a.comment);
 
-        if (searchMode === 'client') {
-          return commande?.client?.toLowerCase().includes(q);
-        }
-        if (searchMode === 'chantier') {
-          return commande?.chantier?.toLowerCase().includes(q);
-        }
-        if (searchMode === 'team') {
-          return team?.name?.toLowerCase().includes(q);
+        if (searchMode === 'client') return normClient.includes(q);
+        if (searchMode === 'chantier') return normChantier.includes(q);
+        if (searchMode === 'team') return normTeam.includes(q);
+        if (searchMode === 'tous') {
+          return normClient.includes(q) || normChantier.includes(q) || normTeam.includes(q) || normComment.includes(q);
         }
         return false;
       })
@@ -83,7 +101,8 @@ export const SearchFilterModal = ({
         const commande = commandes.find((c) => c.id === a.commande_id);
         const team = teams.find((t) => t.id === a.team_id);
         return {
-          assignmentId: a.id,
+          id: a.id,
+          type: 'assignment',
           client: commande?.client ?? '—',
           chantier: commande?.chantier ?? '—',
           teamName: team?.name ?? '—',
@@ -91,9 +110,37 @@ export const SearchFilterModal = ({
           endDate: a.end_date,
           comment: a.comment,
         };
-      })
+      });
+
+    const noteResults: ResultRow[] = (searchMode === 'tous' || searchMode === 'note')
+      ? notes
+        .filter((n) => {
+          const normText = normalizeSearch(n.text);
+          const team = n.team_id ? teams.find((t) => t.id === n.team_id) : null;
+          const normTeam = normalizeSearch(team?.name);
+          
+          if (searchMode === 'note') return normText.includes(q);
+          if (searchMode === 'tous') return normText.includes(q) || normTeam.includes(q);
+          return false;
+        })
+        .map((n) => {
+          const team = n.team_id ? teams.find((t) => t.id === n.team_id) : null;
+          return {
+            id: n.id,
+            type: 'note',
+            client: '— (Note)',
+            chantier: '—',
+            teamName: team?.name ?? 'Générale',
+            startDate: n.start_date,
+            endDate: n.end_date || n.start_date,
+            comment: n.text,
+          };
+        })
+      : [];
+
+    return [...assignmentResults, ...noteResults]
       .sort((a, b) => a.startDate.localeCompare(b.startDate));
-  }, [query, searchMode, assignments, commandes, teams]);
+  }, [query, searchMode, assignments, commandes, teams, notes]);
 
   const formatDate = (d: string) => {
     try {
@@ -110,7 +157,7 @@ export const SearchFilterModal = ({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col gap-4 bg-card">
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col gap-4 bg-card">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             <Search className="h-5 w-5" />
@@ -127,9 +174,11 @@ export const SearchFilterModal = ({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="tous">Tous</SelectItem>
                 <SelectItem value="client">Client</SelectItem>
                 <SelectItem value="chantier">Chantier</SelectItem>
                 <SelectItem value="team">Équipe</SelectItem>
+                <SelectItem value="note">Note</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -141,8 +190,10 @@ export const SearchFilterModal = ({
               <Input
                 autoFocus
                 placeholder={
-                  searchMode === 'client' ? 'Nom du client…'
+                  searchMode === 'tous' ? 'Recherchez tout (clients, chantiers, notes)...'
+                  : searchMode === 'client' ? 'Nom du client…'
                   : searchMode === 'chantier' ? 'Adresse / chantier…'
+                  : searchMode === 'note' ? 'Contenu de la note…'
                   : 'Nom de l\'équipe…'
                 }
                 value={query}
@@ -181,12 +232,12 @@ export const SearchFilterModal = ({
                   <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">Chantier</th>
                   <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">Équipe</th>
                   <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">Période</th>
-                  <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">Commentaire</th>
+                  <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">Détail / Commentaire</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {results.map((r) => (
-                  <tr key={r.assignmentId} className="hover:bg-muted/30 transition-colors">
+                  <tr key={`${r.type}-${r.id}`} className={`hover:bg-muted/30 transition-colors ${r.type === 'note' ? 'bg-amber-50/50 dark:bg-amber-950/20' : ''}`}>
                     <td className="px-3 py-2 font-medium truncate max-w-[120px]">{r.client}</td>
                     <td className="px-3 py-2 text-muted-foreground truncate max-w-[150px]">{r.chantier.split(',')[0]}</td>
                     <td className="px-3 py-2">{r.teamName}</td>
@@ -194,7 +245,7 @@ export const SearchFilterModal = ({
                       {formatDate(r.startDate)}
                       {r.endDate !== r.startDate && ` → ${formatDate(r.endDate)}`}
                     </td>
-                    <td className="px-3 py-2 text-xs italic text-muted-foreground truncate max-w-[120px]">
+                    <td className="px-3 py-2 text-xs italic text-muted-foreground truncate max-w-[200px]">
                       {r.comment ?? ''}
                     </td>
                   </tr>
@@ -206,7 +257,7 @@ export const SearchFilterModal = ({
 
         {results.length > 0 && (
           <p className="text-xs text-muted-foreground text-right">
-            {results.length} affectation{results.length > 1 ? 's' : ''} trouvée{results.length > 1 ? 's' : ''}
+            {results.length} résultat{results.length > 1 ? 's' : ''} trouvé{results.length > 1 ? 's' : ''}
           </p>
         )}
       </DialogContent>

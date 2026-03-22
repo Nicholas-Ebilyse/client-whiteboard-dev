@@ -943,6 +943,7 @@ const Index = () => {
             comment: a.comment || (a as any).comment,
           }))}
           teams={teams.map(t => ({ id: t.id, name: t.name, color: t.color }))}
+          notes={notes}
         />
 
         <SendScheduleDialog

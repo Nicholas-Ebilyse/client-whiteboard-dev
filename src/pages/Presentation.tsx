@@ -57,6 +57,7 @@ const Presentation = () => {
   // Auto-redirect back to index after timeout
   const [timeLeft, setTimeLeft] = useState(timeoutMs);
   const [timedOut, setTimedOut] = useState(false);
+  const [isHalted, setIsHalted] = useState(false);
 
   useEffect(() => {
     // Token security check
@@ -76,10 +77,22 @@ const Presentation = () => {
       });
     }, 1000);
 
-    return () => clearInterval(timer);
+    // Listen for admin remote stop command
+    const channel = supabase.channel('presentation_controls')
+      .on('broadcast', { event: 'stop_timer' }, () => {
+        clearInterval(timer);
+        setIsHalted(true);
+      })
+      .subscribe();
+
+    return () => {
+      clearInterval(timer);
+      supabase.removeChannel(channel);
+    };
   }, [token, validToken, navigate]);
 
   const formatTimeLeft = (ms: number) => {
+    if (isHalted) return "Arrêté";
     const totalSeconds = Math.floor(ms / 1000);
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;

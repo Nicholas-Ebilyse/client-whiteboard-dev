@@ -19,6 +19,7 @@ import { WeekSelector } from '@/components/WeekSelector';
 import { KeyboardShortcutsHelp } from '@/components/KeyboardShortcutsHelp';
 import { Input } from '@/components/ui/input';
 import { Search } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 interface PlanningToolbarProps {
   weekConfig: { week_number: number; year: number };
@@ -158,6 +159,20 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
                     }}
                   >
                     Copier lien Présentation
+                  </Button>
+                  <Button 
+                    variant="destructive"
+                    className="w-full" 
+                    onClick={() => {
+                      supabase.channel('presentation_controls').send({
+                        type: 'broadcast',
+                        event: 'stop_timer',
+                        payload: { action: 'stop' }
+                      });
+                      toast.success('Signal d\'arrêt envoyé à la présentation');
+                    }}
+                  >
+                    Arrêter le minuteur distant
                   </Button>
                 </div>
               </PopoverContent>
