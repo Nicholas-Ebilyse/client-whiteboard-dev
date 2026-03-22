@@ -115,9 +115,6 @@ export type Database = {
           id: string
           is_confirmed: boolean | null
           is_fixed: boolean | null
-          name: string
-          start_date: string
-          team_id: string
           updated_at: string | null
         }
         Insert: {
@@ -130,9 +127,6 @@ export type Database = {
           id?: string
           is_confirmed?: boolean | null
           is_fixed?: boolean | null
-          name: string
-          start_date: string
-          team_id: string
           updated_at?: string | null
         }
         Update: {
@@ -145,9 +139,6 @@ export type Database = {
           id?: string
           is_confirmed?: boolean | null
           is_fixed?: boolean | null
-          name?: string
-          start_date?: string
-          team_id?: string
           updated_at?: string | null
         }
         Relationships: [
@@ -172,6 +163,7 @@ export type Database = {
           chantier: string
           client: string
           created_at: string | null
+          display_name: string | null
           external_id: string | null
           id: string
           numero: string | null
@@ -181,6 +173,7 @@ export type Database = {
           chantier: string
           client: string
           created_at?: string | null
+          display_name?: string | null
           external_id?: string | null
           id?: string
           numero?: string | null
@@ -190,6 +183,7 @@ export type Database = {
           chantier?: string
           client?: string
           created_at?: string | null
+          display_name?: string | null
           external_id?: string | null
           id?: string
           numero?: string | null

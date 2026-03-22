@@ -20,18 +20,22 @@ export interface Technician {
 export interface Chantier {
   id: string;
   name: string;
+  display_name?: string | null; // The short name / display name (normalized)
   color: string;
   address?: string | null;
   attachments?: string[] | null;
+  client?: string | null; // From commandes table
+  chantier?: string | null; // The full address (full name) from commandes
 }
+
+export type Commande = Chantier;
 
 // ─── Assignment ──────────────────────────────────────────────────────────────
 export interface Assignment {
   id: string;
-  teamId: string; // The team this assignment belongs to
+  teamId: string; 
 
   commandeId: string | null;
-  name: string;
   startDate: string; // 'yyyy-MM-dd'
   endDate: string;   // 'yyyy-MM-dd'
   isFixed: boolean;
@@ -40,6 +44,9 @@ export interface Assignment {
   isConfirmed?: boolean;
 
   assignment_group_id?: string | null;
+  commandes?: {
+    display_name: string | null;
+  } | null;
 }
 
 // ─── Note ────────────────────────────────────────────────────────────────────

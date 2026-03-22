@@ -23,6 +23,7 @@ import { DeleteAssignmentConfirmDialog } from './DeleteAssignmentConfirmDialog';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { useMaxAssignmentsPerPeriod } from '@/hooks/useAppSettings';
+import { useUpdateCommande } from '@/hooks/usePlanning';
 
 interface EditAssignmentDialogProps {
   open: boolean;
@@ -36,7 +37,6 @@ interface EditAssignmentDialogProps {
   onDelete?: (id: string) => void;
   onDeleteGroup?: (id: string) => void;
   onDuplicate?: (id: string) => void;
-  onBulkUpdateName?: (commandeId: string, name: string) => void;
   allDbAssignments?: any[]; // Raw DB assignments for finding linked technicians
 }
 
@@ -52,11 +52,11 @@ export const EditAssignmentDialog = ({
   onDelete,
   onDeleteGroup,
   onDuplicate,
-  onBulkUpdateName,
   allDbAssignments = [],
 }: EditAssignmentDialogProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const updateCommande = useUpdateCommande();
   const today = new Date();
   const [selectedTeam, setSelectedTeam] = useState(assignment?.teamId || '');
   const [selectedClient, setSelectedClient] = useState('');
@@ -69,7 +69,12 @@ export const EditAssignmentDialog = ({
   );
   const [isConfirmed, setIsConfirmed] = useState(assignment?.isConfirmed || false);
   const [comment, setComment] = useState(assignment?.comment || '');
-  const [chantierDisplayName, setChantierDisplayName] = useState(assignment?.name || '');
+  const initialName = useMemo(() => {
+    if (!assignment) return '';
+    const comm = commandes.find((c: any) => c.id === assignment.commandeId);
+    return comm?.display_name || (comm ? `${comm.client} - ${getShortChantierName(comm.chantier || '')}` : '');
+  }, [assignment, commandes]);
+  const [chantierDisplayName, setChantierDisplayName] = useState(initialName);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
 
@@ -83,7 +88,9 @@ export const EditAssignmentDialog = ({
       setEndDate(new Date(assignment.endDate));
       setIsConfirmed(assignment.isConfirmed || false);
       setComment(assignment.comment || '');
-      setChantierDisplayName(assignment.name || '');
+      const comm = commandes.find((c: any) => c.id === assignment?.commandeId);
+    const officialName = comm?.display_name || (comm ? `${comm.client} - ${getShortChantierName(comm.chantier || '')}` : '');
+    setChantierDisplayName(officialName);
     }
   }, [assignment, commandes]);
 
@@ -128,11 +135,11 @@ export const EditAssignmentDialog = ({
 
 
       
-      const trimmedName = chantierDisplayName.trim() || assignment.name;
+      const trimmedName = chantierDisplayName.trim() || '';
+      
       const updatedAssignment: Assignment = {
         ...assignment,
         teamId: selectedTeam,
-        name: trimmedName,
         commandeId: selectedCommande,
         startDate: startDateStr,
         endDate: endDateStr,
@@ -140,9 +147,10 @@ export const EditAssignmentDialog = ({
         comment,
       };
 
-      // Propagate the name change to all other assignments with the same commande
-      if (onBulkUpdateName && selectedCommande && trimmedName !== assignment.name) {
-        onBulkUpdateName(selectedCommande, trimmedName);
+      // Propagate the name change to the global reference (commandes table)
+      const selectedComm = commandes.find((c: any) => c.id === selectedCommande);
+      if (selectedCommande && trimmedName && trimmedName !== (selectedComm?.display_name || '')) {
+        updateCommande.mutate({ id: selectedCommande, displayName: trimmedName });
       }
       
       onSave(updatedAssignment);
@@ -188,9 +196,9 @@ export const EditAssignmentDialog = ({
       .filter((c: any) => c.client === selectedClient)
       .map((c: any) => ({
         value: c.id,
-        label: c.chantier ? getShortChantierName(c.chantier) : c.name,
+        label: c.chantier ? (typeof getShortChantierName === 'function' ? getShortChantierName(c.chantier) : c.chantier) : (c.display_name || c.name),
       }));
-  }, [commandes, selectedClient, assignment?.commandeId]);
+  }, [commandes, selectedClient]);
 
   // Auto-select chantier if there is only one option available
   useEffect(() => {
@@ -248,7 +256,7 @@ export const EditAssignmentDialog = ({
                     // Pre-fill display name from the new commande's existing name
                     const newComm = commandes.find((c: any) => c.id === val);
                     if (newComm) {
-                      const autoName = `${newComm.client} - ${getShortChantierName(newComm.chantier || '')}`;
+                      const autoName = newComm.display_name || `${newComm.client} - ${getShortChantierName(newComm.chantier || '')}`;
                       setChantierDisplayName(autoName);
                     }
                   }}

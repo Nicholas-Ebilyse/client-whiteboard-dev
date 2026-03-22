@@ -298,24 +298,26 @@ Deno.serve(async (req) => {
     // ── 2. Commandes ─────────────────────────────────────────────────────────
     const { data: commandes } = await supabase
       .from("commandes")
-      .select("*")
+      .select("*, display_name")
       .order("numero", { ascending: false });
 
     const commandeRows: string[][] = [
-      ["ID", "Numéro", "Nom client", "Chantier", "UUID"],
+      ["ID", "Numéro", "Nom client", "Chantier", "Nom court", "UUID"],
       ...(commandes || []).map((c: any) => [
         c.external_id || "",
         c.numero || "",
         c.client || "",
         c.chantier || "",
+        c.display_name || "",
         c.id,
       ]),
     ];
     await writeSheet(spreadsheetId, "Commandes", commandeRows, accessToken);
 
-    // Build commande map (id → label)
     const commandeMap: Record<string, string> = {};
-    (commandes || []).forEach((c: any) => { commandeMap[c.id] = `${c.client} - ${c.chantier}`; });
+    (commandes || []).forEach((c: any) => { 
+      commandeMap[c.id] = c.display_name || `${c.client} - ${c.chantier}`; 
+    });
 
 
 

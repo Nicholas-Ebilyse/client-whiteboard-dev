@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { getShortChantierName } from '@/lib/utils';
+import { cn, getShortChantierName } from '@/lib/utils';
+import { Commande } from '@/types/planning';
 import { EditAssignmentDialog } from '@/components/EditAssignmentDialog';
 import { EditNoteDialog } from '@/components/EditNoteDialog';
 import { EditGeneralNoteDialog } from '@/components/EditGeneralNoteDialog';
@@ -49,7 +50,6 @@ import {
   useAbsences,
   useSaveAssignment,
   useDeleteAssignment,
-  useBulkUpdateAssignmentName,
   useSaveNote,
   useDeleteNote,
   getWeekDates,
@@ -167,7 +167,6 @@ const Index = () => {
   const deleteRelatedAssignments = useDeleteRelatedAssignments();
   const saveNote = useSaveNote();
   const deleteNote = useDeleteNote();
-  const bulkUpdateAssignmentName = useBulkUpdateAssignmentName();
 
   // Drag and drop for assignments
   const {
@@ -279,7 +278,6 @@ const Index = () => {
       teamId,
 
       commandeId: commandes[0]?.id || null,
-      name: commandes[0] ? `${commandes[0].client} - ${commandes[0].chantier}` : '',
       startDate: date,
       endDate: date,
       isFixed: false,
@@ -295,7 +293,6 @@ const Index = () => {
       teamId,
 
       commandeId: commandes[0]?.id || null,
-      name: commandes[0] ? `${commandes[0].client} - ${getShortChantierName(commandes[0].chantier || '')}` : '',
       startDate: date,
       endDate: date,
       isFixed: false,
@@ -337,16 +334,12 @@ const Index = () => {
   };
 
   const handleSaveAssignment = async (updatedAssignment: Assignment) => {
-    const commande = updatedAssignment.commandeId ? commandes.find(c => c.id === updatedAssignment.commandeId) : null;
-    const assignmentName = commande ? `${commande.client} - ${commande.chantier}` : updatedAssignment.name;
-
     if (updatedAssignment.id && !updatedAssignment.id.startsWith('new-')) {
       const originalAssignment = assignments.find(a => a.id === updatedAssignment.id);
       const dbAssignment = {
         id: updatedAssignment.id,
         team_id: updatedAssignment.teamId,
         commande_id: updatedAssignment.commandeId,
-        name: assignmentName,
         start_date: updatedAssignment.startDate,
         end_date: updatedAssignment.endDate,
         is_fixed: updatedAssignment.isFixed,
@@ -364,7 +357,6 @@ const Index = () => {
             updates: {
       
               commande_id: updatedAssignment.commandeId,
-              name: assignmentName,
               is_fixed: updatedAssignment.isFixed,
               comment: updatedAssignment.comment,
               is_confirmed: updatedAssignment.isConfirmed || false,
@@ -423,7 +415,6 @@ const Index = () => {
       assignmentsToCreate.push({
         team_id: updatedAssignment.teamId,
         commande_id: updatedAssignment.commandeId,
-        name: assignmentName,
         start_date: currentDate.toISOString().split('T')[0],
         end_date: currentDate.toISOString().split('T')[0],
         is_fixed: updatedAssignment.isFixed,
@@ -549,28 +540,26 @@ const Index = () => {
     const now = new Date();
     saveAssignment.mutate({
       id: dbAssignment1.id,
-      team_id: dbAssignment1.team_id,
-      commande_id: dbAssignment1.commande_id,
-      name: dbAssignment1.name,
-      start_date: dbAssignment1.start_date,
-      end_date: dbAssignment1.end_date,
-      is_fixed: dbAssignment1.is_fixed,
-      comment: dbAssignment1.comment,
-      is_confirmed: dbAssignment1.is_confirmed,
-      assignment_group_id: dbAssignment1.assignment_group_id,
+      team_id: (dbAssignment1 as any).team_id || (dbAssignment1 as any).teamId,
+      commande_id: (dbAssignment1 as any).commande_id || (dbAssignment1 as any).commandeId,
+      start_date: (dbAssignment1 as any).start_date || (dbAssignment1 as any).startDate,
+      end_date: (dbAssignment1 as any).end_date || (dbAssignment1 as any).endDate,
+      is_fixed: (dbAssignment1 as any).is_fixed ?? (dbAssignment1 as any).isFixed,
+      comment: (dbAssignment1 as any).comment ?? (dbAssignment1 as any).comment,
+      is_confirmed: (dbAssignment1 as any).is_confirmed ?? (dbAssignment1 as any).isConfirmed,
+      assignment_group_id: (dbAssignment1 as any).assignment_group_id,
       updated_at: now.toISOString(),
     });
     saveAssignment.mutate({
       id: dbAssignment2.id,
-      team_id: dbAssignment2.team_id,
-      commande_id: dbAssignment2.commande_id,
-      name: dbAssignment2.name,
-      start_date: dbAssignment2.start_date,
-      end_date: dbAssignment2.end_date,
-      is_fixed: dbAssignment2.is_fixed,
-      comment: dbAssignment2.comment,
-      is_confirmed: dbAssignment2.is_confirmed,
-      assignment_group_id: dbAssignment2.assignment_group_id,
+      team_id: (dbAssignment2 as any).team_id || (dbAssignment2 as any).teamId,
+      commande_id: (dbAssignment2 as any).commande_id || (dbAssignment2 as any).commandeId,
+      start_date: (dbAssignment2 as any).start_date || (dbAssignment2 as any).startDate,
+      end_date: (dbAssignment2 as any).end_date || (dbAssignment2 as any).endDate,
+      is_fixed: (dbAssignment2 as any).is_fixed ?? (dbAssignment2 as any).isFixed,
+      comment: (dbAssignment2 as any).comment ?? (dbAssignment2 as any).comment,
+      is_confirmed: (dbAssignment2 as any).is_confirmed ?? (dbAssignment2 as any).isConfirmed,
+      assignment_group_id: (dbAssignment2 as any).assignment_group_id,
       updated_at: new Date(now.getTime() - 1000).toISOString(),
     });
     toast.success('Ordre modifié');
@@ -694,44 +683,51 @@ const Index = () => {
       (a) => a.team_id === teamId &&
               date >= a.start_date && date <= a.end_date
     );
-    return dbAssignments.map(dbAssignment => ({
-      id: dbAssignment.id,
-      teamId: dbAssignment.team_id,
-      commandeId: dbAssignment.commande_id,
-      name: dbAssignment.name,
-      startDate: dbAssignment.start_date,
-      endDate: dbAssignment.end_date,
-      isFixed: dbAssignment.is_fixed || false,
-      isValid: true,
-      comment: dbAssignment.comment || undefined,
-      isConfirmed: dbAssignment.is_confirmed || false,
-      assignment_group_id: dbAssignment.assignment_group_id,
-    }));
+    return dbAssignments.map(dbAssignment => {
+      const a = dbAssignment as any;
+      return {
+        id: a.id,
+        teamId: a.team_id || a.teamId,
+        commandeId: a.commande_id || a.commandeId,
+        startDate: a.start_date || a.startDate,
+        endDate: a.end_date || a.endDate,
+        isFixed: a.is_fixed ?? a.isFixed ?? false,
+        isValid: true,
+        comment: a.comment ?? undefined,
+        isConfirmed: a.is_confirmed ?? a.isConfirmed ?? false,
+        assignment_group_id: a.assignment_group_id,
+        commandes: a.commandes
+      };
+    });
   };
 
-  const allAssignmentsFormatted: Assignment[] = assignments.map(dbAssignment => ({
-    id: dbAssignment.id,
-    teamId: dbAssignment.team_id,
-    commandeId: dbAssignment.commande_id,
-    name: dbAssignment.name,
-    startDate: dbAssignment.start_date,
-    endDate: dbAssignment.end_date,
-    isFixed: dbAssignment.is_fixed || false,
-    isValid: true,
-    comment: dbAssignment.comment || undefined,
-    isConfirmed: dbAssignment.is_confirmed || false,
-    assignment_group_id: dbAssignment.assignment_group_id,
-  }));
+  const allAssignmentsFormatted: Assignment[] = assignments.map(dbAssignment => {
+    const a = dbAssignment as any;
+    return {
+      id: a.id,
+      teamId: a.team_id || a.teamId,
+      commandeId: a.commande_id || a.commandeId,
+      startDate: a.start_date || a.startDate,
+      endDate: a.end_date || a.endDate,
+      isFixed: a.is_fixed ?? a.isFixed ?? false,
+      isValid: true,
+      comment: a.comment ?? undefined,
+      isConfirmed: a.is_confirmed ?? a.isConfirmed ?? false,
+      assignment_group_id: a.assignment_group_id,
+      commandes: a.commandes
+    };
+  });
 
   // Filter assignments by search term (client name or chantier/address)
   const filteredAssignmentsFormatted = searchTerm.trim()
     ? allAssignmentsFormatted.filter(a => {
-        const commande = commandes.find(c => c.id === a.commandeId);
+        const commande = a.commandes || commandes.find(c => c.id === a.commandeId);
         if (!commande) return false;
         const q = searchTerm.toLowerCase();
         return (
-          commande.client?.toLowerCase().includes(q) ||
-          commande.chantier?.toLowerCase().includes(q)
+          (commande as any).client?.toLowerCase().includes(q) ||
+          (commande as any).chantier?.toLowerCase().includes(q) ||
+          (commande as any).display_name?.toLowerCase().includes(q)
         );
       })
     : allAssignmentsFormatted;
@@ -747,14 +743,17 @@ const Index = () => {
 
   const visibleCommandeIds = new Set(
     assignments
-      .filter((a) => {
+      .filter((a: any) => {
         // Check if assignment is active during any day of the displayed week
+        const start = a.start_date || a.startDate;
+        const end = a.end_date || a.endDate;
+        
         return weekDates.some((d) => {
           const dayDate = d.fullDate;
-          return dayDate >= a.start_date && dayDate <= a.end_date;
+          return dayDate >= start && dayDate <= end;
         });
       })
-      .map((a) => a.commande_id)
+      .map((a: any) => a.commande_id || a.commandeId)
       .filter(Boolean) // Remove null values
   );
   // Use teams as the display rows — ordered by position (from DB)
@@ -906,7 +905,6 @@ const Index = () => {
           onDelete={handleDeleteAssignment}
           onDeleteGroup={handleDeleteAssignmentGroup}
           onDuplicate={handleDuplicateAssignment}
-          onBulkUpdateName={(commandeId, name) => bulkUpdateAssignmentName.mutate({ commandeId, name })}
         />
 
         <EditNoteDialog
@@ -953,10 +951,9 @@ const Index = () => {
             id: t.id, 
             name: t.name, 
             is_archived: t.is_archived || false,
-            position: t.position ?? 0,
+            position: (t as any).position ?? 0,
             team_id: t.team_id,
             is_temp: t.is_temp,
-            short_id: t.short_id,
             skills: t.skills
           }))}
           onArchive={handleArchiveTechnician}
@@ -974,13 +971,13 @@ const Index = () => {
           open={searchModalOpen}
           onOpenChange={setSearchModalOpen}
           commandes={commandes.map(c => ({ id: c.id, client: c.client, chantier: c.chantier }))}
-          assignments={assignments.map(a => ({
+          assignments={assignments.map((a: any) => ({
             id: a.id,
-            team_id: a.team_id,
-            commande_id: a.commande_id,
-            start_date: a.start_date,
-            end_date: a.end_date,
-            comment: a.comment,
+            team_id: a.team_id || (a as any).teamId,
+            commande_id: a.commande_id || (a as any).commandeId,
+            start_date: a.start_date || (a as any).startDate,
+            end_date: a.end_date || (a as any).endDate,
+            comment: a.comment || (a as any).comment,
           }))}
           teams={teams.map(t => ({ id: t.id, name: t.name, color: t.color }))}
         />
@@ -991,7 +988,14 @@ const Index = () => {
           weekNumber={weekConfig.week_number}
           year={weekConfig.year}
           technicians={activeTechnicians.map((t) => ({ id: t.id, name: t.name }))}
-          assignments={assignments}
+          assignments={assignments.map((a: any) => ({
+            id: a.id,
+            team_id: a.team_id || a.teamId,
+            commande_id: a.commande_id || a.commandeId,
+            start_date: a.start_date || a.startDate,
+            end_date: a.end_date || a.endDate,
+            comment: a.comment,
+          }))}
           notes={notes}
           absences={absences}
           weekDates={weekDates}

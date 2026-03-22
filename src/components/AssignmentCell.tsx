@@ -95,14 +95,11 @@ const formatAddressForDisplay = (address: string): string => {
 };
 
 const getAssignmentDisplayName = (assignment: Assignment, commandes: Commande[]): string => {
-  // Use the saved name from the assignment, which is the user-editable short name
-  if (assignment.name) return assignment.name;
-  
-  // Fallback if name is somehow missing
   const commande = commandes.find(c => c.id === assignment.commandeId);
   if (!commande) return "Nouvelle affectation";
   
-  return `${commande.client} - ${commande.chantier}`;
+  // Use the normalized display_name from the commande, or generate one if missing
+  return commande.display_name || `${commande.client} - ${getShortChantierName(commande.chantier || '')}`;
 };
 
 export const AssignmentCell = ({ 

@@ -201,7 +201,7 @@ async function ensureHeaders(
   }
 }
 
-const COMMANDES_HEADERS = ['ID', 'Numéro', 'Nom client', 'Chantier', 'UUID'];
+const COMMANDES_HEADERS = ["ID", "Numéro", "Nom client", "Chantier", "Nom court", "UUID"];
 const SAV_HEADERS = ['ID', 'Numéro', 'Nom du client', 'Adresse', 'Numéro de téléphone', 'Problème', 'Date', 'Est résolu'];
 const TECHNICIENS_HEADERS = ['ID', 'Nom', 'Interim', 'Créé le'];
 const AFFECTATIONS_HEADERS = ['ID', 'Equipe', 'Chantier', 'Date début', 'Date fin', 'Commentaire'];
@@ -385,6 +385,7 @@ serve(async (req) => {
       const iNum = h.indexOf('Numéro');
       const iClient = h.indexOf('Nom client');
       const iChantier = h.indexOf('Chantier');
+      const iNomCourt = h.indexOf('Nom court');
 
       for (let i = 1; i < commandesData.length; i++) {
         const row = commandesData[i];
@@ -396,7 +397,8 @@ serve(async (req) => {
           external_id: row[iExtID]?.trim(),
           numero: row[iNum]?.trim(),
           client: row[iClient]?.trim(),
-          chantier: row[iChantier]?.trim()
+          chantier: row[iChantier]?.trim(),
+          display_name: row[iNomCourt]?.trim() || undefined
         }, { onConflict: 'external_id' });
         if (!error) commandesCount++;
       }
@@ -469,11 +471,15 @@ serve(async (req) => {
           let assignedTeamId = row[iTech]?.trim() || null;
           let commandeId = row[iChan]?.trim() || null;
           
+          // Find the commande to get its display name
+          const commande = cmds?.find(c => c.id === commandeId);
+          const displayName = commande?.display_name || (commande ? `${commande.client} - ${commande.chantier}` : 'Nouvelle affectation');
+
           await supabase.from('assignments').upsert({
             id: id && id.length > 10 ? id : undefined,
             team_id: assignedTeamId,
             commande_id: commandeId,
-            name: row[iChan]?.trim() || 'Nouvelle affectation',
+            name: displayName,
             start_date: parseDate(row[iStart]?.trim()),
             end_date: parseDate(row[iEnd]?.trim()) || parseDate(row[iStart]?.trim()),
             comment: row[iComm]?.trim(),

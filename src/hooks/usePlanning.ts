@@ -169,17 +169,25 @@ export const useCommandes = () => {
   });
 };
 
-export const useBulkUpdateAssignmentName = () => {
+// removed useBulkUpdateAssignmentName
+
+export const useUpdateCommande = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ commandeId, name }: { commandeId: string; name: string }) => {
-      const { error } = await supabase
-        .from('assignments')
-        .update({ name })
-        .eq('commande_id', commandeId);
+    mutationFn: async ({ id, displayName }: { id: string; displayName: string }) => {
+      const { data, error } = await supabase
+        .from('commandes')
+        .update({ display_name: displayName })
+        .eq('id', id)
+        .select()
+        .single();
       if (error) throw error;
+      return data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['assignments'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['commandes'] });
+      queryClient.invalidateQueries({ queryKey: ['assignments'] });
+    },
   });
 };
 export const useAssignments = (weekStart: string, weekEnd: string) => {
@@ -188,7 +196,7 @@ export const useAssignments = (weekStart: string, weekEnd: string) => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('assignments')
-        .select('*')
+        .select('*, commandes(display_name)')
         .lte('start_date', weekEnd)
         .gte('end_date', weekStart);
       
@@ -221,12 +229,23 @@ export const useSaveAssignment = () => {
   
   return useMutation({
     mutationFn: async (assignment: any) => {
-      const { id, ...rest } = assignment;
+      const { id, teamId, commandeId, startDate, endDate, isFixed, comment, isConfirmed, assignment_group_id, ...rest } = assignment;
       
+      const dbAssignment = {
+        team_id: teamId,
+        commande_id: commandeId,
+        start_date: startDate,
+        end_date: endDate,
+        is_fixed: isFixed,
+        comment: comment,
+        is_confirmed: isConfirmed,
+        assignment_group_id: assignment_group_id
+      };
+
       if (id && !id.startsWith('new-')) {
         const { data, error } = await supabase
           .from('assignments')
-          .update(rest)
+          .update(dbAssignment)
           .eq('id', id)
           .select()
           .single();
