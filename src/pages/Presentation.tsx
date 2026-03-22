@@ -81,7 +81,8 @@ const Presentation = () => {
     const channel = supabase.channel('presentation_controls')
       .on('broadcast', { event: 'stop_timer' }, () => {
         clearInterval(timer);
-        setIsHalted(true);
+        setTimeLeft(0);
+        setTimedOut(true);
       })
       .subscribe();
 

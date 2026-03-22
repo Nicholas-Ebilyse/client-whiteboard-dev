@@ -83,7 +83,7 @@ export const SearchFilterModal = ({
       .filter((a) => {
         const commande = commandes.find((c) => c.id === a.commande_id);
         const team = teams.find((t) => t.id === a.team_id);
-        
+
         const normClient = normalizeSearch(commande?.client);
         const normChantier = normalizeSearch(commande?.chantier);
         const normTeam = normalizeSearch(team?.name);
@@ -118,7 +118,7 @@ export const SearchFilterModal = ({
           const normText = normalizeSearch(n.text);
           const team = n.team_id ? teams.find((t) => t.id === n.team_id) : null;
           const normTeam = normalizeSearch(team?.name);
-          
+
           if (searchMode === 'note') return normText.includes(q);
           if (searchMode === 'tous') return normText.includes(q) || normTeam.includes(q);
           return false;
@@ -190,11 +190,11 @@ export const SearchFilterModal = ({
               <Input
                 autoFocus
                 placeholder={
-                  searchMode === 'tous' ? 'Recherchez tout (clients, chantiers, notes)...'
-                  : searchMode === 'client' ? 'Nom du client…'
-                  : searchMode === 'chantier' ? 'Adresse / chantier…'
-                  : searchMode === 'note' ? 'Contenu de la note…'
-                  : 'Nom de l\'équipe…'
+                  searchMode === 'tous' ? 'Recherchez tout (clients, chantiers, équipes, notes)...'
+                    : searchMode === 'client' ? 'Nom du client…'
+                      : searchMode === 'chantier' ? 'Adresse / chantier…'
+                        : searchMode === 'note' ? 'Contenu de la note…'
+                          : 'Nom de l\'équipe…'
                 }
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
