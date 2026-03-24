@@ -121,7 +121,7 @@ const handler = async (req: Request): Promise<Response> => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "Planning Ebilyse <planning@updates.ebilyse.com>",
+        from: "Planning Ebilyse <onboarding@resend.dev>",
         to: [email],
         subject: `Planning hebdomadaire - Semaine ${weekNumber} (${year})`,
         html: emailHtml,
