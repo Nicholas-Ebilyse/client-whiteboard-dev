@@ -250,16 +250,24 @@ export const useSaveAssignment = () => {
           .select()
           .single();
         
-        if (error) throw error;
+        if (error) {
+          console.error('[useSaveAssignment] UPDATE error:', error);
+          throw error;
+        }
         return data;
       } else {
+        console.log('[useSaveAssignment] INSERT payload:', JSON.stringify(dbAssignment, null, 2));
         const { data, error } = await supabase
           .from('assignments')
           .insert(dbAssignment)
           .select()
           .single();
         
-        if (error) throw error;
+        if (error) {
+          console.error('[useSaveAssignment] INSERT error:', JSON.stringify(error, null, 2));
+          console.error('[useSaveAssignment] INSERT payload was:', JSON.stringify(dbAssignment, null, 2));
+          throw error;
+        }
         return data;
       }
     },

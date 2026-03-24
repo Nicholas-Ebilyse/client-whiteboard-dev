@@ -394,8 +394,8 @@ const Index = () => {
             setAssignmentDialogOpen(false);
             setEditSingleMode(false);
           },
-          onError: () => {
-            toast.error("Erreur lors de l'enregistrement");
+          onError: (err: any) => {
+            toast.error(`Erreur: ${err?.message || "Erreur lors de l'enregistrement"}`);
             setEditSingleMode(false);
           },
         });
@@ -433,8 +433,8 @@ const Index = () => {
       }
       toast.success(`${assignmentsToCreate.length} affectation(s) créée(s)`);
       setAssignmentDialogOpen(false);
-    } catch {
-      toast.error("Erreur lors de l'enregistrement");
+    } catch (err: any) {
+      toast.error(`Erreur: ${err?.message || "Erreur lors de l'enregistrement"}`);
     }
   };
 
