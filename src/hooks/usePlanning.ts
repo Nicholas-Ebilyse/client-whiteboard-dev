@@ -232,13 +232,13 @@ export const useSaveAssignment = () => {
       const { id, teamId, commandeId, startDate, endDate, isFixed, comment, isConfirmed, assignment_group_id, ...rest } = assignment;
       
       const dbAssignment = {
-        team_id: teamId,
-        commande_id: commandeId,
-        start_date: startDate,
-        end_date: endDate,
-        is_fixed: isFixed,
-        comment: comment,
-        is_confirmed: isConfirmed,
+        team_id: teamId ?? assignment.team_id,
+        commande_id: commandeId ?? assignment.commande_id,
+        start_date: startDate ?? assignment.start_date,
+        end_date: endDate ?? assignment.end_date,
+        is_fixed: isFixed ?? assignment.is_fixed,
+        comment: comment ?? assignment.comment,
+        is_confirmed: isConfirmed ?? assignment.is_confirmed ?? false,
         assignment_group_id: assignment_group_id
       };
 
