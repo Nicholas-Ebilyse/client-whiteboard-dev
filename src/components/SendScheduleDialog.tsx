@@ -342,7 +342,15 @@ export const SendScheduleDialog = ({
       onOpenChange(false);
     } catch (error: any) {
       console.error("Erreur lors de l'envoi:", error);
-      toast.error(`Erreur d'envoi: ${error?.message || "Inconnue"}`);
+      let details = error?.message || "Inconnue";
+      if (error?.context) {
+        try {
+          details += ` (${error.context.status || ""} - ${JSON.stringify(await error.context.json())})`;
+        } catch {
+          // ignore parsing error
+        }
+      }
+      toast.error(`Erreur d'envoi: ${details}`);
     } finally {
       setIsLoading(false);
     }
