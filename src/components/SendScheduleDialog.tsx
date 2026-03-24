@@ -340,9 +340,9 @@ export const SendScheduleDialog = ({
       setNote("");
       setEmail("nicholas@ebilyse.com");
       onOpenChange(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erreur lors de l'envoi:", error);
-      toast.error("Erreur lors de l'envoi de l'email");
+      toast.error(`Erreur d'envoi: ${error?.message || "Inconnue"}`);
     } finally {
       setIsLoading(false);
     }
