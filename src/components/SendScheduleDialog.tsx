@@ -31,14 +31,39 @@ interface SendScheduleDialogProps {
   onOpenChange: (open: boolean) => void;
   weekNumber: number;
   year: number;
-  technicians: any[];
-  assignments: any[];
-  notes: any[];
-  weekDates: any[];
+  technicians: { id: string; name: string }[];
+  assignments: {
+    technician_id: string;
+    start_date: string;
+    end_date: string;
+    start_period: string;
+    end_period: string;
+    commande_id?: string;
+    name?: string;
+  }[];
+  notes: {
+    technician_id: string;
+    start_date: string;
+    period: string;
+    text: string;
+  }[];
+  weekDates: {
+    dayName: string;
+    fullDate: string;
+  }[];
 
-  commandes: any[];
+  commandes: {
+    id: string;
+    client: string;
+    chantier?: string;
+  }[];
   savRecords: SAVRecord[];
-  absences?: any[];
+  absences?: {
+    technician_id: string;
+    start_date: string;
+    end_date: string;
+    absence_motives?: { name: string };
+  }[];
 }
 
 export const SendScheduleDialog = ({
@@ -112,24 +137,24 @@ export const SendScheduleDialog = ({
 
       // Build table data - Issue #11: Don't repeat date for both periods
       const periods = ['Matin', 'Après-midi'];
-      const tableData: any[] = [];
+      const tableData: (string | string[])[][] = [];
       let lastDateAdded = '';
 
-      weekDates.forEach((dateInfo: any) => {
+      weekDates.forEach((dateInfo) => {
         periods.forEach((period, periodIndex) => {
           // Extract day number from the date
           const dayNumber = new Date(dateInfo.fullDate).getDate();
           const dateString = `${dateInfo.dayName} ${dayNumber}`;
 
-          const row: any[] = [
+          const row: (string | string[])[] = [
             // Issue #11: Only show date on first period (Matin)
             periodIndex === 0 ? dateString : '',
             period
           ];
 
-          technicians.forEach((tech: any) => {
+          technicians.forEach((tech) => {
             const techAssignments = assignments.filter(
-              (a: any) =>
+              (a) =>
                 a.technician_id === tech.id &&
                 new Date(a.start_date) <= new Date(dateInfo.fullDate) &&
                 new Date(a.end_date) >= new Date(dateInfo.fullDate) &&
@@ -138,18 +163,18 @@ export const SendScheduleDialog = ({
             );
 
             const techNotes = notes.filter(
-              (n: any) => n.technician_id === tech.id && n.start_date === dateInfo.fullDate && n.period === period
+              (n) => n.technician_id === tech.id && n.start_date === dateInfo.fullDate && n.period === period
             );
 
             const isTechAbsent = absences.some(
-              (a: any) =>
+              (a) =>
                 a.technician_id === tech.id &&
                 new Date(a.start_date) <= new Date(dateInfo.fullDate) &&
                 new Date(a.end_date) >= new Date(dateInfo.fullDate)
             );
 
             const absenceReason = absences.find(
-              (a: any) =>
+              (a) =>
                 a.technician_id === tech.id &&
                 new Date(a.start_date) <= new Date(dateInfo.fullDate) &&
                 new Date(a.end_date) >= new Date(dateInfo.fullDate)
@@ -157,9 +182,9 @@ export const SendScheduleDialog = ({
 
             const cellContent = [
               ...(isTechAbsent ? [`ABSENCE${absenceReason ? ' - ' + absenceReason : ''}`] : []),
-              ...techAssignments.map((a: any) => {
+              ...techAssignments.map((a) => {
                 // Use commandes.chantier field for address
-                const commande = commandes.find((c: any) => c.id === a.commande_id);
+                const commande = commandes.find((c) => c.id === a.commande_id);
                 if (commande) {
                   // Show client on first line, address on second line without "Adresse:" prefix
                   let text = commande.client;
@@ -170,7 +195,7 @@ export const SendScheduleDialog = ({
                 }
                 return a.name;
               }),
-              ...techNotes.map((n: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+              ...techNotes.map((n) => {
                 return 'Note: ' + n.text;
               })
             ].join('\n\n');
@@ -184,7 +209,7 @@ export const SendScheduleDialog = ({
 
       // Generate table with improved styling
       autoTable(pdf, {
-        head: [['Date', 'Période', ...technicians.map((t: any) => t.name)]],
+        head: [['Date', 'Période', ...technicians.map((t) => t.name)]],
         body: tableData,
         startY: 25,
         theme: 'grid',
@@ -206,7 +231,7 @@ export const SendScheduleDialog = ({
           0: { cellWidth: 35, fontStyle: 'bold' },  // Issue #6: Increased width for Date column
           1: { cellWidth: 35, halign: 'center' },    // Issue #6: Increased width for Periode column
         },
-        didParseCell: (data: any) => {
+        didParseCell: (data) => {
           if (data.section === 'body' && data.column.index >= 2) {
             const cellText = data.cell.text.join(' ');
             if (cellText.includes('ABSENCE')) {
@@ -284,7 +309,7 @@ export const SendScheduleDialog = ({
             5: { cellWidth: 22, halign: 'center' },   // Date
             6: { cellWidth: 15, halign: 'center' },   // Résolu
           },
-          didParseCell: (data: any) => {
+          didParseCell: (data) => {
             if (data.section === 'body') {
               // Color resolved rows in green
               const isResolved = data.row.raw[6] === 'Oui';
