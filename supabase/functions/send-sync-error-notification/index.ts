@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
 
     const emailResponse = await resend.emails.send({
       from: "Planning App <onboarding@resend.dev>",
-      to: ["nicholas@sbi25.eu"],
+      to: ["nicholas@ebilyse.com"],
       subject: `🚨 Sync Error: ${syncType}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">

@@ -55,7 +55,7 @@ export const SendScheduleDialog = ({
   savRecords,
   absences = []
 }: SendScheduleDialogProps) => {
-  const [email, setEmail] = useState("direction@sbi25.com");
+  const [email, setEmail] = useState("contact@rps.fr");
   const [note, setNote] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -338,7 +338,7 @@ export const SendScheduleDialog = ({
 
       toast.success("Email envoyé avec succès!");
       setNote("");
-      setEmail("direction@sbi25.com");
+      setEmail("contact@rps.fr");
       onOpenChange(false);
     } catch (error) {
       console.error("Erreur lors de l'envoi:", error);
@@ -363,7 +363,7 @@ export const SendScheduleDialog = ({
             <Input
               id="email"
               type="email"
-              placeholder="direction@sbi25.com"
+              placeholder="contact@rps.fr"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={isLoading}

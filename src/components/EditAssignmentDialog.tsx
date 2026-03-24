@@ -203,9 +203,15 @@ export const EditAssignmentDialog = ({
   // Auto-select chantier if there is only one option available
   useEffect(() => {
     if (selectedClient && chantierOptions.length === 1 && !selectedCommande) {
-      setSelectedCommande(chantierOptions[0].value);
+      const val = chantierOptions[0].value;
+      setSelectedCommande(val);
+      const newComm = commandes.find((c: any) => c.id === val);
+      if (newComm) {
+        const autoName = newComm.display_name || `${newComm.client} - ${getShortChantierName(newComm.chantier || '')}`;
+        setChantierDisplayName(autoName);
+      }
     }
-  }, [selectedClient, chantierOptions, selectedCommande]);
+  }, [selectedClient, chantierOptions, selectedCommande, commandes]);
 
   return (
     <>
@@ -240,6 +246,7 @@ export const EditAssignmentDialog = ({
                   onValueChange={(val) => {
                     setSelectedClient(val);
                     setSelectedCommande('');
+                    setChantierDisplayName('');
                   }}
                   options={clientOptions}
                   placeholder="Sélectionner un client..."
