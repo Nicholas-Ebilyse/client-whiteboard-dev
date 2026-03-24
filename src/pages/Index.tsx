@@ -951,7 +951,8 @@ const Index = () => {
           onOpenChange={setSendScheduleOpen}
           weekNumber={weekConfig.week_number}
           year={weekConfig.year}
-          technicians={activeTechnicians.map((t) => ({ id: t.id, name: t.name }))}
+          teams={teams.map((t) => ({ id: t.id, name: t.name }))}
+          technicians={activeTechnicians.map((t) => ({ id: t.id, name: t.name, team_id: t.team_id }))}
           assignments={assignments.map((a: any) => ({
             id: a.id,
             team_id: a.team_id || a.teamId,
