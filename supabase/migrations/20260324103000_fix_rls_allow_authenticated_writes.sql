@@ -11,6 +11,10 @@ DROP POLICY IF EXISTS "Admins can insert assignments" ON public.assignments;
 DROP POLICY IF EXISTS "Admins can update assignments" ON public.assignments;
 DROP POLICY IF EXISTS "Admins can delete assignments" ON public.assignments;
 
+DROP POLICY IF EXISTS "Authenticated users can insert assignments" ON public.assignments;
+DROP POLICY IF EXISTS "Authenticated users can update assignments" ON public.assignments;
+DROP POLICY IF EXISTS "Authenticated users can delete assignments" ON public.assignments;
+
 CREATE POLICY "Authenticated users can insert assignments"
   ON public.assignments FOR INSERT
   TO authenticated
@@ -33,6 +37,10 @@ DROP POLICY IF EXISTS "Only admins can delete notes" ON public.notes;
 DROP POLICY IF EXISTS "Admins can insert notes" ON public.notes;
 DROP POLICY IF EXISTS "Admins can update notes" ON public.notes;
 DROP POLICY IF EXISTS "Admins can delete notes" ON public.notes;
+
+DROP POLICY IF EXISTS "Authenticated users can insert notes" ON public.notes;
+DROP POLICY IF EXISTS "Authenticated users can update notes" ON public.notes;
+DROP POLICY IF EXISTS "Authenticated users can delete notes" ON public.notes;
 
 CREATE POLICY "Authenticated users can insert notes"
   ON public.notes FOR INSERT
@@ -57,6 +65,10 @@ DROP POLICY IF EXISTS "Admins can insert commandes" ON public.commandes;
 DROP POLICY IF EXISTS "Admins can update commandes" ON public.commandes;
 DROP POLICY IF EXISTS "Admins can delete commandes" ON public.commandes;
 
+DROP POLICY IF EXISTS "Authenticated users can insert commandes" ON public.commandes;
+DROP POLICY IF EXISTS "Authenticated users can update commandes" ON public.commandes;
+DROP POLICY IF EXISTS "Authenticated users can delete commandes" ON public.commandes;
+
 CREATE POLICY "Authenticated users can insert commandes"
   ON public.commandes FOR INSERT
   TO authenticated
@@ -79,6 +91,10 @@ DROP POLICY IF EXISTS "Only admins can delete technicians" ON public.technicians
 DROP POLICY IF EXISTS "Admins can insert technicians" ON public.technicians;
 DROP POLICY IF EXISTS "Admins can update technicians" ON public.technicians;
 DROP POLICY IF EXISTS "Admins can delete technicians" ON public.technicians;
+
+DROP POLICY IF EXISTS "Authenticated users can insert technicians" ON public.technicians;
+DROP POLICY IF EXISTS "Authenticated users can update technicians" ON public.technicians;
+DROP POLICY IF EXISTS "Authenticated users can delete technicians" ON public.technicians;
 
 CREATE POLICY "Authenticated users can insert technicians"
   ON public.technicians FOR INSERT
@@ -103,6 +119,10 @@ DROP POLICY IF EXISTS "Admins can insert week_config" ON public.week_config;
 DROP POLICY IF EXISTS "Admins can update week_config" ON public.week_config;
 DROP POLICY IF EXISTS "Admins can delete week_config" ON public.week_config;
 
+DROP POLICY IF EXISTS "Authenticated users can insert week_config" ON public.week_config;
+DROP POLICY IF EXISTS "Authenticated users can update week_config" ON public.week_config;
+DROP POLICY IF EXISTS "Authenticated users can delete week_config" ON public.week_config;
+
 CREATE POLICY "Authenticated users can insert week_config"
   ON public.week_config FOR INSERT
   TO authenticated
@@ -125,6 +145,10 @@ DROP POLICY IF EXISTS "Only admins can delete teams" ON public.teams;
 DROP POLICY IF EXISTS "Admins can insert teams" ON public.teams;
 DROP POLICY IF EXISTS "Admins can update teams" ON public.teams;
 DROP POLICY IF EXISTS "Admins can delete teams" ON public.teams;
+
+DROP POLICY IF EXISTS "Authenticated users can insert teams" ON public.teams;
+DROP POLICY IF EXISTS "Authenticated users can update teams" ON public.teams;
+DROP POLICY IF EXISTS "Authenticated users can delete teams" ON public.teams;
 
 CREATE POLICY "Authenticated users can insert teams"
   ON public.teams FOR INSERT
