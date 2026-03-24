@@ -41,11 +41,11 @@ interface SendScheduleDialogProps {
   absences?: any[];
 }
 
-export const SendScheduleDialog = ({ 
-  open, 
-  onOpenChange, 
-  weekNumber, 
-  year, 
+export const SendScheduleDialog = ({
+  open,
+  onOpenChange,
+  weekNumber,
+  year,
   technicians,
   assignments,
   notes,
@@ -55,7 +55,7 @@ export const SendScheduleDialog = ({
   savRecords,
   absences = []
 }: SendScheduleDialogProps) => {
-  const [email, setEmail] = useState("contact@rps.fr");
+  const [email, setEmail] = useState("nicholas@ebilyse.com");
   const [note, setNote] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -86,18 +86,18 @@ export const SendScheduleDialog = ({
     try {
       // Refresh the session to ensure we have a valid token
       const { data: { session }, error: sessionError } = await supabase.auth.refreshSession();
-      
+
       if (sessionError || !session) {
         console.error("Session refresh failed:", sessionError);
         toast.error("Session expirée. Veuillez vous reconnecter.");
         setIsLoading(false);
         return;
       }
-      
+
       console.log("Session refreshed successfully, access token present:", !!session.access_token);
-      
+
       toast.info("Génération du PDF en cours...");
-      
+
       // Create PDF programmatically
       const pdf = new jsPDF({
         orientation: 'landscape',
@@ -120,7 +120,7 @@ export const SendScheduleDialog = ({
           // Extract day number from the date
           const dayNumber = new Date(dateInfo.fullDate).getDate();
           const dateString = `${dateInfo.dayName} ${dayNumber}`;
-          
+
           const row: any[] = [
             // Issue #11: Only show date on first period (Matin)
             periodIndex === 0 ? dateString : '',
@@ -147,7 +147,7 @@ export const SendScheduleDialog = ({
                 new Date(a.start_date) <= new Date(dateInfo.fullDate) &&
                 new Date(a.end_date) >= new Date(dateInfo.fullDate)
             );
-            
+
             const absenceReason = absences.find(
               (a: any) =>
                 a.technician_id === tech.id &&
@@ -224,27 +224,27 @@ export const SendScheduleDialog = ({
       // Add SAV table if there are records
       if (savRecords && savRecords.length > 0) {
         const planningFinalY = (pdf as any).lastAutoTable.finalY || 25;
-        
+
         // Add SAV section title
         pdf.setFontSize(14);
         pdf.setFont('helvetica', 'bold');
         pdf.text('Service Après-Vente', 14, planningFinalY + 15);
-        
+
         // Helper to format date in French
         const formatDate = (dateStr: string) => {
           const date = new Date(dateStr);
-          return date.toLocaleDateString('fr-FR', { 
-            day: '2-digit', 
-            month: 'short', 
-            year: '2-digit' 
+          return date.toLocaleDateString('fr-FR', {
+            day: '2-digit',
+            month: 'short',
+            year: '2-digit'
           });
         };
-        
+
         // Helper to remove ", France" from address
         const formatAddress = (address: string) => {
           return address.replace(/,\s*France$/i, '').trim();
         };
-        
+
         // Build SAV table data
         const savTableData = savRecords.map(record => [
           record.numero.toString(),
@@ -255,7 +255,7 @@ export const SendScheduleDialog = ({
           formatDate(record.date),
           record.est_resolu ? 'Oui' : 'Non'
         ]);
-        
+
         autoTable(pdf, {
           head: [['N°', 'Client', 'Adresse', 'Téléphone', 'Problème', 'Date', 'Résolu']],
           body: savTableData,
@@ -330,7 +330,7 @@ export const SendScheduleDialog = ({
         }
         throw error;
       }
-      
+
       if (data?.error) {
         console.error("Email sending error:", data.error);
         throw new Error(data.error);
@@ -338,7 +338,7 @@ export const SendScheduleDialog = ({
 
       toast.success("Email envoyé avec succès!");
       setNote("");
-      setEmail("contact@rps.fr");
+      setEmail("nicholas@ebilyse.com");
       onOpenChange(false);
     } catch (error) {
       console.error("Erreur lors de l'envoi:", error);
@@ -363,7 +363,7 @@ export const SendScheduleDialog = ({
             <Input
               id="email"
               type="email"
-              placeholder="contact@rps.fr"
+              placeholder="nicholas@ebilyse.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={isLoading}
