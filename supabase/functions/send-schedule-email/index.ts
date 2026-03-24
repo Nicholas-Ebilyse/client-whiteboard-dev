@@ -96,8 +96,8 @@ const handler = async (req: Request): Promise<Response> => {
     console.log("[send-schedule-email] Preparing email to:", email, "week:", weekNumber, "year:", year);
     console.log("[send-schedule-email] PDF data length:", pdfData?.length || 0);
 
-    // Convert base64 to buffer
-    const pdfBuffer = Uint8Array.from(atob(pdfData), c => c.charCodeAt(0));
+    const { Resend } = await import("https://esm.sh/resend@2.0.0");
+    const resend = new Resend(RESEND_API_KEY);
 
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -112,46 +112,35 @@ const handler = async (req: Request): Promise<Response> => {
       </div>
     `;
     
-    console.log("[send-schedule-email] RESEND_API_KEY present:", !!RESEND_API_KEY);
+    console.log("[send-schedule-email] Sending email via Resend SDK...");
 
-    const emailResponse = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${RESEND_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: "Planning Ebilyse <onboarding@resend.dev>",
-        to: [email],
-        subject: `Planning hebdomadaire - Semaine ${weekNumber} (${year})`,
-        html: emailHtml,
-        attachments: [
-          {
-            filename: `planning-semaine-${weekNumber}-${year}.pdf`,
-            content: pdfData,
-          },
-        ],
-      }),
+    const emailResponse = await resend.emails.send({
+      from: "Planning Ebilyse <onboarding@resend.dev>",
+      to: [email],
+      subject: `Planning hebdomadaire - Semaine ${weekNumber} (${year})`,
+      html: emailHtml,
+      attachments: [
+        {
+          filename: `planning-semaine-${weekNumber}-${year}.pdf`,
+          content: pdfData,
+        },
+      ],
     });
 
-    console.log("[send-schedule-email] Resend response status:", emailResponse.status);
-    
-    if (!emailResponse.ok) {
-      const errorData = await emailResponse.json();
-      console.error("[send-schedule-email] Resend API error:", JSON.stringify(errorData));
+    if (emailResponse.error) {
+      console.error("[send-schedule-email] Resend API error:", JSON.stringify(emailResponse.error));
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: errorData.message || "Email sending failed" 
+          error: emailResponse.error.message || "Email sending failed" 
         }),
         { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    const emailData = await emailResponse.json();
-    console.log("[send-schedule-email] Email sent successfully:", emailData);
+    console.log("[send-schedule-email] Email sent successfully:", emailResponse.data);
 
-    return new Response(JSON.stringify({ success: true, ...emailData }), {
+    return new Response(JSON.stringify({ success: true, data: emailResponse.data }), {
       status: 200,
       headers: {
         "Content-Type": "application/json",
