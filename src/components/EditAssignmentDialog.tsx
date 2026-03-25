@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { Assignment, Chantier } from '@/types/planning';
 import {
   Dialog,
@@ -76,6 +77,7 @@ export const EditAssignmentDialog = ({
   }, [assignment, commandes]);
   const [chantierDisplayName, setChantierDisplayName] = useState(initialName);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
 
   useEffect(() => {
@@ -284,6 +286,131 @@ export const EditAssignmentDialog = ({
                   />
                 </div>
               )}
+
+              {/* Attachments Section */}
+              {selectedCommande && (() => {
+                const selectedComm = commandes.find((c: any) => c.id === selectedCommande);
+                if (!selectedComm) return null;
+                const attachments = selectedComm.attachments || [];
+                
+                return (
+                  <div className="space-y-3 bg-muted/20 p-4 rounded-md border border-border">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-semibold">Fichiers ({attachments.length}/3)</Label>
+                    </div>
+
+                    {attachments.length > 0 && (
+                      <div className="grid grid-cols-1 gap-2">
+                        {attachments.map((url: string, index: number) => {
+                          const fileName = url.split('/').pop()?.split('?')[0] || `Fichier ${index + 1}`;
+                          return (
+                            <div key={url} className="flex items-center justify-between p-2 bg-background border rounded-md group">
+                              <a 
+                                href={url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2 text-sm text-primary hover:underline truncate"
+                              >
+                                <FileIcon className="h-4 w-4 flex-shrink-0" />
+                                <span className="truncate">{fileName}</span>
+                              </a>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={async () => {
+                                  if (!window.confirm('Supprimer ce fichier ?')) return;
+                                  
+                                  const filePathMatch = url.match(/commandes_files\/(.+)$/);
+                                  if (filePathMatch) {
+                                      const filePath = filePathMatch[1];
+                                      await supabase.storage.from('commandes_files').remove([filePath]);
+                                  }
+                                  
+                                  const newUrls = attachments.filter((u: string) => u !== url);
+                                  await supabase.from('commandes').update({ attachments: newUrls }).eq('id', selectedCommande);
+                                  
+                                  queryClient.invalidateQueries({ queryKey: ['commandes'] });
+                                  toast({ title: 'Fichier supprimé' });
+                                }}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {attachments.length < 3 && (
+                      <div>
+                        <Input
+                          type="file"
+                          id="commande-file-upload"
+                          className="hidden"
+                          accept=".pdf,image/*"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+
+                            if (file.size > 5 * 1024 * 1024) {
+                              toast({ title: 'Fichier trop volumineux', description: 'Le fichier dépasse la limite de 5Mo.', variant: 'destructive' });
+                              return;
+                            }
+
+                            setIsUploading(true);
+                            try {
+                              const fileExt = file.name.split('.').pop();
+                              const fileName = `${selectedCommande}/${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+
+                              const { error: uploadError } = await supabase.storage
+                                .from('commandes_files')
+                                .upload(fileName, file);
+
+                              if (uploadError) throw uploadError;
+
+                              const { data } = supabase.storage
+                                .from('commandes_files')
+                                .getPublicUrl(fileName);
+
+                              const newUrls = [...attachments, data.publicUrl];
+                              
+                              const { error: dbError } = await supabase
+                                .from('commandes')
+                                .update({ attachments: newUrls })
+                                .eq('id', selectedCommande);
+                                
+                              if (dbError) throw dbError;
+                              
+                              queryClient.invalidateQueries({ queryKey: ['commandes'] });
+                              toast({ title: 'Fichier ajouté avec succès' });
+                            } catch (error) {
+                              console.error('Upload error:', error);
+                              toast({ title: "Erreur d'envoi", description: 'Veuillez réessayer.', variant: 'destructive' });
+                            } finally {
+                              setIsUploading(false);
+                              if (e.target) e.target.value = '';
+                            }
+                          }}
+                        />
+                        <Label 
+                          htmlFor="commande-file-upload" 
+                          className={`flex items-center justify-center gap-2 w-full p-3 border-2 border-dashed rounded-md cursor-pointer transition-colors text-sm font-medium
+                            ${isUploading ? 'opacity-50 pointer-events-none bg-muted' : 'text-muted-foreground hover:border-primary hover:text-primary'}`}
+                        >
+                          {isUploading ? (
+                            <><Loader2 className="h-4 w-4 animate-spin" /> Envoi en cours...</>
+                          ) : (
+                            <><Upload className="h-4 w-4" /> Ajouter un fichier (PDF, Image)</>
+                          )}
+                        </Label>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
             </div>
 
             {/* Address display with Google Maps link using commande.chantier field */}
