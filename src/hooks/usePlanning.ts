@@ -195,22 +195,37 @@ export const useCommandes = () => {
 export const useUpdateCommande = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, displayName }: { id: string; displayName: string }) => {
+    mutationFn: async ({
+      id,
+      displayName,
+      clientPresence,
+      savType
+    }: {
+      id: string;
+      displayName?: string;
+      clientPresence?: string | null;
+      savType?: string | null;
+    }) => {
+      const updates: any = {};
+      if (displayName !== undefined) updates.display_name = displayName;
+      if (clientPresence !== undefined) updates.client_presence = clientPresence;
+      if (savType !== undefined) updates.sav_type = savType;
+
       const { data, error } = await supabase
         .from('commandes')
-        .update({ display_name: displayName })
+        .update(updates)
         .eq('id', id)
-        .select()
-        .single();
+        .select();
+
       if (error) throw error;
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['commandes'] });
-      queryClient.invalidateQueries({ queryKey: ['assignments'] });
     },
   });
 };
+
 export const useAssignments = (weekStart: string, weekEnd: string) => {
   return useQuery({
     queryKey: ['assignments', weekStart, weekEnd],
@@ -561,5 +576,53 @@ export const useDeleteAbsenceMotive = () => {
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['absence_motives'] }),
+  });
+};
+
+export const useUpdateDailyTeamRosters = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      date,
+      teamName,
+      rosters // Array of { technician_id, is_team_leader }
+    }: {
+      date: string;
+      teamName: string;
+      rosters: { technician_id: string; is_team_leader: boolean }[];
+    }) => {
+      // First, delete existing rosters for this team on this day to start fresh
+      const { error: deleteError } = await supabase
+        .from('daily_team_rosters')
+        .delete()
+        .eq('date', date)
+        .eq('team_name', teamName);
+
+      if (deleteError) throw deleteError;
+
+      // If the roster is empty, we just stop here (effectively cleared the team)
+      if (rosters.length === 0) return null;
+
+      // Insert the new rosters
+      const newRosters = rosters.map(r => ({
+        date,
+        team_name: teamName,
+        technician_id: r.technician_id,
+        is_team_leader: r.is_team_leader
+      }));
+
+      const { data, error: insertError } = await supabase
+        .from('daily_team_rosters')
+        .insert(newRosters)
+        .select();
+
+      if (insertError) throw insertError;
+      return data;
+    },
+    onSuccess: () => {
+      // This tells React to instantly refresh the grid after saving!
+      queryClient.invalidateQueries({ queryKey: ['dailyTeamRosters'] });
+    },
   });
 };

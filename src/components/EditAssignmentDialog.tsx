@@ -70,6 +70,10 @@ export const EditAssignmentDialog = ({
   );
   const [isConfirmed, setIsConfirmed] = useState(assignment?.isConfirmed || false);
   const [comment, setComment] = useState(assignment?.comment || '');
+
+  const [clientPresence, setClientPresence] = useState('none');
+  const [savType, setSavType] = useState('none');
+
   const initialName = useMemo(() => {
     if (!assignment) return '';
     const comm = commandes.find((c: any) => c.id === assignment.commandeId);
@@ -93,6 +97,10 @@ export const EditAssignmentDialog = ({
       const comm = commandes.find((c: any) => c.id === assignment?.commandeId);
       const officialName = comm?.display_name || (comm ? `${comm.client} - ${getShortChantierName(comm.chantier || '')}` : '');
       setChantierDisplayName(officialName);
+
+      setClientPresence(comm?.client_presence || 'none');
+      setSavType(comm?.sav_type || 'none');
+
     }
   }, [assignment, commandes]);
 
@@ -145,14 +153,18 @@ export const EditAssignmentDialog = ({
         commandeId: selectedCommande,
         startDate: startDateStr,
         endDate: endDateStr,
-        isConfirmed,
+        isConfirmed: clientPresence === 'P' || clientPresence === 'P+RDV',
         comment,
       };
 
       // Propagate the name change to the global reference (commandes table)
       const selectedComm = commandes.find((c: any) => c.id === selectedCommande);
       if (selectedCommande && trimmedName && trimmedName !== (selectedComm?.display_name || '')) {
-        updateCommande.mutate({ id: selectedCommande, displayName: trimmedName });
+        updateCommande.mutate({
+          id: selectedCommande, displayName: trimmedName,
+          clientPresence: clientPresence === 'none' ? null : clientPresence,
+          savType: savType === 'none' ? null : savType
+        });
       }
 
       onSave(updatedAssignment);
@@ -249,6 +261,8 @@ export const EditAssignmentDialog = ({
                     setSelectedClient(val);
                     setSelectedCommande('');
                     setChantierDisplayName('');
+                    setClientPresence(comm?.client_presence || 'none');
+                    setSavType(comm?.sav_type || 'none');
                   }}
                   options={clientOptions}
                   placeholder="Sélectionner un client..."
@@ -287,12 +301,44 @@ export const EditAssignmentDialog = ({
                 </div>
               )}
 
+              {selectedCommande && (
+                <div className="grid grid-cols-2 gap-4 bg-muted/20 p-4 rounded-md border border-border mt-4">
+                  <div className="space-y-2">
+                    <Label>Présence Client</Label>
+                    <Select value={clientPresence} onValueChange={setClientPresence}>
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder="Non défini" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Non défini</SelectItem>
+                        <SelectItem value="P">P (Prévenu)</SelectItem>
+                        <SelectItem value="P+RDV">P + RDV (Présent)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Type SAV</Label>
+                    <Select value={savType} onValueChange={setSavType}>
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder="Aucun" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Aucun</SelectItem>
+                        <SelectItem value="REPRISE">Reprise Chantier</SelectItem>
+                        <SelectItem value="MANQUANT">Manquant Chantier</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+
               {/* Attachments Section */}
               {selectedCommande && (() => {
                 const selectedComm = commandes.find((c: any) => c.id === selectedCommande);
                 if (!selectedComm) return null;
                 const attachments = selectedComm.attachments || [];
-                
+
                 return (
                   <div className="space-y-3 bg-muted/20 p-4 rounded-md border border-border">
                     <div className="flex items-center justify-between">
@@ -305,9 +351,9 @@ export const EditAssignmentDialog = ({
                           const fileName = url.split('/').pop()?.split('?')[0] || `Fichier ${index + 1}`;
                           return (
                             <div key={url} className="flex items-center justify-between p-2 bg-background border rounded-md group">
-                              <a 
-                                href={url} 
-                                target="_blank" 
+                              <a
+                                href={url}
+                                target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex items-center gap-2 text-sm text-primary hover:underline truncate"
                               >
@@ -321,16 +367,16 @@ export const EditAssignmentDialog = ({
                                 className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
                                 onClick={async () => {
                                   if (!window.confirm('Supprimer ce fichier ?')) return;
-                                  
+
                                   const filePathMatch = url.match(/commandes_files\/(.+)$/);
                                   if (filePathMatch) {
-                                      const filePath = filePathMatch[1];
-                                      await supabase.storage.from('commandes_files').remove([filePath]);
+                                    const filePath = filePathMatch[1];
+                                    await supabase.storage.from('commandes_files').remove([filePath]);
                                   }
-                                  
+
                                   const newUrls = attachments.filter((u: string) => u !== url);
                                   await supabase.from('commandes').update({ attachments: newUrls }).eq('id', selectedCommande);
-                                  
+
                                   queryClient.invalidateQueries({ queryKey: ['commandes'] });
                                   toast({ title: 'Fichier supprimé' });
                                 }}
@@ -375,14 +421,14 @@ export const EditAssignmentDialog = ({
                                 .getPublicUrl(fileName);
 
                               const newUrls = [...attachments, data.publicUrl];
-                              
+
                               const { error: dbError } = await supabase
                                 .from('commandes')
                                 .update({ attachments: newUrls })
                                 .eq('id', selectedCommande);
-                                
+
                               if (dbError) throw dbError;
-                              
+
                               queryClient.invalidateQueries({ queryKey: ['commandes'] });
                               toast({ title: 'Fichier ajouté avec succès' });
                             } catch (error) {
@@ -394,8 +440,8 @@ export const EditAssignmentDialog = ({
                             }
                           }}
                         />
-                        <Label 
-                          htmlFor="commande-file-upload" 
+                        <Label
+                          htmlFor="commande-file-upload"
                           className={`flex items-center justify-center gap-2 w-full p-3 border-2 border-dashed rounded-md cursor-pointer transition-colors text-sm font-medium
                             ${isUploading ? 'opacity-50 pointer-events-none bg-muted' : 'text-muted-foreground hover:border-primary hover:text-primary'}`}
                         >
@@ -520,14 +566,6 @@ export const EditAssignmentDialog = ({
           </div>
 
           <DialogFooter className="gap-2 flex-col sm:flex-row sm:justify-between">
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="confirmed"
-                checked={isConfirmed}
-                onCheckedChange={(checked) => setIsConfirmed(checked as boolean)}
-              />
-              <label htmlFor="confirmed" className="text-sm cursor-pointer">Confirmé</label>
-            </div>
             <div className="flex gap-2 flex-wrap">
               {assignment?.id && !assignment.id.startsWith('new-') && onDuplicate && (
                 <Button type="button" variant="outline" onClick={handleDuplicate} size="sm">

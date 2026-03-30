@@ -14,15 +14,16 @@ import { toast } from 'sonner';
 interface EditNoteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  note: { 
-    id?: string; 
-    text: string; 
-    technician_id: string; 
-    start_date: string; 
+  note: {
+    id?: string;
+    text: string;
+    technician_id: string;
+    start_date: string;
     end_date?: string;
     period?: string;
     start_period?: string;
     end_period?: string;
+    weather_condition?: string;
   } | null;
   technicians: { id: string; name: string }[];
   weekDates: { fullDate: string; date: string }[];
@@ -36,25 +37,28 @@ export const EditNoteDialog = ({ open, onOpenChange, note, technicians, weekDate
   const [technicianId, setTechnicianId] = useState('');
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
+  const [weatherCondition, setWeatherCondition] = useState('none');
 
   useEffect(() => {
     if (note) {
       setText(note.text);
       setTechnicianId(note.technician_id);
-      
+
       // Safely parse start date
       const parsedStartDate = note.start_date ? new Date(note.start_date) : undefined;
       setStartDate(parsedStartDate && !isNaN(parsedStartDate.getTime()) ? parsedStartDate : undefined);
-      
+
       // Safely parse end date
       const dateToUse = note.end_date || note.start_date;
       const parsedEndDate = dateToUse ? new Date(dateToUse) : undefined;
       setEndDate(parsedEndDate && !isNaN(parsedEndDate.getTime()) ? parsedEndDate : undefined);
+      setWeatherCondition(note.weather_condition || 'none');
     } else {
       setText('');
       setTechnicianId('');
       setStartDate(today);
       setEndDate(today);
+      setWeatherCondition('none');
     }
   }, [note]);
 
@@ -63,12 +67,13 @@ export const EditNoteDialog = ({ open, onOpenChange, note, technicians, weekDate
       toast.error('Veuillez remplir le champ note');
       return;
     }
-    
+
     onSave({
       ...note,
       text: text.trim(),
       technician_id: technicianId,
       start_date: format(startDate, 'yyyy-MM-dd'),
+      weather_condition: weatherCondition === 'none' ? null : weatherCondition,
     });
     onOpenChange(false);
   };
@@ -162,6 +167,23 @@ export const EditNoteDialog = ({ open, onOpenChange, note, technicians, weekDate
                 </PopoverContent>
               </Popover>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="weather">Conditions Météo</Label>
+            <Select value={weatherCondition} onValueChange={setWeatherCondition}>
+              <SelectTrigger id="weather" className="bg-background">
+                <SelectValue placeholder="Sélectionner une condition" />
+              </SelectTrigger>
+              <SelectContent className="bg-popover">
+                <SelectItem value="none">Aucune / Normal</SelectItem>
+                <SelectItem value="SOLEIL">☀️ Soleil / Dégagé</SelectItem>
+                <SelectItem value="PLUIE">🌧️ Pluie</SelectItem>
+                <SelectItem value="NEIGE">❄️ Neige</SelectItem>
+                <SelectItem value="VENT">💨 Vent Fort</SelectItem>
+                <SelectItem value="GEL">🧊 Gel / Verglas</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">

@@ -6,6 +6,7 @@ import { EditNoteDialog } from '@/components/EditNoteDialog';
 import { EditGeneralNoteDialog } from '@/components/EditGeneralNoteDialog';
 import { EditTechnicianWeekNoteDialog } from '@/components/EditTechnicianWeekNoteDialog';
 import { TeamManagementDialog } from '@/components/TeamManagementDialog';
+import { DailyTeamManagementDialog } from '@/components/DailyTeamManagementDialog';
 import { SendScheduleDialog } from '@/components/SendScheduleDialog';
 import { DragIndicator } from '@/components/DragIndicator';
 import { SAVTable } from '@/components/SAVTable';
@@ -41,6 +42,8 @@ import {
   useUpdateWeekConfig,
   useTechnicians,
   useTeams,
+  useDailyTeamRosters,
+  useUpdateDailyTeamRosters, // <--- Add this
   useCreateTechnician,
   useUpdateTechnician,
   useUpdateTechnicianPositions,
@@ -94,6 +97,9 @@ const Index = () => {
   const [editSingleMode, setEditSingleMode] = useState(false);
   const [highlightedGroupId, setHighlightedGroupId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isDailyTeamDialogOpen, setIsDailyTeamDialogOpen] = useState(false);
+  const [dailyTeamDialogInfo, setDailyTeamDialogInfo] = useState({ teamName: '', date: '' });
+  const updateDailyRosters = useUpdateDailyTeamRosters();
   const queryClient = useQueryClient();
 
   // Session management - automatic refresh and expiry warning
@@ -147,11 +153,12 @@ const Index = () => {
   const weekDates = weekConfig ? getWeekDates(weekConfig.week_number, weekConfig.year) : [];
   const weekStart = weekDates[0]?.fullDate;
   const weekEnd = weekDates[4]?.fullDate;
-  
+
   const { data: assignments = [] } = useAssignments(weekStart, weekEnd);
   const { data: notes = [] } = useNotes(weekStart, weekEnd);
   const { data: absences = [] } = useAbsences(weekStart, weekEnd);
   const { data: savRecords = [] } = useSAV(weekStart, weekEnd);
+  const { data: dailyTeamRosters = [] } = useDailyTeamRosters(weekStart || '', weekEnd || '');
   const { maxAssignments } = useMaxAssignmentsPerPeriod();
 
   // Mutations
@@ -355,7 +362,7 @@ const Index = () => {
           {
             groupId: originalAssignment.assignment_group_id,
             updates: {
-      
+
               commande_id: updatedAssignment.commandeId,
               is_fixed: updatedAssignment.isFixed,
               comment: updatedAssignment.comment,
@@ -574,8 +581,8 @@ const Index = () => {
 
   // Handler for clicking on an existing general note
   const handleGeneralNoteClick = (note: any, date: string) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-    const period = note.start_period === note.end_period 
-      ? note.start_period 
+    const period = note.start_period === note.end_period
+      ? note.start_period
       : 'Journée';
     setSelectedGeneralNote({
       id: note.id,
@@ -677,15 +684,15 @@ const Index = () => {
   // Filter assignments by search term (client name or chantier/address)
   const filteredAssignmentsFormatted = searchTerm.trim()
     ? allAssignmentsFormatted.filter(a => {
-        const commande = a.commandes || commandes.find(c => c.id === a.commandeId);
-        if (!commande) return false;
-        const q = searchTerm.toLowerCase();
-        return (
-          (commande as any).client?.toLowerCase().includes(q) ||
-          (commande as any).chantier?.toLowerCase().includes(q) ||
-          (commande as any).display_name?.toLowerCase().includes(q)
-        );
-      })
+      const commande = a.commandes || commandes.find(c => c.id === a.commandeId);
+      if (!commande) return false;
+      const q = searchTerm.toLowerCase();
+      return (
+        (commande as any).client?.toLowerCase().includes(q) ||
+        (commande as any).chantier?.toLowerCase().includes(q) ||
+        (commande as any).display_name?.toLowerCase().includes(q)
+      );
+    })
     : allAssignmentsFormatted;
 
   // Returns assignments for a given team + date (full-day model, no period filter)
@@ -710,7 +717,7 @@ const Index = () => {
         // Check if assignment is active during any day of the displayed week
         const start = a.start_date || a.startDate;
         const end = a.end_date || a.endDate;
-        
+
         return weekDates.some((d) => {
           const dayDate = d.fullDate;
           return dayDate >= start && dayDate <= end;
@@ -727,18 +734,18 @@ const Index = () => {
       // Clear local state first
       setUser(null);
       setSession(null);
-      
+
       // Sign out with global scope to invalidate all sessions
       await supabase.auth.signOut({ scope: 'global' }).catch(() => {
         // Session was already missing, this is fine
       });
-      
+
       // Clear any cached data
       queryClient.clear();
-      
+
       // Clear localStorage auth data
       localStorage.removeItem('sb-fguflyjgzzeiicefilmb-auth-token');
-      
+
       // Force full page reload to clear all state
       window.location.replace("/auth");
     } catch (error) {
@@ -765,7 +772,7 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       {/* Session expiry warning */}
       {sessionExpiringSoon && (
-        <SessionExpiryWarning 
+        <SessionExpiryWarning
           timeUntilExpiry={timeUntilExpiry}
           onRefresh={handleRefreshSession}
           isRefreshing={isRefreshingSession}
@@ -806,6 +813,11 @@ const Index = () => {
                 <WeeklyGrid
                   displayTeams={displayTeams}
                   activeTechnicians={activeTechnicians}
+                  dailyTeamRosters={dailyTeamRosters}
+                  onManageDailyTeam={(teamName, date) => {
+                    setDailyTeamDialogInfo({ teamName, date });
+                    setIsDailyTeamDialogOpen(true);
+                  }}
                   weekDates={weekDates}
                   notes={notes}
                   absences={absences}
@@ -841,10 +853,10 @@ const Index = () => {
                 />
               </CardContent>
             </Card>
-        </div>
-        
-        {/* SAV Table */}
-        {/* SAV Table temporarily hidden by user request
+          </div>
+
+          {/* SAV Table */}
+          {/* SAV Table temporarily hidden by user request
         {savVisible && savRecords.length > 0 && (
           <SAVTable
             savRecords={savRecords}
@@ -855,207 +867,226 @@ const Index = () => {
         )}
         */}
 
-        <EditAssignmentDialog
-          open={assignmentDialogOpen}
-          onOpenChange={setAssignmentDialogOpen}
-          assignment={selectedAssignment}
+          <EditAssignmentDialog
+            open={assignmentDialogOpen}
+            onOpenChange={setAssignmentDialogOpen}
+            assignment={selectedAssignment}
 
-          commandes={commandes}
-          teams={teams}
-          assignments={allAssignmentsFormatted}
-          allDbAssignments={assignments}
-          onSave={handleSaveAssignment}
-          onDelete={handleDeleteAssignment}
-          onDeleteGroup={handleDeleteAssignmentGroup}
-          onDuplicate={handleDuplicateAssignment}
-        />
+            commandes={commandes}
+            teams={teams}
+            assignments={allAssignmentsFormatted}
+            allDbAssignments={assignments}
+            onSave={handleSaveAssignment}
+            onDelete={handleDeleteAssignment}
+            onDeleteGroup={handleDeleteAssignmentGroup}
+            onDuplicate={handleDuplicateAssignment}
+          />
 
-        <EditNoteDialog
-          open={noteDialogOpen}
-          onOpenChange={setNoteDialogOpen}
-          note={selectedNote}
-          technicians={activeTechnicians.map((t) => ({ id: t.id, name: t.name }))}
-          weekDates={weekDates}
-          onSave={handleSaveNote}
-          onDelete={handleDeleteNote}
-        />
+          <EditNoteDialog
+            open={noteDialogOpen}
+            onOpenChange={setNoteDialogOpen}
+            note={selectedNote}
+            technicians={activeTechnicians.map((t) => ({ id: t.id, name: t.name }))}
+            weekDates={weekDates}
+            onSave={handleSaveNote}
+            onDelete={handleDeleteNote}
+          />
 
-        <EditGeneralNoteDialog
-          open={generalNoteDialogOpen}
-          onOpenChange={setGeneralNoteDialogOpen}
-          note={selectedGeneralNote}
-          onSave={handleSaveGeneralNote}
-          onDelete={handleDeleteNote}
-        />
+          <EditGeneralNoteDialog
+            open={generalNoteDialogOpen}
+            onOpenChange={setGeneralNoteDialogOpen}
+            note={selectedGeneralNote}
+            onSave={handleSaveGeneralNote}
+            onDelete={handleDeleteNote}
+          />
 
-        <EditTechnicianWeekNoteDialog
-          open={techWeekNoteDialogOpen}
-          onOpenChange={setTechWeekNoteDialogOpen}
-          note={selectedTechWeekNote}
-          onSave={handleSaveTechDayNote}
-          onDelete={handleDeleteNote}
-          onDuplicate={(notes) => {
-            notes.forEach(n => {
-              saveNote.mutate(n, {
-                onError: () => toast.error("Erreur lors de la duplication"),
+          <EditTechnicianWeekNoteDialog
+            open={techWeekNoteDialogOpen}
+            onOpenChange={setTechWeekNoteDialogOpen}
+            note={selectedTechWeekNote}
+            onSave={handleSaveTechDayNote}
+            onDelete={handleDeleteNote}
+            onDuplicate={(notes) => {
+              notes.forEach(n => {
+                saveNote.mutate(n, {
+                  onError: () => toast.error("Erreur lors de la duplication"),
+                });
               });
-            });
-            toast.success(`${notes.length} note(s) créée(s)`);
-          }}
-          technicians={teams.map((t) => ({ id: t.id, name: t.name }))}
-          weekDates={weekDates.map(d => d.fullDate)}
-        />
+              toast.success(`${notes.length} note(s) créée(s)`);
+            }}
+            technicians={teams.map((t) => ({ id: t.id, name: t.name }))}
+            weekDates={weekDates.map(d => d.fullDate)}
+          />
 
-        <TeamManagementDialog
-          open={manageTechsDialogOpen}
-          onOpenChange={setManageTechsDialogOpen}
-          teams={teams}
-          technicians={technicians.map((t) => ({ 
-            id: t.id, 
-            name: t.name, 
-            is_archived: t.is_archived || false,
-            position: (t as any).position ?? 0,
-            team_id: t.team_id,
-            is_temp: t.is_temp,
-            skills: t.skills
-          }))}
-          onArchive={handleArchiveTechnician}
-          onNameChange={handleUpdateTechnicianName}
-          onAdd={handleAddTechnician}
-          onAssignTeam={(techId, teamId) => updateTechnician.mutate({ id: techId, team_id: teamId })}
-        />
+          <TeamManagementDialog
+            open={manageTechsDialogOpen}
+            onOpenChange={setManageTechsDialogOpen}
+            teams={teams}
+            technicians={technicians.map((t) => ({
+              id: t.id,
+              name: t.name,
+              is_archived: t.is_archived || false,
+              position: (t as any).position ?? 0,
+              team_id: t.team_id,
+              is_temp: t.is_temp,
+              skills: t.skills
+            }))}
+            onArchive={handleArchiveTechnician}
+            onNameChange={handleUpdateTechnicianName}
+            onAdd={handleAddTechnician}
+            onAssignTeam={(techId, teamId) => updateTechnician.mutate({ id: techId, team_id: teamId })}
+          />
 
-        <AbsenceManagementDialog
-          open={absenceManagementOpen}
-          onOpenChange={setAbsenceManagementOpen}
-        />
+          <AbsenceManagementDialog
+            open={absenceManagementOpen}
+            onOpenChange={setAbsenceManagementOpen}
+          />
 
-        <SearchFilterModal
-          open={searchModalOpen}
-          onOpenChange={setSearchModalOpen}
-          commandes={commandes.map(c => ({ id: c.id, client: c.client, chantier: c.chantier }))}
-          assignments={assignments.map((a: any) => ({
-            id: a.id,
-            team_id: a.team_id || (a as any).teamId,
-            commande_id: a.commande_id || (a as any).commandeId,
-            start_date: a.start_date || (a as any).startDate,
-            end_date: a.end_date || (a as any).endDate,
-            comment: a.comment || (a as any).comment,
-          }))}
-          teams={teams.map(t => ({ id: t.id, name: t.name, color: t.color }))}
-          notes={notes}
-        />
+          <SearchFilterModal
+            open={searchModalOpen}
+            onOpenChange={setSearchModalOpen}
+            commandes={commandes.map(c => ({ id: c.id, client: c.client, chantier: c.chantier }))}
+            assignments={assignments.map((a: any) => ({
+              id: a.id,
+              team_id: a.team_id || (a as any).teamId,
+              commande_id: a.commande_id || (a as any).commandeId,
+              start_date: a.start_date || (a as any).startDate,
+              end_date: a.end_date || (a as any).endDate,
+              comment: a.comment || (a as any).comment,
+            }))}
+            teams={teams.map(t => ({ id: t.id, name: t.name, color: t.color }))}
+            notes={notes}
+          />
 
-        <SendScheduleDialog
-          open={sendScheduleOpen}
-          onOpenChange={setSendScheduleOpen}
-          weekNumber={weekConfig.week_number}
-          year={weekConfig.year}
-          teams={teams.map((t) => ({ id: t.id, name: t.name }))}
-          technicians={activeTechnicians.map((t) => ({ id: t.id, name: t.name, team_id: t.team_id }))}
-          assignments={assignments.map((a: any) => ({
-            id: a.id,
-            team_id: a.team_id || a.teamId,
-            commande_id: a.commande_id || a.commandeId,
-            start_date: a.start_date || a.startDate,
-            end_date: a.end_date || a.endDate,
-            comment: a.comment,
-          }))}
-          notes={notes}
-          absences={absences}
-          weekDates={weekDates}
+          <SendScheduleDialog
+            open={sendScheduleOpen}
+            onOpenChange={setSendScheduleOpen}
+            weekNumber={weekConfig.week_number}
+            year={weekConfig.year}
+            teams={teams.map((t) => ({ id: t.id, name: t.name }))}
+            technicians={activeTechnicians.map((t) => ({ id: t.id, name: t.name, team_id: t.team_id }))}
+            assignments={assignments.map((a: any) => ({
+              id: a.id,
+              team_id: a.team_id || a.teamId,
+              commande_id: a.commande_id || a.commandeId,
+              start_date: a.start_date || a.startDate,
+              end_date: a.end_date || a.endDate,
+              comment: a.comment,
+            }))}
+            notes={notes}
+            absences={absences}
+            weekDates={weekDates}
 
-          commandes={commandes}
-          savRecords={savRecords}
-        />
+            commandes={commandes}
+            savRecords={savRecords}
+          />
 
-        <AlertDialog open={groupEditAlert.open} onOpenChange={(open) => !open && setGroupEditAlert({ open: false, assignment: null })}>
-          <AlertDialogContent className="bg-card sm:max-w-lg">
-            <AlertDialogHeader>
-              <AlertDialogTitle>Modifier l'affectation groupée</AlertDialogTitle>
-              <AlertDialogDescription className="space-y-2">
-                <span>Cette affectation fait partie d'un groupe (indiqué par l'icône 🔗).</span>
-                <br />
-                <span className="font-medium">« Celle-ci uniquement »</span> détachera l'affectation du groupe et elle deviendra indépendante.
-                <br />
-                <span className="font-medium">« Tout le groupe »</span> appliquera les modifications à toutes les affectations liées.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
-              <AlertDialogCancel>Annuler</AlertDialogCancel>
-              <AlertDialogAction 
-                onClick={() => {
+          <DailyTeamManagementDialog
+            isOpen={isDailyTeamDialogOpen}
+            onClose={() => setIsDailyTeamDialogOpen(false)}
+            teamName={dailyTeamDialogInfo.teamName}
+            date={dailyTeamDialogInfo.date}
+            activeTechnicians={activeTechnicians}
+            currentRosters={dailyTeamRosters.filter((r: any) =>
+              r.team_name === dailyTeamDialogInfo.teamName &&
+              r.date === dailyTeamDialogInfo.date
+            )}
+            onSave={(rosters) => {
+              updateDailyRosters.mutate({
+                date: dailyTeamDialogInfo.date,
+                teamName: dailyTeamDialogInfo.teamName,
+                rosters
+              });
+            }}
+          />
+
+          <AlertDialog open={groupEditAlert.open} onOpenChange={(open) => !open && setGroupEditAlert({ open: false, assignment: null })}>
+            <AlertDialogContent className="bg-card sm:max-w-lg">
+              <AlertDialogHeader>
+                <AlertDialogTitle>Modifier l'affectation groupée</AlertDialogTitle>
+                <AlertDialogDescription className="space-y-2">
+                  <span>Cette affectation fait partie d'un groupe (indiqué par l'icône 🔗).</span>
+                  <br />
+                  <span className="font-medium">« Celle-ci uniquement »</span> détachera l'affectation du groupe et elle deviendra indépendante.
+                  <br />
+                  <span className="font-medium">« Tout le groupe »</span> appliquera les modifications à toutes les affectations liées.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
+                <AlertDialogCancel>Annuler</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    if (groupEditAlert.assignment) {
+                      setEditSingleMode(true);
+                      setSelectedAssignment(groupEditAlert.assignment);
+                      setAssignmentDialogOpen(true);
+                      setGroupEditAlert({ open: false, assignment: null });
+                    }
+                  }}
+                  className="bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                >
+                  Celle-ci uniquement
+                </AlertDialogAction>
+                <AlertDialogAction onClick={() => {
                   if (groupEditAlert.assignment) {
-                    setEditSingleMode(true);
+                    setEditSingleMode(false);
                     setSelectedAssignment(groupEditAlert.assignment);
                     setAssignmentDialogOpen(true);
                     setGroupEditAlert({ open: false, assignment: null });
                   }
-                }}
-                className="bg-secondary text-secondary-foreground hover:bg-secondary/80"
-              >
-                Celle-ci uniquement
-              </AlertDialogAction>
-              <AlertDialogAction onClick={() => {
-                if (groupEditAlert.assignment) {
-                  setEditSingleMode(false);
-                  setSelectedAssignment(groupEditAlert.assignment);
-                  setAssignmentDialogOpen(true);
-                  setGroupEditAlert({ open: false, assignment: null });
-                }
-              }}>
-                Tout le groupe
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+                }}>
+                  Tout le groupe
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
-        {/* Cross-technician drop confirmation dialog */}
-        <AlertDialog open={!!pendingDrop} onOpenChange={(open) => !open && cancelPendingDrop()}>
-          <AlertDialogContent className="bg-card">
-            <AlertDialogHeader>
-              <AlertDialogTitle>Déplacer vers une autre équipe</AlertDialogTitle>
-              <AlertDialogDescription>
-                Voulez-vous vraiment déplacer cette affectation vers {getTargetTeamName()} ?
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel onClick={cancelPendingDrop}>Annuler</AlertDialogCancel>
-              <AlertDialogAction onClick={confirmPendingDrop}>
-                Confirmer le déplacement
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+          {/* Cross-technician drop confirmation dialog */}
+          <AlertDialog open={!!pendingDrop} onOpenChange={(open) => !open && cancelPendingDrop()}>
+            <AlertDialogContent className="bg-card">
+              <AlertDialogHeader>
+                <AlertDialogTitle>Déplacer vers une autre équipe</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Voulez-vous vraiment déplacer cette affectation vers {getTargetTeamName()} ?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={cancelPendingDrop}>Annuler</AlertDialogCancel>
+                <AlertDialogAction onClick={confirmPendingDrop}>
+                  Confirmer le déplacement
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
-        <AlertDialog open={!!linkedGroupPendingDrop} onOpenChange={(open) => !open && cancelLinkedGroupPendingDrop()}>
-          <AlertDialogContent className="bg-card sm:max-w-lg">
-            <AlertDialogHeader>
-              <AlertDialogTitle>Affectation liée à d'autres techniciens</AlertDialogTitle>
-              <AlertDialogDescription className="space-y-2">
-                <span>Cette affectation est liée à un groupe de {linkedGroupPendingDrop?.linkedGroupSize} affectation(s).</span>
-                <br />
-                <span className="font-medium">« Celle-ci uniquement »</span> détachera l'affectation du groupe et la déplacera indépendamment.
-                <br />
-                <span className="font-medium">« Toutes les liées »</span> déplacera toutes les affectations vers la même date/période.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
-              <AlertDialogCancel onClick={cancelLinkedGroupPendingDrop} className="w-full sm:w-auto">
-                Annuler
-              </AlertDialogCancel>
-              <AlertDialogAction 
-                onClick={confirmLinkedDropSingle} 
-                className="w-full sm:w-auto bg-secondary text-secondary-foreground hover:bg-secondary/80"
-              >
-                Celle-ci uniquement
-              </AlertDialogAction>
-              <AlertDialogAction onClick={confirmLinkedDropAll} className="w-full sm:w-auto">
-                Toutes les liées
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+          <AlertDialog open={!!linkedGroupPendingDrop} onOpenChange={(open) => !open && cancelLinkedGroupPendingDrop()}>
+            <AlertDialogContent className="bg-card sm:max-w-lg">
+              <AlertDialogHeader>
+                <AlertDialogTitle>Affectation liée à d'autres techniciens</AlertDialogTitle>
+                <AlertDialogDescription className="space-y-2">
+                  <span>Cette affectation est liée à un groupe de {linkedGroupPendingDrop?.linkedGroupSize} affectation(s).</span>
+                  <br />
+                  <span className="font-medium">« Celle-ci uniquement »</span> détachera l'affectation du groupe et la déplacera indépendamment.
+                  <br />
+                  <span className="font-medium">« Toutes les liées »</span> déplacera toutes les affectations vers la même date/période.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
+                <AlertDialogCancel onClick={cancelLinkedGroupPendingDrop} className="w-full sm:w-auto">
+                  Annuler
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={confirmLinkedDropSingle}
+                  className="w-full sm:w-auto bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                >
+                  Celle-ci uniquement
+                </AlertDialogAction>
+                <AlertDialogAction onClick={confirmLinkedDropAll} className="w-full sm:w-auto">
+                  Toutes les liées
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
     </div>
