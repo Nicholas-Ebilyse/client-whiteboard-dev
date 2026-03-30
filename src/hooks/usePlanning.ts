@@ -13,25 +13,25 @@ export const useWeekConfig = () => {
         .select('*')
         .eq('is_current', true)
         .single();
-      
+
       if (error && error.code !== 'PGRST116') throw error;
-      
+
       // If no config exists, create one with current week
       if (!data) {
         const currentDate = new Date();
         const weekNumber = getWeek(currentDate, { weekStartsOn: 1 });
         const year = getYear(currentDate);
-        
+
         const { data: newData, error: insertError } = await supabase
           .from('week_config')
           .insert({ week_number: weekNumber, year, is_current: true })
           .select()
           .single();
-        
+
         if (insertError) throw insertError;
         return newData;
       }
-      
+
       return data;
     },
   });
@@ -39,7 +39,7 @@ export const useWeekConfig = () => {
 
 export const useUpdateWeekConfig = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async ({ week_number, year }: { week_number: number; year: number }) => {
       const { data, error } = await supabase
@@ -48,7 +48,7 @@ export const useUpdateWeekConfig = () => {
         .eq('is_current', true)
         .select()
         .single();
-      
+
       if (error) throw error;
       return data;
     },
@@ -66,13 +66,13 @@ export const useTechnicians = (includeArchived = false) => {
         .from('technicians')
         .select('*')
         .order('position');
-      
+
       if (!includeArchived) {
         query = query.eq('is_archived', false);
       }
-      
+
       const { data, error } = await query;
-      
+
       if (error) throw error;
       return data;
     },
@@ -81,7 +81,7 @@ export const useTechnicians = (includeArchived = false) => {
 
 export const useCreateTechnician = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async ({ name, isTemp, skills }: { name: string; isTemp?: boolean; skills?: string }) => {
       const { data: existingTechs } = await supabase
@@ -89,15 +89,15 @@ export const useCreateTechnician = () => {
         .select('position')
         .order('position', { ascending: false })
         .limit(1);
-      
+
       const maxPosition = existingTechs?.[0]?.position ?? -1;
-      
+
       const { data, error } = await supabase
         .from('technicians')
         .insert({ name, position: maxPosition + 1, is_temp: isTemp || false, skills })
         .select()
         .single();
-      
+
       if (error) throw error;
       return data;
     },
@@ -107,9 +107,30 @@ export const useCreateTechnician = () => {
   });
 };
 
+export const useDailyTeamRosters = (startDate: string, endDate: string) => {
+  return useQuery({
+    queryKey: ['dailyTeamRosters', startDate, endDate],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('daily_team_rosters')
+        .select(`
+          *,
+          technician:technicians(*)
+        `)
+        .gte('date', startDate)
+        .lte('date', endDate);
+
+      if (error) throw error;
+      return data;
+    },
+    // Only run this query if we have dates selected
+    enabled: !!startDate && !!endDate,
+  });
+};
+
 export const useUpdateTechnician = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async ({ id, name, is_temp, team_id, skills }: { id: string; name?: string; is_temp?: boolean; team_id?: string | null; skills?: string }) => {
       const updates: any = {};
@@ -124,7 +145,7 @@ export const useUpdateTechnician = () => {
         .eq('id', id)
         .select()
         .single();
-      
+
       if (error) throw error;
       return data;
     },
@@ -136,7 +157,7 @@ export const useUpdateTechnician = () => {
 
 export const useUpdateTechnicianPositions = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async (positions: { id: string; position: number }[]) => {
       const updates = positions.map(({ id, position }) =>
@@ -162,7 +183,7 @@ export const useCommandes = () => {
         .from('commandes')
         .select('*')
         .order('client, chantier');
-      
+
       if (error) throw error;
       return data;
     },
@@ -199,7 +220,7 @@ export const useAssignments = (weekStart: string, weekEnd: string) => {
         .select('*, commandes(display_name)')
         .lte('start_date', weekEnd)
         .gte('end_date', weekStart);
-      
+
       if (error) throw error;
       return data;
     },
@@ -216,7 +237,7 @@ export const useNotes = (weekStart: string, weekEnd: string) => {
         .from('notes')
         .select('*')
         .or(`and(start_date.lte.${weekEnd},end_date.gte.${weekStart})`);
-      
+
       if (error) throw error;
       return data;
     },
@@ -226,11 +247,11 @@ export const useNotes = (weekStart: string, weekEnd: string) => {
 
 export const useSaveAssignment = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async (assignment: any) => {
       const { id, teamId, commandeId, startDate, endDate, isFixed, comment, isConfirmed, assignment_group_id, ...rest } = assignment;
-      
+
       const dbAssignment = {
         team_id: teamId ?? assignment.team_id,
         commande_id: commandeId ?? assignment.commande_id,
@@ -249,7 +270,7 @@ export const useSaveAssignment = () => {
           .eq('id', id)
           .select()
           .single();
-        
+
         if (error) {
           console.error('[useSaveAssignment] UPDATE error:', error);
           throw error;
@@ -262,7 +283,7 @@ export const useSaveAssignment = () => {
           .insert(dbAssignment)
           .select()
           .single();
-        
+
         if (error) {
           console.error('[useSaveAssignment] INSERT error:', JSON.stringify(error, null, 2));
           console.error('[useSaveAssignment] INSERT payload was:', JSON.stringify(dbAssignment, null, 2));
@@ -280,14 +301,14 @@ export const useSaveAssignment = () => {
 
 export const useDeleteAssignment = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
         .from('assignments')
         .delete()
         .eq('id', id);
-      
+
       if (error) throw error;
     },
     onSuccess: () => {
@@ -299,7 +320,7 @@ export const useDeleteAssignment = () => {
 
 export const useSaveNote = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async (note: any) => {
       const dbNote: any = { // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -308,7 +329,7 @@ export const useSaveNote = () => {
         end_date: note.end_date || note.endDate || note.start_date || note.startDate,
         text: note.text,
       };
-      
+
       const id = note.id;
       if (id && !id.startsWith('new-')) {
         const { data, error } = await supabase
@@ -317,7 +338,7 @@ export const useSaveNote = () => {
           .eq('id', id)
           .select()
           .single();
-        
+
         if (error) throw error;
         return data;
       } else {
@@ -326,7 +347,7 @@ export const useSaveNote = () => {
           .insert(dbNote)
           .select()
           .single();
-        
+
         if (error) throw error;
         return data;
       }
@@ -340,14 +361,14 @@ export const useSaveNote = () => {
 
 export const useDeleteNote = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
         .from('notes')
         .delete()
         .eq('id', id);
-      
+
       if (error) throw error;
     },
     onSuccess: () => {
@@ -480,10 +501,10 @@ export const getWeekDates = (weekNumber: number, year: number) => {
   // Find the first Thursday of the year (ISO week definition)
   const jan4 = new Date(year, 0, 4);
   const firstMonday = startOfWeek(jan4, { weekStartsOn: 1 });
-  
+
   // Add the appropriate number of weeks
   const weekStart = addDays(firstMonday, (weekNumber - 1) * 7);
-  
+
   const dates = [];
   for (let i = 0; i < 5; i++) {
     const date = addDays(weekStart, i);
@@ -493,7 +514,7 @@ export const getWeekDates = (weekNumber: number, year: number) => {
       dayName: format(date, 'EEEE', { locale: fr }),
     });
   }
-  
+
   return dates;
 };
 
