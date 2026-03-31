@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { toast } from 'sonner';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -16,9 +17,9 @@ interface Team {
 interface EditTeamNoteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  note: { 
-    id?: string; 
-    text: string; 
+  note: {
+    id?: string;
+    text: string;
     technician_id?: string; // kept for backward compat during state passing, ignored on save
     technician_name?: string;
     team_id?: string;
@@ -31,17 +32,18 @@ interface EditTeamNoteDialogProps {
   weekDates?: string[];
 }
 
-export const EditTechnicianWeekNoteDialog = ({ 
-  open, 
-  onOpenChange, 
-  note, 
-  onSave, 
+export const EditTechnicianWeekNoteDialog = ({
+  open,
+  onOpenChange,
+  note,
+  onSave,
   onDelete,
   onDuplicate,
   technicians: teams = [],
   weekDates = [],
 }: EditTeamNoteDialogProps) => {
   const [text, setText] = useState('');
+  const [weatherCondition, setWeatherCondition] = useState('none');
   const [showDuplicateOptions, setShowDuplicateOptions] = useState(false);
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const [selectedTeams, setSelectedTeams] = useState<string[]>([]);
@@ -49,11 +51,13 @@ export const EditTechnicianWeekNoteDialog = ({
   useEffect(() => {
     if (note) {
       setText(note.text);
+      setWeatherCondition((note as any).weather_condition || 'none');
       setShowDuplicateOptions(false);
       setSelectedDays([]);
       setSelectedTeams([]);
     } else {
       setText('');
+      setWeatherCondition('none');
       setShowDuplicateOptions(false);
       setSelectedDays([]);
       setSelectedTeams([]);
@@ -65,13 +69,14 @@ export const EditTechnicianWeekNoteDialog = ({
       toast.error('Veuillez saisir une note');
       return;
     }
-    
+
     onSave({
       id: note?.id,
       text: text.trim(),
       team_id: note?.team_id || null,
       start_date: note?.date,
       end_date: note?.date,
+      weather_condition: weatherCondition === 'none' ? null : weatherCondition,
     });
     onOpenChange(false);
   };
@@ -106,6 +111,7 @@ export const EditTechnicianWeekNoteDialog = ({
           team_id: teamId,
           start_date: day,
           end_date: day,
+          weather_condition: weatherCondition === 'none' ? null : weatherCondition,
         });
       }
     }
@@ -155,13 +161,29 @@ export const EditTechnicianWeekNoteDialog = ({
         <DialogHeader>
           <DialogTitle>{note?.id ? 'Modifier la note' : 'Nouvelle note'}</DialogTitle>
           <DialogDescription>
-            {currentTeamName 
+            {currentTeamName
               ? `Note pour ${currentTeamName} - ${note?.date ? formatDate(note.date) : ''}`
               : `Nouvelle note pour le ${note?.date ? formatDate(note.date) : ''}`
             }
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="weather">Conditions Météo</Label>
+            <Select value={weatherCondition} onValueChange={setWeatherCondition}>
+              <SelectTrigger id="weather" className="bg-background">
+                <SelectValue placeholder="Sélectionner une condition" />
+              </SelectTrigger>
+              <SelectContent className="bg-popover">
+                <SelectItem value="none">Aucune / Normal</SelectItem>
+                <SelectItem value="SOLEIL">☀️ Soleil / Dégagé</SelectItem>
+                <SelectItem value="PLUIE">🌧️ Pluie</SelectItem>
+                <SelectItem value="NEIGE">❄️ Neige</SelectItem>
+                <SelectItem value="VENT">💨 Vent Fort</SelectItem>
+                <SelectItem value="GEL">🧊 Gel / Verglas</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="space-y-2">
             <Label htmlFor="note-text">Note</Label>
             <Textarea

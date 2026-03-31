@@ -83,7 +83,7 @@ export const useCreateTechnician = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ name, isTemp, skills }: { name: string; isTemp?: boolean; skills?: string }) => {
+    mutationFn: async ({ name, isTemp, skills, isAccompanied }: { name: string; isTemp?: boolean; skills?: string; isAccompanied?: boolean }) => {
       const { data: existingTechs } = await supabase
         .from('technicians')
         .select('position')
@@ -94,7 +94,13 @@ export const useCreateTechnician = () => {
 
       const { data, error } = await supabase
         .from('technicians')
-        .insert({ name, position: maxPosition + 1, is_temp: isTemp || false, skills })
+        .insert({
+          name,
+          position: maxPosition + 1,
+          is_temp: isTemp || false,
+          skills,
+          is_accompanied: isAccompanied || false // <--- We added this
+        })
         .select()
         .single();
 
@@ -132,12 +138,13 @@ export const useUpdateTechnician = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, name, is_temp, team_id, skills }: { id: string; name?: string; is_temp?: boolean; team_id?: string | null; skills?: string }) => {
+    mutationFn: async ({ id, name, is_temp, team_id, skills, isAccompanied }: { id: string; name?: string; is_temp?: boolean; team_id?: string | null; skills?: string; isAccompanied?: boolean }) => {
       const updates: any = {};
       if (name !== undefined) updates.name = name;
       if (is_temp !== undefined) updates.is_temp = is_temp;
       if (team_id !== undefined) updates.team_id = team_id;
       if (skills !== undefined) updates.skills = skills;
+      if (isAccompanied !== undefined) updates.is_accompanied = isAccompanied; // <--- We added this
 
       const { data, error } = await supabase
         .from('technicians')
@@ -335,41 +342,36 @@ export const useDeleteAssignment = () => {
 
 export const useSaveNote = () => {
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: async (note: any) => {
-      const dbNote: any = { // eslint-disable-line @typescript-eslint/no-explicit-any
-        team_id: note.team_id || note.teamId || note.technician_id || note.technicianId || null,
-        start_date: note.start_date || note.startDate,
-        end_date: note.end_date || note.endDate || note.start_date || note.startDate,
+      // The exact, perfectly clean package for the new database!
+      const dbNote: any = {
         text: note.text,
+        start_date: note.start_date,
+        end_date: note.end_date || note.start_date,
+        team_id: note.team_id || null,
+        weather_condition: note.weather_condition || null,
       };
 
-      const id = note.id;
-      if (id && !id.startsWith('new-')) {
+      if (note.id) {
         const { data, error } = await supabase
           .from('notes')
           .update(dbNote)
-          .eq('id', id)
-          .select()
-          .single();
-
+          .eq('id', note.id)
+          .select();
         if (error) throw error;
         return data;
       } else {
         const { data, error } = await supabase
           .from('notes')
-          .insert(dbNote)
-          .select()
-          .single();
-
+          .insert([dbNote])
+          .select();
         if (error) throw error;
         return data;
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notes'] });
-      scheduleDebouncedCalendarSync();
     },
   });
 };

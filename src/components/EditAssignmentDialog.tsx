@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Assignment, Chantier } from '@/types/planning';
+import { Assignment } from '@/types/planning';
 import {
   Dialog,
   DialogContent,
@@ -14,10 +14,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Copy, MapPin, ExternalLink, Upload, X, FileIcon, ImageIcon, Loader2 } from 'lucide-react';
-import { format, isBefore, isAfter, startOfDay } from 'date-fns';
+import { CalendarIcon, Copy, MapPin, ExternalLink, Upload, X, FileIcon, Loader2 } from 'lucide-react';
+import { format } from 'date-fns';
 import { cn, getShortChantierName } from '@/lib/utils';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { SearchableSelect } from './SearchableSelect';
 import { DeleteAssignmentConfirmDialog } from './DeleteAssignmentConfirmDialog';
@@ -30,23 +29,21 @@ interface EditAssignmentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   assignment: Assignment | null;
-
-  commandes: any[]; // Issue #3: Add commandes for address lookup
+  commandes: any[];
   teams: any[];
   assignments: Assignment[];
   onSave: (assignment: Assignment) => void;
   onDelete?: (id: string) => void;
   onDeleteGroup?: (id: string) => void;
   onDuplicate?: (id: string) => void;
-  allDbAssignments?: any[]; // Raw DB assignments for finding linked technicians
+  allDbAssignments?: any[];
 }
 
 export const EditAssignmentDialog = ({
   open,
   onOpenChange,
   assignment,
-
-  commandes, // Issue #3: Receive commandes prop
+  commandes,
   teams,
   assignments,
   onSave,
@@ -68,9 +65,9 @@ export const EditAssignmentDialog = ({
   const [endDate, setEndDate] = useState<Date | undefined>(
     assignment ? new Date(assignment.endDate) : today
   );
-  const [isConfirmed, setIsConfirmed] = useState(assignment?.isConfirmed || false);
   const [comment, setComment] = useState(assignment?.comment || '');
 
+  // New State variables for Phase 4 UI
   const [clientPresence, setClientPresence] = useState('none');
   const [savType, setSavType] = useState('none');
 
@@ -79,10 +76,10 @@ export const EditAssignmentDialog = ({
     const comm = commandes.find((c: any) => c.id === assignment.commandeId);
     return comm?.display_name || (comm ? `${comm.client} - ${getShortChantierName(comm.chantier || '')}` : '');
   }, [assignment, commandes]);
+
   const [chantierDisplayName, setChantierDisplayName] = useState(initialName);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-
 
   useEffect(() => {
     if (assignment) {
@@ -92,15 +89,14 @@ export const EditAssignmentDialog = ({
       setSelectedCommande(assignment.commandeId || '');
       setStartDate(new Date(assignment.startDate));
       setEndDate(new Date(assignment.endDate));
-      setIsConfirmed(assignment.isConfirmed || false);
       setComment(assignment.comment || '');
-      const comm = commandes.find((c: any) => c.id === assignment?.commandeId);
-      const officialName = comm?.display_name || (comm ? `${comm.client} - ${getShortChantierName(comm.chantier || '')}` : '');
+
+      const officialName = initialCommande?.display_name || (initialCommande ? `${initialCommande.client} - ${getShortChantierName(initialCommande.chantier || '')}` : '');
       setChantierDisplayName(officialName);
 
-      setClientPresence(comm?.client_presence || 'none');
-      setSavType(comm?.sav_type || 'none');
-
+      // Load Phase 4 values
+      setClientPresence(initialCommande?.client_presence || 'none');
+      setSavType(initialCommande?.sav_type || 'none');
     }
   }, [assignment, commandes]);
 
@@ -143,8 +139,6 @@ export const EditAssignmentDialog = ({
         return;
       }
 
-
-
       const trimmedName = chantierDisplayName.trim() || '';
 
       const updatedAssignment: Assignment = {
@@ -153,15 +147,15 @@ export const EditAssignmentDialog = ({
         commandeId: selectedCommande,
         startDate: startDateStr,
         endDate: endDateStr,
-        isConfirmed: clientPresence === 'P' || clientPresence === 'P+RDV',
+        isConfirmed: clientPresence === 'P' || clientPresence === 'P+RDV', // Driven by dropdown!
         comment,
       };
 
-      // Propagate the name change to the global reference (commandes table)
-      const selectedComm = commandes.find((c: any) => c.id === selectedCommande);
-      if (selectedCommande && trimmedName && trimmedName !== (selectedComm?.display_name || '')) {
+      // Always update the Commande to save the Presence and SAV status
+      if (selectedCommande) {
         updateCommande.mutate({
-          id: selectedCommande, displayName: trimmedName,
+          id: selectedCommande,
+          displayName: trimmedName,
           clientPresence: clientPresence === 'none' ? null : clientPresence,
           savType: savType === 'none' ? null : savType
         });
@@ -214,7 +208,6 @@ export const EditAssignmentDialog = ({
       }));
   }, [commandes, selectedClient]);
 
-  // Auto-select chantier if there is only one option available
   useEffect(() => {
     if (selectedClient && chantierOptions.length === 1 && !selectedCommande) {
       const val = chantierOptions[0].value;
@@ -223,6 +216,8 @@ export const EditAssignmentDialog = ({
       if (newComm) {
         const autoName = newComm.display_name || `${newComm.client} - ${getShortChantierName(newComm.chantier || '')}`;
         setChantierDisplayName(autoName);
+        setClientPresence(newComm.client_presence || 'none');
+        setSavType(newComm.sav_type || 'none');
       }
     }
   }, [selectedClient, chantierOptions, selectedCommande, commandes]);
@@ -235,7 +230,7 @@ export const EditAssignmentDialog = ({
             <DialogTitle className="text-xl font-semibold">Éditer l'affectation</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-6 py-4 max-h-[calc(90vh-200px)] overflow-y-auto">
+          <div className="space-y-6 py-4 max-h-[calc(90vh-140px)] overflow-y-auto">
             <div className="space-y-2">
               <Label htmlFor="team">Équipe</Label>
               <Select value={selectedTeam} onValueChange={setSelectedTeam}>
@@ -261,8 +256,6 @@ export const EditAssignmentDialog = ({
                     setSelectedClient(val);
                     setSelectedCommande('');
                     setChantierDisplayName('');
-                    setClientPresence(comm?.client_presence || 'none');
-                    setSavType(comm?.sav_type || 'none');
                   }}
                   options={clientOptions}
                   placeholder="Sélectionner un client..."
@@ -276,11 +269,12 @@ export const EditAssignmentDialog = ({
                     value={selectedCommande}
                     onValueChange={(val) => {
                       setSelectedCommande(val);
-                      // Pre-fill display name from the new commande's existing name
                       const newComm = commandes.find((c: any) => c.id === val);
                       if (newComm) {
                         const autoName = newComm.display_name || `${newComm.client} - ${getShortChantierName(newComm.chantier || '')}`;
                         setChantierDisplayName(autoName);
+                        setClientPresence(newComm.client_presence || 'none');
+                        setSavType(newComm.sav_type || 'none');
                       }
                     }}
                     options={chantierOptions}
@@ -301,34 +295,71 @@ export const EditAssignmentDialog = ({
                 </div>
               )}
 
+              {/* The Re-added UI Buttons for Phase 4 */}
               {selectedCommande && (
                 <div className="grid grid-cols-2 gap-4 bg-muted/20 p-4 rounded-md border border-border mt-4">
                   <div className="space-y-2">
                     <Label>Présence Client</Label>
-                    <Select value={clientPresence} onValueChange={setClientPresence}>
-                      <SelectTrigger className="bg-background">
-                        <SelectValue placeholder="Non défini" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Non défini</SelectItem>
-                        <SelectItem value="P">P (Prévenu)</SelectItem>
-                        <SelectItem value="P+RDV">P + RDV (Présent)</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="flex gap-1.5">
+                      <Button
+                        type="button"
+                        variant={clientPresence === 'none' ? 'secondary' : 'outline'}
+                        onClick={() => setClientPresence('none')}
+                        className="flex-1 h-8 text-[10px] transition-colors px-1"
+                      >
+                        Non défini
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={clientPresence === 'P' ? 'default' : 'outline'}
+                        onClick={() => setClientPresence('P')}
+                        className={`flex-1 h-8 text-[10px] transition-colors px-1 ${clientPresence === 'P' ? 'bg-blue-500 hover:bg-blue-600 text-white border-transparent' : ''
+                          }`}
+                      >
+                        Prévenu
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={clientPresence === 'P+RDV' ? 'default' : 'outline'}
+                        onClick={() => setClientPresence('P+RDV')}
+                        className={`flex-1 h-8 text-[10px] transition-colors px-1 ${clientPresence === 'P+RDV' ? 'bg-green-600 hover:bg-green-700 text-white border-transparent' : ''
+                          }`}
+                      >
+                        P+RDV
+                      </Button>
+                    </div>
                   </div>
 
                   <div className="space-y-2">
                     <Label>Type SAV</Label>
-                    <Select value={savType} onValueChange={setSavType}>
-                      <SelectTrigger className="bg-background">
-                        <SelectValue placeholder="Aucun" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Aucun</SelectItem>
-                        <SelectItem value="REPRISE">Reprise Chantier</SelectItem>
-                        <SelectItem value="MANQUANT">Manquant Chantier</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="flex gap-1.5">
+                      <Button
+                        type="button"
+                        variant={savType === 'none' ? 'secondary' : 'outline'}
+                        onClick={() => setSavType('none')}
+                        className="flex-1 h-8 text-[10px] transition-colors px-1"
+                      >
+                        Aucun
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={savType === 'REPRISE' ? 'default' : 'outline'}
+                        onClick={() => setSavType('REPRISE')}
+                        className={`flex-1 h-8 text-[10px] transition-colors px-1 ${savType === 'REPRISE' ? 'bg-orange-500 hover:bg-orange-600 text-white border-transparent' : ''
+                          }`}
+                      >
+                        Reprise
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={savType === 'MANQUANT' ? 'default' : 'outline'}
+                        onClick={() => setSavType('MANQUANT')}
+                        className={`flex-1 h-8 text-[10px] transition-colors px-1 ${savType === 'MANQUANT' ? 'bg-red-500 hover:bg-red-600 text-white border-transparent' : ''
+                          }`}
+                      >
+                        Manquant
+                      </Button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -459,7 +490,6 @@ export const EditAssignmentDialog = ({
 
             </div>
 
-            {/* Address display with Google Maps link using commande.chantier field */}
             {selectedCommande && (() => {
               const selectedComm = commandes.find((c: any) => c.id === selectedCommande);
               if (selectedComm?.chantier) {
@@ -491,8 +521,6 @@ export const EditAssignmentDialog = ({
               return null;
             })()}
 
-
-
             <div className="space-y-2">
               <Label htmlFor="assignment-comment">Commentaires</Label>
               <Textarea
@@ -511,7 +539,6 @@ export const EditAssignmentDialog = ({
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
-                      disabled={isConfirmed}
                       className={cn(
                         'w-full justify-start text-left font-normal bg-background',
                         !startDate && 'text-muted-foreground'
@@ -540,7 +567,6 @@ export const EditAssignmentDialog = ({
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
-                      disabled={isConfirmed}
                       className={cn(
                         'w-full justify-start text-left font-normal bg-background',
                         !endDate && 'text-muted-foreground'
@@ -565,7 +591,7 @@ export const EditAssignmentDialog = ({
             </div>
           </div>
 
-          <DialogFooter className="gap-2 flex-col sm:flex-row sm:justify-between">
+          <DialogFooter className="gap-2 flex-col sm:flex-row sm:justify-end">
             <div className="flex gap-2 flex-wrap">
               {assignment?.id && !assignment.id.startsWith('new-') && onDuplicate && (
                 <Button type="button" variant="outline" onClick={handleDuplicate} size="sm">
@@ -581,7 +607,7 @@ export const EditAssignmentDialog = ({
               <Button variant="outline" onClick={() => onOpenChange(false)} size="sm">
                 Annuler
               </Button>
-              <Button onClick={handleSave} className="bg-success hover:bg-success/90" size="sm">
+              <Button onClick={handleSave} className="bg-success hover:bg-success/90 text-white" size="sm">
                 Enregistrer
               </Button>
             </div>

@@ -18,6 +18,17 @@ import {
 } from './ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
+const PREDEFINED_SKILLS = ["N1", "N2", "N3", "CACES", "Amiante", "Hab. Élec", "Soudure", "Gaz"];
+
+const toggleSkill = (currentSkills: string, skill: string) => {
+  const skillsArray = (currentSkills || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (skillsArray.includes(skill)) {
+    return skillsArray.filter(s => s !== skill).join(', '); // Remove it
+  } else {
+    return [...skillsArray, skill].join(', '); // Add it
+  }
+};
+
 interface Team {
   id: string;
   name: string;
@@ -34,6 +45,7 @@ interface Technician {
   team_id?: string | null;
   skills?: string | null;
   short_id?: number | null;
+  is_accompanied?: boolean;
 }
 
 interface TeamManagementDialogProps {
@@ -42,8 +54,8 @@ interface TeamManagementDialogProps {
   teams: Team[];
   technicians: Technician[];
   onArchive: (technicianId: string, archived: boolean) => void;
-  onNameChange: (technicianId: string, newName?: string, is_temp?: boolean, skills?: string) => void;
-  onAdd: (name: string, isTemp: boolean, skills?: string) => void;
+  onNameChange: (technicianId: string, newName?: string, is_temp?: boolean, skills?: string, is_accompanied?: boolean) => void;
+  onAdd: (name: string, isTemp: boolean, skills?: string, isAccompanied?: boolean) => void;
   onAssignTeam: (technicianId: string, teamId: string | null) => void;
 }
 
@@ -63,12 +75,14 @@ export const TeamManagementDialog = ({
   const [editName, setEditName] = useState('');
   const [editSkills, setEditSkills] = useState('');
   const [editIsTemp, setEditIsTemp] = useState(false);
+  const [editIsAccompanied, setEditIsAccompanied] = useState(false);
 
   // New technician dialog state
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [newTechName, setNewTechName] = useState('');
   const [newTechSkills, setNewTechSkills] = useState('');
   const [newIsTemp, setNewIsTemp] = useState(false);
+  const [newIsAccompanied, setNewIsAccompanied] = useState(false);
 
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
@@ -104,6 +118,7 @@ export const TeamManagementDialog = ({
     setEditName(tech.name);
     setEditSkills(tech.skills || '');
     setEditIsTemp(tech.is_temp || false);
+    setEditIsAccompanied(tech.is_accompanied || false);
   };
 
   const handleSaveEdit = (techId: string) => {
@@ -115,10 +130,9 @@ export const TeamManagementDialog = ({
       toast.error(`Un technicien avec le nom "${normalizeTechName(editName)}" existe déjà.`);
       return;
     }
-    // Enforce INT prefix based on checkbox, stripping any existing prefix first
     const baseName = editName.replace(/^INT\s+/i, '').trim();
     const finalName = editIsTemp ? `INT ${baseName}` : baseName;
-    onNameChange(techId, finalName, editIsTemp, editSkills.trim() || undefined);
+    onNameChange(techId, finalName, editIsTemp, editSkills.trim() || undefined, editIsAccompanied);
     toast.success('Technicien mis à jour');
     setEditingId(null);
   };
@@ -128,6 +142,7 @@ export const TeamManagementDialog = ({
     setEditName('');
     setEditSkills('');
     setEditIsTemp(false);
+    setEditIsAccompanied(false);
   };
 
   const handleAddNew = () => {
@@ -141,10 +156,11 @@ export const TeamManagementDialog = ({
       toast.error(`Un technicien avec le nom "${normalizeTechName(finalName)}" existe déjà.`);
       return;
     }
-    onAdd(finalName, newIsTemp, newTechSkills.trim() || undefined);
+    onAdd(finalName, newIsTemp, newTechSkills.trim() || undefined, newIsAccompanied);
     setNewTechName('');
     setNewTechSkills('');
     setNewIsTemp(false);
+    setNewIsAccompanied(false);
     setAddDialogOpen(false);
     toast.success('Technicien ajouté');
   };
@@ -152,9 +168,8 @@ export const TeamManagementDialog = ({
   const renderTechRow = (tech: Technician) => (
     <div
       key={tech.id}
-      className={`rounded-md border transition-colors ${
-        tech.is_archived ? 'bg-muted/30 opacity-60' : 'bg-background'
-      }`}
+      className={`rounded-md border transition-colors ${tech.is_archived ? 'bg-muted/30 opacity-60' : 'bg-background'
+        }`}
     >
       {editingId === tech.id ? (
         /* ── Edit mode ── */
@@ -173,22 +188,52 @@ export const TeamManagementDialog = ({
             autoFocus
             placeholder="Nom du technicien"
           />
-          <label className="flex items-center gap-2 cursor-pointer text-xs">
-            <input
-              type="checkbox"
-              checked={editIsTemp}
-              onChange={(e) => setEditIsTemp(e.target.checked)}
-              className="rounded border-gray-300 text-primary h-3.5 w-3.5"
+          <div className="flex flex-col gap-1.5 text-xs">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={editIsTemp}
+                onChange={(e) => setEditIsTemp(e.target.checked)}
+                className="rounded border-gray-300 text-primary h-3.5 w-3.5"
+              />
+              <span className="text-muted-foreground">Intérimaire (INT)</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={editIsAccompanied}
+                onChange={(e) => setEditIsAccompanied(e.target.checked)}
+                className="rounded border-gray-300 text-primary h-3.5 w-3.5"
+              />
+              <span className="text-muted-foreground">Doit être accompagné</span>
+            </label>
+          </div>
+
+          <div className="space-y-1.5 pt-1">
+            <Label className="text-xs">Compétences</Label>
+            <div className="flex flex-wrap gap-1 mb-2">
+              {PREDEFINED_SKILLS.map(skill => (
+                <Button
+                  key={skill}
+                  type="button"
+                  variant={(editSkills || '').includes(skill) ? "default" : "outline"}
+                  size="sm"
+                  className="h-5 text-[9px] px-1.5"
+                  onClick={() => setEditSkills(toggleSkill(editSkills, skill))}
+                >
+                  {skill}
+                </Button>
+              ))}
+            </div>
+            <Textarea
+              value={editSkills}
+              onChange={(e) => setEditSkills(e.target.value)}
+              placeholder="Autres compétences ou commentaires..."
+              className="text-xs min-h-[40px] resize-none"
             />
-            <span className="text-muted-foreground">Intérimaire (INT)</span>
-          </label>
-          <Textarea
-            value={editSkills}
-            onChange={(e) => setEditSkills(e.target.value)}
-            placeholder="Compétences / commentaire (optionnel)"
-            className="text-xs min-h-[56px] resize-none"
-          />
-          <div className="flex gap-1.5">
+          </div>
+
+          <div className="flex gap-1.5 pt-1">
             <Button size="sm" className="flex-1 h-7" onClick={() => handleSaveEdit(tech.id)}>
               <Check className="h-3.5 w-3.5 mr-1" />
               Enregistrer
@@ -201,11 +246,13 @@ export const TeamManagementDialog = ({
       ) : (
         /* ── Display mode ── */
         <div className="p-1.5 space-y-1">
-          {/* Row 1: name + INT badge */}
           <div className="flex items-center gap-1.5 min-w-0">
             <span className={`font-medium text-sm truncate flex-1 min-w-0 ${tech.is_archived ? 'text-muted-foreground italic' : ''}`}>
               {tech.name}
             </span>
+            {tech.is_accompanied && (
+              <span className="text-[9px] font-bold shrink-0 bg-blue-100 text-blue-700 px-1 py-0.5 rounded uppercase" title="Doit être accompagné">ACC</span>
+            )}
             {tech.is_temp && (
               <span className="text-[9px] font-bold shrink-0 bg-amber-100 text-amber-700 px-1 py-0.5 rounded uppercase">INT</span>
             )}
@@ -213,9 +260,7 @@ export const TeamManagementDialog = ({
               <span className="text-[9px] font-mono shrink-0 text-muted-foreground">#{tech.short_id}</span>
             )}
           </div>
-          {/* Row 2: actions */}
           <div className="flex items-center gap-1 flex-wrap">
-            {/* Team selector */}
             {!tech.is_archived && (
               <Select
                 value={tech.team_id || 'unassigned'}
@@ -232,30 +277,11 @@ export const TeamManagementDialog = ({
                 </SelectContent>
               </Select>
             )}
-            {/* INT toggle */}
-            {!tech.is_archived && (
-              <label className="flex items-center gap-0.5 cursor-pointer shrink-0" title="Intérimaire">
-                <input
-                  type="checkbox"
-                  checked={tech.is_temp || false}
-                  onChange={(e) => {
-                    const isChecked = e.target.checked;
-                    const baseName = tech.name.replace(/^INT\s+/i, '').trim();
-                    const updatedName = isChecked ? `INT ${baseName}` : baseName;
-                    onNameChange(tech.id, updatedName, isChecked);
-                  }}
-                  className="rounded border-gray-300 text-primary h-3 w-3"
-                />
-                <span className="text-[9px] text-muted-foreground uppercase">INT</span>
-              </label>
-            )}
-            {/* Edit */}
             {!tech.is_archived && (
               <Button size="icon" variant="ghost" className="h-6 w-6 shrink-0" onClick={() => handleStartEdit(tech)}>
                 <Pencil className="h-3 w-3" />
               </Button>
             )}
-            {/* Archive */}
             <Button
               size="icon"
               variant="ghost"
@@ -289,7 +315,6 @@ export const TeamManagementDialog = ({
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-            {/* Teams Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
               {techsByTeam.map((team) => (
                 <div
@@ -317,7 +342,6 @@ export const TeamManagementDialog = ({
               ))}
             </div>
 
-            {/* Unassigned technicians */}
             <div className="bg-white rounded-md border p-4 shadow-sm">
               <div className="flex items-center justify-between gap-3 mb-4">
                 <div className="flex items-center gap-2">
@@ -326,12 +350,7 @@ export const TeamManagementDialog = ({
                     {unassignedTechs.length}
                   </span>
                 </div>
-                <Button
-                  onClick={() => setAddDialogOpen(true)}
-                  variant="outline"
-                  size="sm"
-                  className="gap-2 shrink-0"
-                >
+                <Button onClick={() => setAddDialogOpen(true)} variant="outline" size="sm" className="gap-2 shrink-0">
                   <Plus className="h-4 w-4" />
                   Nouveau technicien
                 </Button>
@@ -348,7 +367,6 @@ export const TeamManagementDialog = ({
               )}
             </div>
 
-            {/* Archived technicians */}
             {archivedTechs.length > 0 && (
               <div className="bg-white rounded-md border p-4 shadow-sm opacity-75">
                 <h3 className="text-base font-semibold text-muted-foreground mb-4 flex items-center gap-2">
@@ -376,10 +394,7 @@ export const TeamManagementDialog = ({
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Annuler</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={handleConfirmAction}
-                  className={confirmDialog.action === 'archive' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}
-                >
+                <AlertDialogAction onClick={handleConfirmAction} className={confirmDialog.action === 'archive' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}>
                   Confirmer
                 </AlertDialogAction>
               </AlertDialogFooter>
@@ -389,7 +404,7 @@ export const TeamManagementDialog = ({
       </Dialog>
 
       {/* ── Add technician dialog ── */}
-      <Dialog open={addDialogOpen} onOpenChange={(v) => { setAddDialogOpen(v); if (!v) { setNewTechName(''); setNewTechSkills(''); setNewIsTemp(false); } }}>
+      <Dialog open={addDialogOpen} onOpenChange={(v) => { setAddDialogOpen(v); if (!v) { setNewTechName(''); setNewTechSkills(''); setNewIsTemp(false); setNewIsAccompanied(false); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Nouveau technicien</DialogTitle>
@@ -406,23 +421,48 @@ export const TeamManagementDialog = ({
                 autoFocus
               />
             </div>
-            <label className="flex items-center gap-2 cursor-pointer text-sm">
-              <input
-                type="checkbox"
-                checked={newIsTemp}
-                onChange={(e) => setNewIsTemp(e.target.checked)}
-                className="rounded border-gray-300 text-primary h-4 w-4"
-              />
-              <span>Intérimaire (préfixe INT)</span>
-            </label>
-            <div className="space-y-1.5">
-              <Label htmlFor="new-tech-skills">Compétences / commentaire</Label>
+            <div className="flex flex-col gap-2 text-sm">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={newIsTemp}
+                  onChange={(e) => setNewIsTemp(e.target.checked)}
+                  className="rounded border-gray-300 text-primary h-4 w-4"
+                />
+                <span>Intérimaire (préfixe INT)</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={newIsAccompanied}
+                  onChange={(e) => setNewIsAccompanied(e.target.checked)}
+                  className="rounded border-gray-300 text-primary h-4 w-4"
+                />
+                <span>Doit être accompagné</span>
+              </label>
+            </div>
+            <div className="space-y-1.5 pt-1">
+              <Label htmlFor="new-tech-skills">Compétences</Label>
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {PREDEFINED_SKILLS.map(skill => (
+                  <Button
+                    key={skill}
+                    type="button"
+                    variant={(newTechSkills || '').includes(skill) ? "default" : "outline"}
+                    size="sm"
+                    className="h-6 text-[10px] px-2"
+                    onClick={() => setNewTechSkills(toggleSkill(newTechSkills, skill))}
+                  >
+                    {skill}
+                  </Button>
+                ))}
+              </div>
               <Textarea
                 id="new-tech-skills"
-                placeholder="Habilitations, spécialités…"
+                placeholder="Autres compétences ou commentaires..."
                 value={newTechSkills}
                 onChange={(e) => setNewTechSkills(e.target.value)}
-                className="min-h-[72px] resize-none text-sm"
+                className="min-h-[50px] resize-none text-sm"
               />
             </div>
           </div>

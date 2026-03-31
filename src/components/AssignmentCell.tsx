@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 interface Note {
   id: string;
   text: string;
+  weather_condition?: string;
 }
 
 interface DraggableNote {
@@ -17,15 +18,16 @@ interface DraggableNote {
   technician_id: string | null;
   start_date: string;
   end_date: string;
+  weather_condition?: string;
 }
 
 interface Commande {
   id: string;
   client: string;
   chantier: string;
-
+  display_name?: string;
+  client_presence?: string; // <--- Add this line!
 }
-
 interface Chantier {
   id: string;
   name: string;
@@ -88,31 +90,42 @@ const formatAddressForDisplay = (address: string): string => {
   return address.replace(/, France$/i, '').replace(/,\s*France$/i, '');
 };
 
+const getWeatherEmoji = (condition?: string) => {
+  switch (condition) {
+    case 'SOLEIL': return '☀️';
+    case 'PLUIE': return '🌧️';
+    case 'NEIGE': return '❄️';
+    case 'VENT': return '💨';
+    case 'GEL': return '🧊';
+    default: return null;
+  }
+};
+
 const getAssignmentDisplayName = (assignment: Assignment, commandes: Commande[]): string => {
   const commande = commandes.find(c => c.id === assignment.commandeId);
   if (!commande) return "Nouvelle affectation";
-  
+
   // Use the normalized display_name from the commande, or generate one if missing
   return commande.display_name || `${commande.client} - ${getShortChantierName(commande.chantier || '')}`;
 };
 
-export const AssignmentCell = ({ 
-  assignments, 
-  notes, 
-  teamColor, 
-  onClick, 
+export const AssignmentCell = ({
+  assignments,
+  notes,
+  teamColor,
+  onClick,
   onNoteClick,
   onNoteDuplicate,
   onNoteDelete,
   onNoteToggleConfirm,
-  onAddNote, 
-  onAddAssignment, 
+  onAddNote,
+  onAddAssignment,
   onAssignmentClick,
   onAssignmentDuplicate,
   onAssignmentDelete,
   onAssignmentMoveUp,
   onAssignmentMoveDown,
-  commandes, 
+  commandes,
 
   isAdmin = false,
   maxAssignmentsPerPeriod = 3,
@@ -149,19 +162,19 @@ export const AssignmentCell = ({
   // Helper to find linked technician names for an assignment
   const getLinkedTechnicianName = (assignment: Assignment): string | null => {
     if (!assignment.assignment_group_id || allAssignments.length === 0) return null;
-    
+
     const linkedAssignment = allAssignments.find(
-      a => a.assignment_group_id === assignment.assignment_group_id && 
-           a.teamId !== assignment.teamId
+      a => a.assignment_group_id === assignment.assignment_group_id &&
+        a.teamId !== assignment.teamId
     );
-    
+
     if (linkedAssignment) {
       const tech = technicians.find(t => t.id === linkedAssignment.teamId);
       return tech?.name || null;
     }
     return null;
   };
-  
+
   // Check if an assignment is being dragged (either by ID or group ID)
   const isBeingDragged = (assignment: Assignment) => {
     if (!draggedAssignmentId) return false;
@@ -169,12 +182,12 @@ export const AssignmentCell = ({
     if (draggedGroupId && assignment.assignment_group_id === draggedGroupId) return true;
     return false;
   };
-  
+
   const getAssignmentClasses = (assignment: Assignment): string => {
     // Find the commande for this assignment
     const commande = commandes.find(c => c.id === assignment.commandeId);
-    
-    
+
+
     // Confirmed / Unconfirmed: Handled by inline background color (teamColor)
     return "text-white border border-black/10 shadow-sm drop-shadow-sm";
   };
@@ -206,16 +219,16 @@ export const AssignmentCell = ({
       onDrop(e, cellTechnicianId, cellDate);
     }
   };
-  
-  const isCurrentDropTarget = isDropTarget?.technicianId === cellTechnicianId && 
+
+  const isCurrentDropTarget = isDropTarget?.technicianId === cellTechnicianId &&
     isDropTarget?.date === cellDate;
   const isValidDrop = isCurrentDropTarget && isDropTarget?.isValid;
   const isInvalidDrop = isCurrentDropTarget && !isDropTarget?.isValid;
-  
+
   // Note drop target indicator
   const isNoteDropTarget = noteDropTarget?.technicianId === (cellTechnicianId || null) &&
     noteDropTarget?.date === cellDate;
-  
+
   // Find full note data for drag
   const getFullNote = (noteId: string): DraggableNote | undefined => {
     return fullNotes.find(n => n.id === noteId);
@@ -223,7 +236,7 @@ export const AssignmentCell = ({
 
   if (!hasContent) {
     return (
-      <div 
+      <div
         className={cn(
           "transition-all hover:bg-muted/50 relative group p-0.5 h-full flex flex-col min-h-[60px]",
           isValidDrop && "ring-2 ring-primary ring-inset bg-primary/20",
@@ -269,7 +282,7 @@ export const AssignmentCell = ({
   }
 
   return (
-    <div 
+    <div
       className={cn(
         "relative group p-0.5 h-full flex flex-col transition-all min-h-[60px]",
         isValidDrop && "ring-2 ring-primary ring-inset bg-primary/20",
@@ -317,7 +330,7 @@ export const AssignmentCell = ({
             {limitedNotes.map((note) => {
               const fullNote = getFullNote(note.id);
               const canDragNote = isAdmin && fullNote && onNoteDragStart;
-              
+
               return (
                 <NoteContextMenu
                   key={note.id}
@@ -347,10 +360,17 @@ export const AssignmentCell = ({
                         "w-full px-1 py-0.5 text-sm font-bold transition-colors text-left flex items-start gap-1 cursor-pointer group/note",
                         "bg-amber-100 dark:bg-amber-900/30 text-amber-900 dark:text-amber-100 hover:bg-amber-200 dark:hover:bg-amber-900/50"
                       )}
-                      >
-                        <GripVertical className={cn("h-3 w-3 flex-shrink-0 mt-0.5 opacity-30", canDragNote && "group-hover:opacity-60")} />
+                    >
+                      <GripVertical className={cn("h-3 w-3 flex-shrink-0 mt-0.5 opacity-30", canDragNote && "group-hover:opacity-60")} />
                       <StickyNote className="h-3 w-3 flex-shrink-0 mt-0.5" />
-                      <span className="break-words flex-1">{note.text}</span>
+                      <span className="break-words flex-1">
+                        {getWeatherEmoji(note.weather_condition) && (
+                          <span className="mr-1" title={`Météo: ${note.weather_condition}`}>
+                            {getWeatherEmoji(note.weather_condition)}
+                          </span>
+                        )}
+                        {note.text}
+                      </span>
                     </div>
                   </div>
                 </NoteContextMenu>
@@ -365,11 +385,11 @@ export const AssignmentCell = ({
             {/* Capacity badge - only show when more than 1 assignment */}
             {isAdmin && maxAssignmentsPerPeriod > 0 && limitedAssignments.length > 1 && (
               <div className="flex justify-end mb-0.5">
-                <span 
+                <span
                   className={cn(
                     "text-[10px] font-medium px-1.5 py-0.5 rounded",
-                    limitedAssignments.length >= maxAssignmentsPerPeriod 
-                      ? "bg-destructive/20 text-destructive" 
+                    limitedAssignments.length >= maxAssignmentsPerPeriod
+                      ? "bg-destructive/20 text-destructive"
                       : limitedAssignments.length >= maxAssignmentsPerPeriod - 1
                         ? "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300"
                         : "bg-muted text-muted-foreground"
@@ -389,7 +409,7 @@ export const AssignmentCell = ({
               const canMoveDown = index < limitedAssignments.length - 1;
               const linkedTechName = getLinkedTechnicianName(assignment);
               const isHighlighted = highlightedGroupId && assignment.assignment_group_id === highlightedGroupId;
-              
+
               const handleCopyToClipboard = (a: Assignment) => {
                 const displayName = getAssignmentDisplayName(a, commandes);
                 navigator.clipboard.writeText(displayName);
@@ -407,7 +427,7 @@ export const AssignmentCell = ({
                   onHighlightGroup(null);
                 }
               };
-              
+
               return (
                 <AssignmentContextMenu
                   key={assignment.id || index}
@@ -419,7 +439,7 @@ export const AssignmentCell = ({
                   onDelete={onAssignmentDelete}
                   disabled={!isAdmin}
                 >
-                  <div 
+                  <div
                     className={cn(
                       "relative group/assignment transition-all",
                       isDragged && "opacity-40 ring-2 ring-dashed ring-primary",
@@ -447,21 +467,21 @@ export const AssignmentCell = ({
                         getAssignmentClasses(assignment),
                         absentTechNames.length > 0 && "bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,rgba(255,0,0,0.1)_10px,rgba(255,0,0,0.1)_20px)]"
                       )}
-                      style={{ 
-                        minHeight: '36px', 
-                        backgroundColor: (teamColor) ? teamColor : undefined 
+                      style={{
+                        minHeight: '36px',
+                        backgroundColor: (teamColor) ? teamColor : undefined
                       }}
                     >
                       {/* Drag handle indicator - shown for all assignments, grayed out if not draggable */}
                       {isAdmin && (
                         <span title={!draggable ? "Non déplaçable (confirmé ou facturé)" : "Glisser pour déplacer"}>
-                          <GripVertical 
+                          <GripVertical
                             className={cn(
                               "absolute top-1/2 -translate-y-1/2 left-0.5 h-4 w-4",
-                              draggable 
-                                ? "opacity-30 group-hover/assignment:opacity-60" 
+                              draggable
+                                ? "opacity-30 group-hover/assignment:opacity-60"
                                 : "opacity-10 cursor-not-allowed"
-                            )} 
+                            )}
                           />
                         </span>
                       )}
@@ -488,8 +508,11 @@ export const AssignmentCell = ({
                             <TooltipTrigger asChild>
                               <span className="absolute bottom-1 right-1 flex items-center justify-center">
                                 {assignment.isConfirmed ? (
-                                  <span className="flex items-center justify-center w-3 h-3 bg-green-500 text-white font-bold text-[10px] rounded-sm">
-                                    P
+                                  <span className={cn(
+                                    "flex items-center justify-center w-3 h-3 text-white font-bold text-[10px] rounded-sm shadow-sm",
+                                    commande?.client_presence === 'P+RDV' ? "bg-green-600" : "bg-blue-500"
+                                  )}>
+                                    {commande?.client_presence === 'P+RDV' ? 'R' : 'P'}
                                   </span>
                                 ) : (
                                   <Lock className="h-3 w-3 text-blue-600 dark:text-blue-400" />
@@ -497,14 +520,13 @@ export const AssignmentCell = ({
                               </span>
                             </TooltipTrigger>
                             <TooltipContent side="top" className="text-xs">
-                              {assignment.isConfirmed 
-                                ? "Verrouillé : confirmé (Planifié)" 
+                              {assignment.isConfirmed
+                                ? (commande?.client_presence === 'P+RDV' ? "Présent + RDV" : "Prévenu")
                                 : "Verrouillé"}
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
-                      )}
-                      <div className="flex flex-col text-left justify-center flex-1 py-1">
+                      )}                      <div className="flex flex-col text-left justify-center flex-1 py-1">
                         {absentTechNames.length > 0 && (
                           <span className="text-red-600 font-bold text-[10px] leading-tight mb-0.5 bg-white/70 px-1 rounded w-fit">
                             Absence {absentTechNames.join(', ')}

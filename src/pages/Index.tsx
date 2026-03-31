@@ -66,6 +66,8 @@ import { useDeleteRelatedAssignments } from '@/hooks/useDeleteRelatedAssignments
 import { useDragAndDropAssignment } from '@/hooks/useDragAndDropAssignment';
 import { useDragAndDropNote } from '@/hooks/useDragAndDropNote';
 import { useMaxAssignmentsPerPeriod } from '@/hooks/useAppSettings';
+import { FleetManagementDialog } from '@/components/FleetManagementDialog';
+import { Car } from 'lucide-react'; // Add 'Car' to your lucide-react imports if it isn't there
 
 const Index = () => {
   const navigate = useNavigate();
@@ -101,6 +103,7 @@ const Index = () => {
   const [dailyTeamDialogInfo, setDailyTeamDialogInfo] = useState({ teamName: '', date: '' });
   const updateDailyRosters = useUpdateDailyTeamRosters();
   const queryClient = useQueryClient();
+  const [isFleetOpen, setIsFleetOpen] = useState(false);
 
   // Session management - automatic refresh and expiry warning
   const { sessionExpiringSoon, timeUntilExpiry, refreshSession } = useSessionManager(session);
@@ -616,12 +619,13 @@ const Index = () => {
       technician_name: teamName,
       team_id: teamId,
       date: date,
+      weather_condition: 'none', // <--- We added this!
     });
     setTechWeekNoteDialogOpen(true);
   };
 
   // Handler for clicking on an existing team day note
-  const handleTechDayNoteClick = (note: any, _technicianId: string, _technicianName: string, date: string) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+  const handleTechDayNoteClick = (note: any, _technicianId: string, _technicianName: string, date: string) => {
     setSelectedTechWeekNote({
       id: note.id,
       text: note.text,
@@ -629,6 +633,7 @@ const Index = () => {
       technician_name: '',
       team_id: note.team_id,
       date: date,
+      weather_condition: note.weather_condition, // <--- We added this!
     });
     setTechWeekNoteDialogOpen(true);
   };
@@ -808,6 +813,7 @@ const Index = () => {
                 setManageTechsDialogOpen={setManageTechsDialogOpen}
                 setAbsenceManagementOpen={setAbsenceManagementOpen}
                 onOpenSearchModal={() => setSearchModalOpen(true)}
+                setFleetDialogOpen={setIsFleetOpen}
               />
               <CardContent className="p-0 h-[calc(100vh-12rem)] flex flex-col relative overflow-hidden">
                 <WeeklyGrid
@@ -932,10 +938,8 @@ const Index = () => {
               skills: t.skills
             }))}
             onArchive={handleArchiveTechnician}
-            onNameChange={handleUpdateTechnicianName}
-            onAdd={handleAddTechnician}
-            onAssignTeam={(techId, teamId) => updateTechnician.mutate({ id: techId, team_id: teamId })}
-          />
+            onNameChange={(id, name, isTemp, skills, isAccompanied) => updateTechnician.mutate({ id, name, is_temp: isTemp, skills, isAccompanied })}
+            onAdd={(name, isTemp, skills, isAccompanied) => createTechnician.mutate({ name, isTemp, skills, isAccompanied })} />
 
           <AbsenceManagementDialog
             open={absenceManagementOpen}
@@ -1087,6 +1091,9 @@ const Index = () => {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+
+          <FleetManagementDialog open={isFleetOpen} onOpenChange={setIsFleetOpen} />
+
         </div>
       </div>
     </div>

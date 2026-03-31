@@ -5,13 +5,16 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Label } from '@/components/ui/label';
-import { Palette, Copy, Undo2, Mail, Wrench, LogOut, Lock, Link2, Users, CalendarX2, Presentation, Calendar, FileSpreadsheet } from 'lucide-react';
 import { startOfWeek, format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { WeekSelector } from '@/components/WeekSelector';
 import { KeyboardShortcutsHelp } from '@/components/KeyboardShortcutsHelp';
 import { Input } from '@/components/ui/input';
-import { Search } from 'lucide-react';
+import {
+  Palette, Copy, Undo2, Mail, Wrench, LogOut, Lock, Link2,
+  Users, CalendarX2, Presentation, Calendar, FileSpreadsheet,
+  Search, ChevronLeft, ChevronRight, UserMinus, Car
+} from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface PlanningToolbarProps {
@@ -34,6 +37,7 @@ interface PlanningToolbarProps {
   setSavVisible: React.Dispatch<React.SetStateAction<boolean>>;
   handleSignOut: () => void;
   onOpenSearchModal?: () => void;
+  setFleetDialogOpen: (open: boolean) => void;
   setManageTechsDialogOpen?: (open: boolean) => void;
   setAbsenceManagementOpen?: (open: boolean) => void;
 }
@@ -58,6 +62,7 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
   setSavVisible,
   handleSignOut,
   onOpenSearchModal,
+  setFleetDialogOpen,
   setManageTechsDialogOpen,
   setAbsenceManagementOpen,
 }) => {
@@ -67,14 +72,14 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
     <CardHeader className="bg-primary/5 border-b p-0">
       <div className="p-2 sm:p-4 flex flex-col sm:flex-row items-center justify-between gap-2 border-b">
         <div className="flex-1 flex justify-start">
-        <WeekSelector
-          weekNumber={weekConfig.week_number}
-          year={weekConfig.year}
-          onWeekChange={handleWeekChange}
-          onDragOver={handleWeekNavDragOver}
-          onDrop={handleWeekNavDrop}
-          isDragging={isDragging}
-        />
+          <WeekSelector
+            weekNumber={weekConfig.week_number}
+            year={weekConfig.year}
+            onWeekChange={handleWeekChange}
+            onDragOver={handleWeekNavDragOver}
+            onDrop={handleWeekNavDrop}
+            isDragging={isDragging}
+          />
         </div>
         <CardTitle className="flex-none text-xl sm:text-2xl font-bold text-primary/80 flex items-center justify-center gap-2">
           {(() => {
@@ -86,7 +91,7 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
         <div className="flex-1 flex flex-wrap items-center justify-end gap-1.5">
           {/* Info group */}
           {isAdmin && <KeyboardShortcutsHelp />}
-          
+
           {/* Quick Actions */}
           {onOpenSearchModal && (
             <TooltipProvider delayDuration={200}>
@@ -151,16 +156,16 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
                   <h4 className="font-semibold text-sm">Mode présentation</h4>
                   <div className="space-y-2">
                     <Label htmlFor="timeout">Délai avant retour (en minutes)</Label>
-                    <Input 
+                    <Input
                       id="timeout"
-                      type="number" 
+                      type="number"
                       min="1"
-                      value={presentationTimeout} 
-                      onChange={e => setPresentationTimeout(parseInt(e.target.value) || 30)} 
+                      value={presentationTimeout}
+                      onChange={e => setPresentationTimeout(parseInt(e.target.value) || 30)}
                     />
                   </div>
-                  <Button 
-                    className="w-full" 
+                  <Button
+                    className="w-full"
                     onClick={() => {
                       const weekStart = startOfWeek(new Date(weekConfig.year, 0, 1 + (weekConfig.week_number - 1) * 7), { weekStartsOn: 1 });
                       const dateStr = format(weekStart, 'yyyy-MM-dd');
@@ -171,9 +176,9 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
                   >
                     Copier lien Présentation
                   </Button>
-                  <Button 
+                  <Button
                     variant="destructive"
-                    className="w-full" 
+                    className="w-full"
                     onClick={() => {
                       supabase.channel('presentation_controls').send({
                         type: 'broadcast',
@@ -204,6 +209,25 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Ouvrir Google Calendar</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+
+          {/* New Fleet Management Button */}
+          {isAdmin && setFleetDialogOpen && (
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setFleetDialogOpen(true)}
+                    className="h-8 w-8 hover:bg-slate-200 dark:hover:bg-slate-800 text-violet-600"
+                  >
+                    <Car className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Flotte & Matériel</TooltipContent>
               </Tooltip>
             </TooltipProvider>
           )}
@@ -272,8 +296,8 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
                     onClick={toggleCopyMode}
                     className={cn(
                       "h-8 w-8",
-                      copyModeEnabled 
-                        ? "bg-green-500 hover:bg-green-600 text-white" 
+                      copyModeEnabled
+                        ? "bg-green-500 hover:bg-green-600 text-white"
                         : "hover:bg-slate-200 dark:hover:bg-slate-800 text-emerald-700 dark:text-emerald-300"
                     )}
                   >
@@ -281,14 +305,14 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {copyModeEnabled 
-                    ? "Mode copie actif — Cliquez pour désactiver" 
+                  {copyModeEnabled
+                    ? "Mode copie actif — Cliquez pour désactiver"
                     : "Activer le mode copie"}
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
           )}
-          
+
           {isAdmin && (canUndo || canUndoNote) && (
             <TooltipProvider delayDuration={200}>
               <Tooltip>
