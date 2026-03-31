@@ -1,17 +1,19 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Button } from './ui/button';
-import { Search, X } from 'lucide-react';
+import { Search, X, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Commande {
   id: string;
   client: string;
   chantier: string;
+  display_name?: string | null;
 }
 
 interface Assignment {
@@ -75,45 +77,80 @@ export const SearchFilterModal = ({
   const [searchMode, setSearchMode] = useState<SearchMode>('tous');
   const [query, setQuery] = useState('');
 
+  // V2 Phase 4 Fix: Fetch ALL data across all weeks so the search is global!
+  const [globalAssignments, setGlobalAssignments] = useState<any[]>([]);
+  const [globalNotes, setGlobalNotes] = useState<any[]>([]);
+  const [globalCommandes, setGlobalCommandes] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setIsLoading(true);
+      // Fetch complete datasets to enable global searching the moment the modal opens
+      Promise.all([
+        supabase.from('assignments').select('*'),
+        supabase.from('notes').select('*'),
+        supabase.from('commandes').select('*')
+      ]).then(([{ data: aData }, { data: nData }, { data: cData }]) => {
+        if (aData) setGlobalAssignments(aData);
+        if (nData) setGlobalNotes(nData);
+        if (cData) setGlobalCommandes(cData);
+        setIsLoading(false);
+      });
+    } else {
+      // Clean up when closed
+      setQuery('');
+      setGlobalAssignments([]);
+      setGlobalNotes([]);
+      setGlobalCommandes([]);
+    }
+  }, [open]);
+
   const results = useMemo<ResultRow[]>(() => {
     const q = normalizeSearch(query.trim());
     if (!q) return [];
 
-    const assignmentResults: ResultRow[] = assignments
+    // Use global data if loaded, otherwise fallback safely
+    const activeCommandes = globalCommandes.length > 0 ? globalCommandes : commandes;
+    const activeAssignments = globalAssignments.length > 0 ? globalAssignments : assignments;
+    const activeNotes = globalNotes.length > 0 ? globalNotes : notes;
+
+    const assignmentResults: ResultRow[] = activeAssignments
       .filter((a) => {
-        const commande = commandes.find((c) => c.id === a.commande_id);
+        const commande = activeCommandes.find((c) => c.id === a.commande_id);
         const team = teams.find((t) => t.id === a.team_id);
 
         const normClient = normalizeSearch(commande?.client);
         const normChantier = normalizeSearch(commande?.chantier);
+        const normDisplayName = normalizeSearch(commande?.display_name); // Now checks custom names!
         const normTeam = normalizeSearch(team?.name);
         const normComment = normalizeSearch(a.comment);
 
-        if (searchMode === 'client') return normClient.includes(q);
-        if (searchMode === 'chantier') return normChantier.includes(q);
+        if (searchMode === 'client') return normClient.includes(q) || normDisplayName.includes(q);
+        if (searchMode === 'chantier') return normChantier.includes(q) || normDisplayName.includes(q);
         if (searchMode === 'team') return normTeam.includes(q);
         if (searchMode === 'tous') {
-          return normClient.includes(q) || normChantier.includes(q) || normTeam.includes(q) || normComment.includes(q);
+          return normClient.includes(q) || normChantier.includes(q) || normDisplayName.includes(q) || normTeam.includes(q) || normComment.includes(q);
         }
         return false;
       })
       .map((a) => {
-        const commande = commandes.find((c) => c.id === a.commande_id);
+        const commande = activeCommandes.find((c) => c.id === a.commande_id);
         const team = teams.find((t) => t.id === a.team_id);
         return {
           id: a.id,
           type: 'assignment',
           client: commande?.client ?? '—',
-          chantier: commande?.chantier ?? '—',
+          chantier: commande?.display_name || commande?.chantier || '—',
           teamName: team?.name ?? '—',
-          startDate: a.start_date,
-          endDate: a.end_date,
+          startDate: a.start_date || a.startDate,
+          endDate: a.end_date || a.endDate || a.start_date || a.startDate,
           comment: a.comment,
         };
       });
 
     const noteResults: ResultRow[] = (searchMode === 'tous' || searchMode === 'note')
-      ? notes
+      ? activeNotes
         .filter((n) => {
           const normText = normalizeSearch(n.text);
           const team = n.team_id ? teams.find((t) => t.id === n.team_id) : null;
@@ -131,18 +168,23 @@ export const SearchFilterModal = ({
             client: '— (Note)',
             chantier: '—',
             teamName: team?.name ?? 'Générale',
-            startDate: n.start_date,
-            endDate: n.end_date || n.start_date,
+            startDate: n.start_date || n.startDate,
+            endDate: n.end_date || n.endDate || n.start_date || n.startDate,
             comment: n.text,
           };
         })
       : [];
 
     return [...assignmentResults, ...noteResults]
-      .sort((a, b) => a.startDate.localeCompare(b.startDate));
-  }, [query, searchMode, assignments, commandes, teams, notes]);
+      .sort((a, b) => {
+        const dateA = a.startDate || '';
+        const dateB = b.startDate || '';
+        return dateA.localeCompare(dateB);
+      });
+  }, [query, searchMode, globalAssignments, globalCommandes, globalNotes, assignments, commandes, teams, notes]);
 
   const formatDate = (d: string) => {
+    if (!d) return '—';
     try {
       return format(new Date(d), 'dd MMM yyyy', { locale: fr });
     } catch {
@@ -152,7 +194,6 @@ export const SearchFilterModal = ({
 
   const handleClose = () => {
     onOpenChange(false);
-    setQuery('');
   };
 
   return (
@@ -216,7 +257,12 @@ export const SearchFilterModal = ({
 
         {/* Results */}
         <div className="flex-1 overflow-y-auto border rounded-lg min-h-[200px]">
-          {!query.trim() ? (
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center h-40 text-sm text-muted-foreground gap-3">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              Synchronisation de la base de données...
+            </div>
+          ) : !query.trim() ? (
             <div className="flex items-center justify-center h-40 text-sm text-muted-foreground">
               Saisissez un terme de recherche…
             </div>

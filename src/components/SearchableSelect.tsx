@@ -24,14 +24,14 @@ export const SearchableSelect = ({
 }: SearchableSelectProps) => {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
-  
+
   const selectedOption = options.find((option) => option.value === value);
-  const filteredOptions = options.filter((option) => 
+  const filteredOptions = options.filter((option) =>
     option.label.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpen} modal={true}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -44,17 +44,20 @@ export const SearchableSelect = ({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 bg-popover border-border z-[9999]" align="start" sideOffset={5}>
-        <Command shouldFilter={false} className="bg-popover">
-          <CommandInput 
-            placeholder={placeholder} 
-            className="h-9 bg-popover" 
+
+      <PopoverContent
+        className="w-[var(--radix-popover-trigger-width)] p-0 z-[10000]"
+        align="start"
+      >
+        <Command shouldFilter={false}>
+          <CommandInput
+            placeholder={placeholder}
             value={search}
             onValueChange={setSearch}
           />
-          <CommandList className="max-h-[300px] overflow-y-auto overflow-x-hidden">
+          <CommandList className="max-h-[250px] overflow-y-auto">
             <CommandEmpty className="py-6 text-center text-sm">Aucun résultat trouvé</CommandEmpty>
-            <CommandGroup className="bg-popover">
+            <CommandGroup>
               {filteredOptions.map((option) => (
                 <CommandItem
                   key={option.value}
@@ -68,11 +71,11 @@ export const SearchableSelect = ({
                 >
                   <Check
                     className={cn(
-                      'mr-2 h-4 w-4',
+                      'mr-2 h-4 w-4 shrink-0',
                       value === option.value ? 'opacity-100' : 'opacity-0'
                     )}
                   />
-                  {option.label}
+                  <span className="truncate">{option.label}</span>
                 </CommandItem>
               ))}
             </CommandGroup>

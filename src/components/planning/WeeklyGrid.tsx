@@ -250,14 +250,14 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
 
                       {/* THE NEW FEATURE: Display today's assigned technicians at the top of the cell */}
                       <div
-                        className="flex flex-wrap gap-1 p-1 min-h-[28px] bg-black/5 border-b border-black/5 cursor-pointer hover:bg-black/10 transition-colors"
+                        className="flex flex-wrap gap-1 p-1 min-h-[28px] bg-black/5 border-b border-black/5 cursor-pointer hover:bg-black/10 transition-colors relative z-20"
                         onClick={(e) => {
                           e.stopPropagation(); // Prevents the cell behind it from being clicked
-                          if (isAdmin && !teamIsUnavailable && onManageDailyTeam) {
+                          // We removed the !teamIsUnavailable check so you can fix absences!
+                          if (isAdmin && onManageDailyTeam) {
                             onManageDailyTeam(team.name, day.fullDate);
                           }
-                        }}
-                        title="Cliquez pour modifier l'équipe"
+                        }} title="Cliquez pour modifier l'équipe"
                       >
                         {dayRosters.length > 0 ? (
                           <TooltipProvider delayDuration={300}>
