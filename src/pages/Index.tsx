@@ -15,6 +15,7 @@ import { WeeklyGrid } from '@/components/planning/WeeklyGrid';
 import { SessionExpiryWarning } from '@/components/SessionExpiryWarning';
 import { useSAV } from '@/hooks/useSAV';
 import { useSessionManager } from '@/hooks/useSessionManager';
+import { ClientManagementDialog } from '@/components/ClientManagementDialog';
 
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -104,6 +105,7 @@ const Index = () => {
   const updateDailyRosters = useUpdateDailyTeamRosters();
   const queryClient = useQueryClient();
   const [isFleetOpen, setIsFleetOpen] = useState(false);
+  const [clientManagementOpen, setClientManagementOpen] = useState(false);
 
   // Session management - automatic refresh and expiry warning
   const { sessionExpiringSoon, timeUntilExpiry, refreshSession } = useSessionManager(session);
@@ -814,6 +816,7 @@ const Index = () => {
                 setAbsenceManagementOpen={setAbsenceManagementOpen}
                 onOpenSearchModal={() => setSearchModalOpen(true)}
                 setFleetDialogOpen={setIsFleetOpen}
+                setClientManagementOpen={setClientManagementOpen}
               />
               <CardContent className="p-0 h-[calc(100vh-12rem)] flex flex-col relative overflow-hidden">
                 <WeeklyGrid
@@ -954,6 +957,11 @@ const Index = () => {
           <AbsenceManagementDialog
             open={absenceManagementOpen}
             onOpenChange={setAbsenceManagementOpen}
+          />
+
+          <ClientManagementDialog
+            open={clientManagementOpen}
+            onOpenChange={setClientManagementOpen}
           />
 
           <SearchFilterModal

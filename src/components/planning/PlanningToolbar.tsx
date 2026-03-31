@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import {
   Palette, Copy, Undo2, Mail, Wrench, LogOut, Lock, Link2,
   Users, CalendarX2, Presentation, Calendar, FileSpreadsheet,
-  Search, ChevronLeft, ChevronRight, UserMinus, Car
+  Search, ChevronLeft, ChevronRight, UserMinus, Car, Building2 // Added Building2!
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -40,6 +40,7 @@ interface PlanningToolbarProps {
   setFleetDialogOpen: (open: boolean) => void;
   setManageTechsDialogOpen?: (open: boolean) => void;
   setAbsenceManagementOpen?: (open: boolean) => void;
+  setClientManagementOpen?: (open: boolean) => void; // Added our new prop!
 }
 
 export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
@@ -65,6 +66,7 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
   setFleetDialogOpen,
   setManageTechsDialogOpen,
   setAbsenceManagementOpen,
+  setClientManagementOpen, // Destructure the new prop
 }) => {
   const [presentationTimeout, setPresentationTimeout] = React.useState(30);
 
@@ -168,7 +170,6 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
                     className="w-full"
                     onClick={async () => {
                       try {
-                        // 1. Generate a secure, unique token in the database
                         const { data, error } = await supabase
                           .from('presentation_tokens')
                           .insert([{}])
@@ -177,12 +178,10 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
 
                         if (error) throw error;
 
-                        // 2. Build the URL with the real database token
                         const weekStart = startOfWeek(new Date(weekConfig.year, 0, 1 + (weekConfig.week_number - 1) * 7), { weekStartsOn: 1 });
                         const dateStr = format(weekStart, 'yyyy-MM-dd');
                         const url = `${window.location.origin}/presentation?timeout=${presentationTimeout}&token=${data.token}&date=${dateStr}`;
 
-                        // Fallback for HTTP / local IP connections where clipboard is blocked
                         if (navigator.clipboard && window.isSecureContext) {
                           await navigator.clipboard.writeText(url);
                           toast.success('Lien sécurisé copié dans le presse-papiers !');
@@ -235,7 +234,6 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
             </TooltipProvider>
           )}
 
-          {/* New Fleet Management Button */}
           {isAdmin && setFleetDialogOpen && (
             <TooltipProvider delayDuration={200}>
               <Tooltip>
@@ -268,6 +266,25 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Ouvrir Google Sheets</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+
+          {/* NEW BUTTON: Client Management */}
+          {isAdmin && setClientManagementOpen && (
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setClientManagementOpen(true)}
+                    className="h-8 w-8 hover:bg-slate-200 dark:hover:bg-slate-800 text-teal-600"
+                  >
+                    <Building2 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Gérer les clients et chantiers</TooltipContent>
               </Tooltip>
             </TooltipProvider>
           )}

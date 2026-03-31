@@ -198,16 +198,22 @@ export const useUpdateCommande = () => {
   return useMutation({
     mutationFn: async ({
       id,
+      client,
+      chantier,
       displayName,
       clientPresence,
       savType
     }: {
       id: string;
+      client?: string;
+      chantier?: string;
       displayName?: string;
       clientPresence?: string | null;
       savType?: string | null;
     }) => {
       const updates: any = {};
+      if (client !== undefined) updates.client = client;
+      if (chantier !== undefined) updates.chantier = chantier;
       if (displayName !== undefined) updates.display_name = displayName;
       if (clientPresence !== undefined) updates.client_presence = clientPresence;
       if (savType !== undefined) updates.sav_type = savType;
@@ -220,6 +226,40 @@ export const useUpdateCommande = () => {
 
       if (error) throw error;
       return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['commandes'] });
+    },
+  });
+};
+
+export const useCreateCommande = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ client, chantier, displayName }: { client: string; chantier: string; displayName?: string }) => {
+      const { data, error } = await supabase
+        .from('commandes')
+        .insert({ client, chantier, display_name: displayName })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['commandes'] });
+    },
+  });
+};
+
+export const useDeleteCommande = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('commandes')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['commandes'] });
