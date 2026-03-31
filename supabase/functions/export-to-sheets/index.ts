@@ -35,7 +35,6 @@ function tryParseServiceAccountKey(key: string): GoogleCredentials {
 }
 
 function pemToArrayBuffer(pem: string): ArrayBuffer {
-  // Handle both \\n (escaped) and real newlines, strip PEM headers
   const normalized = pem
     .replace(/\\n/g, '\n')
     .replace(/-----BEGIN PRIVATE KEY-----/g, '')
@@ -72,7 +71,6 @@ async function getAccessToken(credentials: GoogleCredentials): Promise<string> {
     })
   );
   const sigInput = `${header}.${payload}`;
-  // Pass private_key as-is; pemToArrayBuffer handles both escaped and real newlines
   const keyData = await crypto.subtle.importKey(
     "pkcs8",
     pemToArrayBuffer(credentials.private_key),
@@ -81,7 +79,6 @@ async function getAccessToken(credentials: GoogleCredentials): Promise<string> {
     ["sign"]
   );
   const sig = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", keyData, new TextEncoder().encode(sigInput));
-  // Use loop instead of spread to avoid RangeError on large Uint8Arrays
   const sigBytes = new Uint8Array(sig);
   let sigBinary = '';
   for (let i = 0; i < sigBytes.length; i++) sigBinary += String.fromCharCode(sigBytes[i]);
@@ -109,7 +106,6 @@ async function writeSheet(
   rows: string[][],
   accessToken: string
 ): Promise<void> {
-  // First, ensure the tab exists. Try to get metadata.
   const metaResp = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties.title`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
@@ -118,7 +114,6 @@ async function writeSheet(
   const existingTabs: string[] = (meta.sheets || []).map((s: any) => s.properties.title);
 
   if (!existingTabs.includes(sheetName)) {
-    // Create the tab
     await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
       method: "POST",
       headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
@@ -134,7 +129,6 @@ async function writeSheet(
     return;
   }
 
-  // Clear existing content (row 2 onwards, keep header if already written)
   await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName + "!A1:ZZ")}:clear`,
     {
@@ -143,7 +137,6 @@ async function writeSheet(
     }
   );
 
-  // Write all rows (header + data) starting at A1
   const writeResp = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName + "!A1")}?valueInputOption=RAW`,
     {
@@ -162,7 +155,6 @@ async function writeSheet(
 
 function fmtDate(d: string | null | undefined): string {
   if (!d) return "";
-  // Return as YYYY-MM-DD
   return d.split("T")[0];
 }
 
@@ -174,11 +166,10 @@ Deno.serve(async (req) => {
   const responseHeaders = {
     ...corsHeaders,
     "Content-Type": "application/json",
-    "X-Edge-Version": "2026.03.13.1",
+    "X-Edge-Version": "2026.03.13.2",
   };
 
   try {
-    // Auth
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Authentification requise" }), {
@@ -192,7 +183,6 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Record sync start
     const { data: syncRecord, error: syncError } = await supabase
       .from('sync_status')
       .insert({
@@ -203,16 +193,12 @@ Deno.serve(async (req) => {
       .select()
       .single();
 
-    if (syncError) {
-      console.error('Failed to create sync record:', syncError);
-    }
+    if (syncError) console.error('Failed to create sync record:', syncError);
 
-    console.log('Verifying permissions...');
     const isServiceRole = authHeader.includes(supabaseKey);
     let isAdmin = false;
 
     if (isServiceRole) {
-      console.log('Authorized via service_role key');
       isAdmin = true;
     } else {
       const { data: { user }, error: userError } = await supabase.auth.getUser(token);
@@ -227,10 +213,7 @@ Deno.serve(async (req) => {
         .eq("role", "admin")
         .maybeSingle();
 
-      if (adminCheck) {
-        isAdmin = true;
-        console.log('Admin verified:', user.email);
-      }
+      if (adminCheck) isAdmin = true;
     }
 
     if (!isAdmin) {
@@ -241,59 +224,42 @@ Deno.serve(async (req) => {
     let spreadsheetId = body.spreadsheetId;
 
     if (!spreadsheetId) {
-      console.log('No spreadsheetId in request, checking global_settings...');
       const { data: setting } = await supabase
         .from('global_settings')
         .select('value')
         .eq('key', 'google_spreadsheet_id')
         .maybeSingle();
-      
+
       spreadsheetId = setting?.value || '1699-HaYP4W2rSJUscbXCvp7fVW0vR95NRpjl5QpBUeY';
     }
 
     if (!spreadsheetId) {
-      return new Response(JSON.stringify({ error: "spreadsheetId requis (ni dans la requête, ni dans les paramètres globaux)" }), {
-        status: 400,
-        headers: responseHeaders,
-      });
+      return new Response(JSON.stringify({ error: "spreadsheetId requis" }), { status: 400, headers: responseHeaders });
     }
 
-    // Google auth
-    const googleKeySecret = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_KEY");
-    if (!googleKeySecret) throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY not configured");
+    const googleKeySecret = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_KEY_V2");
+    if (!googleKeySecret) throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY_V2 not configured");
     const credentials = tryParseServiceAccountKey(googleKeySecret);
     const accessToken = await getAccessToken(credentials);
 
     // ── 1. Techniciens ───────────────────────────────────────────────────────
-    const { data: technicians, error: techError } = await supabase
+    const { data: technicians } = await supabase
       .from("technicians")
-      .select("id, name, is_temp, created_at")
+      .select("id, name, is_temp, created_at, is_accompanied, skills")
       .order("position");
 
-    if (techError) {
-      console.error("Error fetching technicians:", techError);
-    } else {
-      console.log(`Fetched ${technicians?.length || 0} technicians for export`);
-    }
-
     const techRows: string[][] = [
-      ["ID", "Nom", "Interim", "Créé le"],
+      ["ID", "Nom", "Interim", "Créé le", "Accompagné", "Compétences"],
       ...(technicians || []).map((t: any) => [
         t.id,
         t.name || "Sans nom",
         t.is_temp ? "TRUE" : "FALSE",
         fmtDate(t.created_at),
+        t.is_accompanied ? "TRUE" : "FALSE",
+        t.skills || "",
       ]),
     ];
     await writeSheet(spreadsheetId, "Techniciens", techRows, accessToken);
-
-    // Build lookup maps for joins
-    const techMap: Record<string, string> = {};
-    (technicians || []).forEach((t: any) => { techMap[t.id] = t.name; });
-
-    const { data: teams } = await supabase.from("teams").select("id, name");
-    const teamMap: Record<string, string> = {};
-    (teams || []).forEach((t: any) => { teamMap[t.id] = t.name; });
 
     // ── 2. Commandes ─────────────────────────────────────────────────────────
     const { data: commandes } = await supabase
@@ -302,7 +268,7 @@ Deno.serve(async (req) => {
       .order("numero", { ascending: false });
 
     const commandeRows: string[][] = [
-      ["ID", "Numéro", "Nom client", "Chantier", "Nom court", "UUID"],
+      ["ID", "Numéro", "Nom client", "Chantier", "Nom court", "UUID", "Présence Client", "Type SAV"],
       ...(commandes || []).map((c: any) => [
         c.external_id || "",
         c.numero || "",
@@ -310,18 +276,13 @@ Deno.serve(async (req) => {
         c.chantier || "",
         c.display_name || "",
         c.id,
+        c.client_presence || "",
+        c.sav_type || "",
       ]),
     ];
     await writeSheet(spreadsheetId, "Commandes", commandeRows, accessToken);
 
-    const commandeMap: Record<string, string> = {};
-    (commandes || []).forEach((c: any) => { 
-      commandeMap[c.id] = c.display_name || `${c.client} - ${c.chantier}`; 
-    });
-
-
-
-    // ── 4. SAV ───────────────────────────────────────────────────────────────
+    // ── 3. SAV ───────────────────────────────────────────────────────────────
     const { data: savRecords } = await supabase
       .from("sav")
       .select("*")
@@ -342,7 +303,7 @@ Deno.serve(async (req) => {
     ];
     await writeSheet(spreadsheetId, "SAV", savRows, accessToken);
 
-    // ── 5. Affectations ──────────────────────────────────────────────────────
+    // ── 4. Affectations ──────────────────────────────────────────────────────
     const { data: assignments } = await supabase
       .from("assignments")
       .select("*, commande_id")
@@ -361,7 +322,7 @@ Deno.serve(async (req) => {
     ];
     await writeSheet(spreadsheetId, "Affectations", assignmentRows, accessToken);
 
-    // ── 5b. Absences ─────────────────────────────────────────────────────────
+    // ── 5. Absences ─────────────────────────────────────────────────────────
     const { data: absencesData } = await supabase
       .from("absences")
       .select("*, motive:absence_motives(name)")
@@ -375,20 +336,16 @@ Deno.serve(async (req) => {
         fmtDate(a.start_date),
         fmtDate(a.end_date),
         a.motive_id || "",
-        "", // Comment is not in absences table schema
+        "",
       ]),
     ];
     await writeSheet(spreadsheetId, "Absences", absenceRows, accessToken);
 
-    // ── 5c. Motifs ────────────────────────────────────────────────
-    const { data: absenceMotives, error: motivesError } = await supabase
+    // ── 6. Motifs ────────────────────────────────────────────────
+    const { data: absenceMotives } = await supabase
       .from("absence_motives")
-      .select("id, name, created_at") // 'color' column does not exist
+      .select("id, name, created_at")
       .order("name");
-
-    if (motivesError) {
-      console.error('Error fetching absence_motives:', motivesError.message);
-    }
 
     const motiveRows: string[][] = [
       ["ID", "Nom", "Créé le"],
@@ -400,27 +357,63 @@ Deno.serve(async (req) => {
     ];
     await writeSheet(spreadsheetId, "Motifs", motiveRows, accessToken);
 
-    // ── 6. Notes ─────────────────────────────────────────────────────────────
+    // ── 7. Notes ─────────────────────────────────────────────────────────────
     const { data: notes } = await supabase
       .from("notes")
       .select("*")
       .order("start_date", { ascending: false });
 
     const noteRows: string[][] = [
-      ["ID", "Equipe", "Date", "Texte"],
+      ["ID", "Equipe", "Date", "Texte", "Météo"],
       ...(notes || []).map((n: any) => [
         n.id,
         n.team_id || "",
         fmtDate(n.start_date),
         n.text || "",
+        n.weather_condition || "",
       ]),
     ];
     await writeSheet(spreadsheetId, "Notes", noteRows, accessToken);
 
+    // ── 8. Véhicules ─────────────────────────────────────────────────────────
+    const { data: vehicles } = await supabase
+      .from("vehicles")
+      .select("*")
+      .order("name");
 
+    const vehicleRows: string[][] = [
+      ["ID", "Nom", "Immatriculation", "Statut", "Créé le"],
+      ...(vehicles || []).map((v: any) => [
+        v.id,
+        v.name || "",
+        v.license_plate || "",
+        v.status || "",
+        fmtDate(v.created_at),
+      ]),
+    ];
+    await writeSheet(spreadsheetId, "Véhicules", vehicleRows, accessToken);
 
-    // Update sync status on success — always mark complete even if insert failed
-    const totalRecords = (technicians?.length || 0) + (commandes?.length || 0) + (savRecords?.length || 0) + (assignments?.length || 0) + (notes?.length || 0) + (absenceMotives?.length || 0);
+    // ── 9. Matériel ─────────────────────────────────────────────────────────
+    const { data: equipment } = await supabase
+      .from("equipment")
+      .select("*")
+      .order("name");
+
+    const equipmentRows: string[][] = [
+      ["ID", "Nom", "Référence", "Statut", "Créé le"],
+      ...(equipment || []).map((e: any) => [
+        e.id,
+        e.name || "",
+        e.reference || "",
+        e.status || "",
+        fmtDate(e.created_at),
+      ]),
+    ];
+    await writeSheet(spreadsheetId, "Matériel", equipmentRows, accessToken);
+
+    // Mark sync status as success
+    const totalRecords = (technicians?.length || 0) + (commandes?.length || 0) + (savRecords?.length || 0) + (assignments?.length || 0) + (notes?.length || 0) + (absenceMotives?.length || 0) + (vehicles?.length || 0) + (equipment?.length || 0);
+
     if (syncRecord) {
       await supabase
         .from('sync_status')
@@ -430,26 +423,10 @@ Deno.serve(async (req) => {
           records_synced: totalRecords,
         })
         .eq('id', syncRecord.id);
-    } else {
-      // Fallback: find the most recent running export record and update it by ID
-      const { data: latestRunning } = await supabase
-        .from('sync_status')
-        .select('id')
-        .in('sync_type', ['google_sheets_export', 'google_sheets'])
-        .eq('status', 'running')
-        .order('started_at', { ascending: false })
-        .limit(1)
-        .single();
-      if (latestRunning) {
-        await supabase
-          .from('sync_status')
-          .update({ status: 'success', completed_at: new Date().toISOString(), records_synced: totalRecords })
-          .eq('id', latestRunning.id);
-      }
     }
 
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         message: "Exportation terminée avec succès",
         counts: {
           techniciens: technicians?.length || 0,
@@ -457,15 +434,15 @@ Deno.serve(async (req) => {
           sav: savRecords?.length || 0,
           affectations: assignments?.length || 0,
           notes: notes?.length || 0,
-          motifs: absenceMotives?.length || 0
+          motifs: absenceMotives?.length || 0,
+          vehicules: vehicles?.length || 0,
+          materiel: equipment?.length || 0
         }
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: any) {
     console.error("Critical error in export-to-sheets:", error);
-
-    // Attempt to record failure
     try {
       const supabaseUrl = Deno.env.get('SUPABASE_URL');
       const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');

@@ -19,6 +19,7 @@ interface DailyTeamManagementDialogProps {
     activeTechnicians: any[];
     currentRosters: any[];
     onSave: (rosters: { technician_id: string; is_team_leader: boolean }[]) => void;
+    baseTeamId?: string; // We added this prop!
 }
 
 export const DailyTeamManagementDialog: React.FC<DailyTeamManagementDialogProps> = ({
@@ -29,41 +30,52 @@ export const DailyTeamManagementDialog: React.FC<DailyTeamManagementDialogProps>
     activeTechnicians,
     currentRosters,
     onSave,
+    baseTeamId,
 }) => {
-    // Store the currently checked technicians and who is the leader
     const [selectedTechs, setSelectedTechs] = useState<{ id: string; isLeader: boolean }[]>([]);
 
-    // When the dialog opens, load the existing team for that day
     useEffect(() => {
         if (isOpen) {
-            setSelectedTechs(
-                currentRosters.map(r => ({
-                    id: r.technician_id,
-                    isLeader: r.is_team_leader || false,
-                }))
-            );
+            if (currentRosters.length > 0) {
+                // If a roster exists for this day, load it
+                setSelectedTechs(
+                    currentRosters.map(r => ({
+                        id: r.technician_id,
+                        isLeader: r.is_team_leader || false,
+                    }))
+                );
+            } else if (baseTeamId) {
+                // UX Fix: If empty, pre-check the base team members to save time!
+                const baseMembers = activeTechnicians.filter(t => t.team_id === baseTeamId);
+                setSelectedTechs(
+                    baseMembers.map((t, index) => ({
+                        id: t.id,
+                        isLeader: index === 0, // Make the first person the leader automatically
+                    }))
+                );
+            } else {
+                setSelectedTechs([]);
+            }
         }
-    }, [isOpen, currentRosters]);
+    }, [isOpen, currentRosters, activeTechnicians, baseTeamId]);
 
     const handleToggleTech = (techId: string) => {
         setSelectedTechs(prev => {
             const exists = prev.find(t => t.id === techId);
             if (exists) {
-                // Remove technician
                 return prev.filter(t => t.id !== techId);
             } else {
-                // Add technician. If they are the first one, make them leader automatically!
                 return [...prev, { id: techId, isLeader: prev.length === 0 }];
             }
         });
     };
 
     const handleSetLeader = (techId: string, e: React.MouseEvent) => {
-        e.stopPropagation(); // Prevent the row click from unchecking the box
+        e.stopPropagation();
         setSelectedTechs(prev =>
             prev.map(t => ({
                 ...t,
-                isLeader: t.id === techId, // Only one leader allowed
+                isLeader: t.id === techId,
             }))
         );
     };
@@ -82,6 +94,15 @@ export const DailyTeamManagementDialog: React.FC<DailyTeamManagementDialogProps>
 
     const formattedDate = format(new Date(date), 'EEEE d MMMM yyyy', { locale: fr });
 
+    // UX Fix: Sort the list so Base Team members always appear at the very top
+    const sortedTechnicians = [...activeTechnicians].sort((a, b) => {
+        const aIsBase = a.team_id === baseTeamId;
+        const bIsBase = b.team_id === baseTeamId;
+        if (aIsBase && !bIsBase) return -1;
+        if (!aIsBase && bIsBase) return 1;
+        return a.name.localeCompare(b.name);
+    });
+
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="sm:max-w-[425px]">
@@ -90,10 +111,11 @@ export const DailyTeamManagementDialog: React.FC<DailyTeamManagementDialogProps>
                     <p className="text-sm text-muted-foreground capitalize">{formattedDate}</p>
                 </DialogHeader>
 
-                <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto">
-                    {activeTechnicians.map(tech => {
+                <div className="py-4 space-y-3 max-h-[60vh] overflow-y-auto pr-2">
+                    {sortedTechnicians.map(tech => {
                         const isSelected = selectedTechs.some(t => t.id === tech.id);
                         const isLeader = selectedTechs.find(t => t.id === tech.id)?.isLeader;
+                        const isBaseTeamMember = tech.team_id === baseTeamId;
 
                         return (
                             <div
@@ -108,7 +130,15 @@ export const DailyTeamManagementDialog: React.FC<DailyTeamManagementDialogProps>
                                         onCheckedChange={() => handleToggleTech(tech.id)}
                                         onClick={(e) => e.stopPropagation()}
                                     />
-                                    <span className="font-medium">{tech.name}</span>
+                                    <div className="flex flex-col">
+                                        <span className="font-medium">{tech.name}</span>
+                                        {/* Visual indicator for base team members */}
+                                        {isBaseTeamMember && (
+                                            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                                                Équipe de base
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
 
                                 {isSelected && (
@@ -126,7 +156,7 @@ export const DailyTeamManagementDialog: React.FC<DailyTeamManagementDialogProps>
                         );
                     })}
 
-                    {activeTechnicians.length === 0 && (
+                    {sortedTechnicians.length === 0 && (
                         <p className="text-sm text-center text-muted-foreground italic py-4">
                             Aucun technicien disponible. Ajoutez-en via le menu Admin.
                         </p>

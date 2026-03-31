@@ -166,12 +166,34 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
                   </div>
                   <Button
                     className="w-full"
-                    onClick={() => {
-                      const weekStart = startOfWeek(new Date(weekConfig.year, 0, 1 + (weekConfig.week_number - 1) * 7), { weekStartsOn: 1 });
-                      const dateStr = format(weekStart, 'yyyy-MM-dd');
-                      const url = `${window.location.origin}/presentation?timeout=${presentationTimeout}&token=${import.meta.env.VITE_PRESENTATION_TOKEN}&date=${dateStr}`;
-                      navigator.clipboard.writeText(url);
-                      toast.success('Lien copié dans le presse-papiers');
+                    onClick={async () => {
+                      try {
+                        // 1. Generate a secure, unique token in the database
+                        const { data, error } = await supabase
+                          .from('presentation_tokens')
+                          .insert([{}])
+                          .select('token')
+                          .single();
+
+                        if (error) throw error;
+
+                        // 2. Build the URL with the real database token
+                        const weekStart = startOfWeek(new Date(weekConfig.year, 0, 1 + (weekConfig.week_number - 1) * 7), { weekStartsOn: 1 });
+                        const dateStr = format(weekStart, 'yyyy-MM-dd');
+                        const url = `${window.location.origin}/presentation?timeout=${presentationTimeout}&token=${data.token}&date=${dateStr}`;
+
+                        // Fallback for HTTP / local IP connections where clipboard is blocked
+                        if (navigator.clipboard && window.isSecureContext) {
+                          await navigator.clipboard.writeText(url);
+                          toast.success('Lien sécurisé copié dans le presse-papiers !');
+                        } else {
+                          prompt("Votre navigateur bloque la copie automatique. Copiez le lien ci-dessous :", url);
+                          toast.success('Lien généré avec succès !');
+                        }
+                      } catch (err) {
+                        console.error(err);
+                        toast.error('Erreur lors de la génération du lien');
+                      }
                     }}
                   >
                     Copier lien Présentation

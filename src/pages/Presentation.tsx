@@ -2,17 +2,16 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { WeeklyGrid } from '@/components/planning/WeeklyGrid';
-import { 
-  useWeekConfig, 
-  useTechnicians, 
-  useTeams, 
-  useCommandes, 
-  useAssignments, 
-  useNotes, 
+import {
+  useWeekConfig,
+  useTechnicians,
+  useTeams,
+  useCommandes,
+  useAssignments,
+  useNotes,
   useAbsences,
   getWeekDates
 } from '@/hooks/usePlanning';
-import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { startOfWeek, getWeek, getYear } from 'date-fns';
 import { Loader2 } from 'lucide-react';
@@ -44,8 +43,7 @@ const Presentation = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
-  const validToken = import.meta.env.VITE_PRESENTATION_TOKEN;
-  
+
   const timeoutMinutes = parseInt(searchParams.get('timeout') || '0', 10) || DEFAULT_TIMEOUT_MINUTES;
   const timeoutMs = timeoutMinutes * 60 * 1000;
 
@@ -54,23 +52,56 @@ const Presentation = () => {
   const customWeekNumber = customDate ? getWeek(customDate, { weekStartsOn: 1 }) : null;
   const customYear = customDate ? getYear(customDate) : null;
 
-  // Auto-redirect back to index after timeout
+  // Validation & Timeout states
+  const [isValidating, setIsValidating] = useState(true);
+  const [isTokenValid, setIsTokenValid] = useState(false);
   const [timeLeft, setTimeLeft] = useState(timeoutMs);
   const [timedOut, setTimedOut] = useState(false);
   const [isHalted, setIsHalted] = useState(false);
 
   useEffect(() => {
-    // Token security check
-    if (!token || token !== validToken) {
-      navigate('/auth');
-      return;
-    }
+    const validateToken = async () => {
+      if (!token) {
+        navigate('/auth');
+        return;
+      }
+
+      try {
+        // Ask Supabase if this token exists and is active
+        const { data, error } = await supabase
+          .from('presentation_tokens')
+          .select('id')
+          .eq('token', token)
+          .eq('is_active', true)
+          .maybeSingle();
+
+        if (error || !data) {
+          console.error("Lien invalide ou expiré.");
+          navigate('/auth');
+          return;
+        }
+
+        // Token is good! Let them in.
+        setIsTokenValid(true);
+      } catch (err) {
+        console.error("Erreur de validation du token", err);
+        navigate('/auth');
+      } finally {
+        setIsValidating(false);
+      }
+    };
+
+    validateToken();
+  }, [token, navigate]);
+
+  useEffect(() => {
+    if (!isTokenValid) return; // Don't start timers until validated
 
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1000) {
           clearInterval(timer);
-          setTimedOut(true); // Show blank screen instead of navigating
+          setTimedOut(true); // Show blank screen
           return 0;
         }
         return prev - 1000;
@@ -83,6 +114,7 @@ const Presentation = () => {
         clearInterval(timer);
         setTimeLeft(0);
         setTimedOut(true);
+        setIsHalted(true);
       })
       .subscribe();
 
@@ -90,7 +122,7 @@ const Presentation = () => {
       clearInterval(timer);
       supabase.removeChannel(channel);
     };
-  }, [token, validToken, navigate]);
+  }, [isTokenValid]);
 
   const formatTimeLeft = (ms: number) => {
     if (isHalted) return "Arrêté";
@@ -102,7 +134,7 @@ const Presentation = () => {
 
   // Data fetching
   const { data: dbWeekConfig, isLoading: isConfigLoading } = useWeekConfig();
-  
+
   const weekConfig = customDate && customWeekNumber && customYear
     ? { week_number: customWeekNumber, year: customYear }
     : dbWeekConfig;
@@ -117,13 +149,23 @@ const Presentation = () => {
 
   const { data: assignments = [], isLoading: isAssignmentsLoading } = useAssignments(weekStartStr, weekEndStr);
   const { data: notes = [], isLoading: isNotesLoading } = useNotes(weekStartStr, weekEndStr);
-  
+
   const isPlanningLoading = isConfigLoading || isTechLoading || isTeamsLoading || isCommandesLoading || isAssignmentsLoading || isNotesLoading;
 
   const { data: absencesRaw = [], isLoading: isAbsencesLoading } = useAbsences(weekStartStr, weekEndStr);
   const absences = absencesRaw as AbsenceRow[];
 
-  // After timeout — show a completely blank screen (must be after all hooks)
+  // If we are currently checking the database, show a loader
+  if (isValidating) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-3 text-muted-foreground">Vérification du lien sécurisé...</span>
+      </div>
+    );
+  }
+
+  // After timeout — show a completely blank screen
   if (timedOut) {
     return <div className="fixed inset-0 bg-black" />;
   }
@@ -141,12 +183,11 @@ const Presentation = () => {
     id: `absence-${absence.id}`,
     teamId: absence.technician_id,
     technicianId: absence.technician_id,
-
     commandeId: null,
     name: 'Absent',
     startDate: absence.start_date,
     endDate: absence.end_date,
-    isFixed: true, // Fixed so they can't be moved (even if we had drag enabled)
+    isFixed: true,
     isValid: true,
   }));
 
@@ -168,9 +209,8 @@ const Presentation = () => {
   const allAssignmentsFormatted = [...dbAssignmentsFormatted, ...absenceAssignments];
 
   const activeTechnicians = technicians.filter(t => !t.is_archived);
-  
-  // For the grid view, we loop over Teams. If a team has techs, they display underneath.
-  const displayTeams = teams.filter(t => activeTechnicians.some(tech => tech.team_id === t.id));
+
+  const displayTeams = teams;
 
   const getGeneralNotesForDate = (date: string) => {
     return notes.filter(n => {
@@ -217,34 +257,34 @@ const Presentation = () => {
             isAdmin={false} // Disable admin features
             maxAssignments={3}
             allAssignmentsFormatted={allAssignmentsFormatted}
-            
+
             // Empty handers since pointer events are none anyway, but required by typescript
             getGeneralNotesForDate={getGeneralNotesForDate}
             getAssignmentsForCell={getAssignmentsForCell}
-            handleAddGeneralNote={() => {}}
-            handleGeneralNoteClick={() => {}}
-            saveNote={() => {}}
-            handleDeleteNote={() => {}}
-            handleCellClick={() => {}}
-            handleAddAssignment={() => {}}
-            handleAssignmentClick={() => {}}
-            handleDuplicateAssignment={() => {}}
-            handleDeleteAssignment={() => {}}
+            handleAddGeneralNote={() => { }}
+            handleGeneralNoteClick={() => { }}
+            saveNote={() => { }}
+            handleDeleteNote={() => { }}
+            handleCellClick={() => { }}
+            handleAddAssignment={() => { }}
+            handleAssignmentClick={() => { }}
+            handleDuplicateAssignment={() => { }}
+            handleDeleteAssignment={() => { }}
             isDraggable={() => false}
-            handleDragStart={() => {}}
-            handleDragOver={() => {}}
-            handleDragLeave={() => {}}
-            handleDrop={() => {}}
-            handleDragEnd={() => {}}
+            handleDragStart={() => { }}
+            handleDragOver={() => { }}
+            handleDragLeave={() => { }}
+            handleDrop={() => { }}
+            handleDragEnd={() => { }}
             dropTarget={null}
             previewCells={[]}
             draggedItem={null}
             highlightedGroupId={null}
-            setHighlightedGroupId={() => {}}
+            setHighlightedGroupId={() => { }}
           />
         </CardContent>
       </Card>
-      
+
       {/* Overlay to catch any stray clicks if pointer-events-none fails on certain child elements */}
       <div className="absolute inset-0 z-50 pointer-events-auto" style={{ top: '80px' }}></div>
     </div>

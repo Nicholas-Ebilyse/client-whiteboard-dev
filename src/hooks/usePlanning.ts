@@ -16,7 +16,6 @@ export const useWeekConfig = () => {
 
       if (error && error.code !== 'PGRST116') throw error;
 
-      // If no config exists, create one with current week
       if (!data) {
         const currentDate = new Date();
         const weekNumber = getWeek(currentDate, { weekStartsOn: 1 });
@@ -99,7 +98,7 @@ export const useCreateTechnician = () => {
           position: maxPosition + 1,
           is_temp: isTemp || false,
           skills,
-          is_accompanied: isAccompanied || false // <--- We added this
+          is_accompanied: isAccompanied || false
         })
         .select()
         .single();
@@ -129,7 +128,6 @@ export const useDailyTeamRosters = (startDate: string, endDate: string) => {
       if (error) throw error;
       return data;
     },
-    // Only run this query if we have dates selected
     enabled: !!startDate && !!endDate,
   });
 };
@@ -144,7 +142,7 @@ export const useUpdateTechnician = () => {
       if (is_temp !== undefined) updates.is_temp = is_temp;
       if (team_id !== undefined) updates.team_id = team_id;
       if (skills !== undefined) updates.skills = skills;
-      if (isAccompanied !== undefined) updates.is_accompanied = isAccompanied; // <--- We added this
+      if (isAccompanied !== undefined) updates.is_accompanied = isAccompanied;
 
       const { data, error } = await supabase
         .from('technicians')
@@ -180,8 +178,6 @@ export const useUpdateTechnicianPositions = () => {
   });
 };
 
-
-
 export const useCommandes = () => {
   return useQuery({
     queryKey: ['commandes'],
@@ -196,8 +192,6 @@ export const useCommandes = () => {
     },
   });
 };
-
-// removed useBulkUpdateAssignmentName
 
 export const useUpdateCommande = () => {
   const queryClient = useQueryClient();
@@ -250,7 +244,6 @@ export const useAssignments = (weekStart: string, weekEnd: string) => {
   });
 };
 
-
 export const useNotes = (weekStart: string, weekEnd: string) => {
   return useQuery({
     queryKey: ['notes', weekStart, weekEnd],
@@ -293,24 +286,16 @@ export const useSaveAssignment = () => {
           .select()
           .single();
 
-        if (error) {
-          console.error('[useSaveAssignment] UPDATE error:', error);
-          throw error;
-        }
+        if (error) throw error;
         return data;
       } else {
-        console.log('[useSaveAssignment] INSERT payload:', JSON.stringify(dbAssignment, null, 2));
         const { data, error } = await supabase
           .from('assignments')
           .insert(dbAssignment)
           .select()
           .single();
 
-        if (error) {
-          console.error('[useSaveAssignment] INSERT error:', JSON.stringify(error, null, 2));
-          console.error('[useSaveAssignment] INSERT payload was:', JSON.stringify(dbAssignment, null, 2));
-          throw error;
-        }
+        if (error) throw error;
         return data;
       }
     },
@@ -344,7 +329,6 @@ export const useSaveNote = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (note: any) => {
-      // The exact, perfectly clean package for the new database!
       const dbNote: any = {
         text: note.text,
         start_date: note.start_date,
@@ -441,8 +425,6 @@ export const useDeleteAbsence = () => {
   });
 };
 
-// ─── Teams ───────────────────────────────────────────────────────────────────
-
 export const useTeams = () => {
   return useQuery({
     queryKey: ['teams'],
@@ -512,14 +494,9 @@ export const useUpdateTeamPositions = () => {
   });
 };
 
-
-
 export const getWeekDates = (weekNumber: number, year: number) => {
-  // Find the first Thursday of the year (ISO week definition)
   const jan4 = new Date(year, 0, 4);
   const firstMonday = startOfWeek(jan4, { weekStartsOn: 1 });
-
-  // Add the appropriate number of weeks
   const weekStart = addDays(firstMonday, (weekNumber - 1) * 7);
 
   const dates = [];
@@ -588,13 +565,12 @@ export const useUpdateDailyTeamRosters = () => {
     mutationFn: async ({
       date,
       teamName,
-      rosters // Array of { technician_id, is_team_leader }
+      rosters
     }: {
       date: string;
       teamName: string;
       rosters: { technician_id: string; is_team_leader: boolean }[];
     }) => {
-      // First, delete existing rosters for this team on this day to start fresh
       const { error: deleteError } = await supabase
         .from('daily_team_rosters')
         .delete()
@@ -602,11 +578,8 @@ export const useUpdateDailyTeamRosters = () => {
         .eq('team_name', teamName);
 
       if (deleteError) throw deleteError;
-
-      // If the roster is empty, we just stop here (effectively cleared the team)
       if (rosters.length === 0) return null;
 
-      // Insert the new rosters
       const newRosters = rosters.map(r => ({
         date,
         team_name: teamName,
@@ -619,11 +592,16 @@ export const useUpdateDailyTeamRosters = () => {
         .insert(newRosters)
         .select();
 
-      if (insertError) throw insertError;
+      // Intercept PostgreSQL unique constraint violation for duplicate assignments
+      if (insertError) {
+        if (insertError.code === '23505' || insertError.message.includes('duplicate key value')) {
+          throw new Error("Un ou plusieurs techniciens sélectionnés sont déjà assignés à une autre équipe ce jour-là.");
+        }
+        throw insertError;
+      }
       return data;
     },
     onSuccess: () => {
-      // This tells React to instantly refresh the grid after saving!
       queryClient.invalidateQueries({ queryKey: ['dailyTeamRosters'] });
     },
   });

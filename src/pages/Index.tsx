@@ -939,7 +939,17 @@ const Index = () => {
             }))}
             onArchive={handleArchiveTechnician}
             onNameChange={(id, name, isTemp, skills, isAccompanied) => updateTechnician.mutate({ id, name, is_temp: isTemp, skills, isAccompanied })}
-            onAdd={(name, isTemp, skills, isAccompanied) => createTechnician.mutate({ name, isTemp, skills, isAccompanied })} />
+            onAdd={(name, isTemp, skills, isAccompanied) => createTechnician.mutate({ name, isTemp, skills, isAccompanied })}
+            onAssignTeam={(id, team_id) => {
+              updateTechnician.mutate(
+                { id, team_id },
+                {
+                  onSuccess: () => toast.success('Technicien assigné avec succès !'),
+                  onError: (err) => toast.error(`Erreur Base de données : ${err.message}`)
+                }
+              );
+            }}
+          />
 
           <AbsenceManagementDialog
             open={absenceManagementOpen}
@@ -991,16 +1001,23 @@ const Index = () => {
             teamName={dailyTeamDialogInfo.teamName}
             date={dailyTeamDialogInfo.date}
             activeTechnicians={activeTechnicians}
+            baseTeamId={teams.find(t => t.name === dailyTeamDialogInfo.teamName)?.id}
             currentRosters={dailyTeamRosters.filter((r: any) =>
               r.team_name === dailyTeamDialogInfo.teamName &&
               r.date === dailyTeamDialogInfo.date
             )}
             onSave={(rosters) => {
-              updateDailyRosters.mutate({
-                date: dailyTeamDialogInfo.date,
-                teamName: dailyTeamDialogInfo.teamName,
-                rosters
-              });
+              updateDailyRosters.mutate(
+                {
+                  date: dailyTeamDialogInfo.date,
+                  teamName: dailyTeamDialogInfo.teamName,
+                  rosters
+                },
+                {
+                  onSuccess: () => toast.success('Équipe journalière enregistrée !'),
+                  onError: (err) => toast.error(err.message) // This will now display our friendly translated error!
+                }
+              );
             }}
           />
 
