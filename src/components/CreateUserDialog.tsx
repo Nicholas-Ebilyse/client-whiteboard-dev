@@ -19,20 +19,24 @@ export function CreateUserDialog({ open, onOpenChange, onUserCreated }: CreateUs
   const [role, setRole] = useState<"admin" | "user">("user");
   const [isCreating, setIsCreating] = useState(false);
 
-  const handleCreateUser = async () => {
+  const handleCreateUser = async (e?: React.MouseEvent) => {
+    // The Iron Cage: Prevent accidental form submissions!
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
     if (!email || !password) {
       toast.error("Veuillez remplir tous les champs");
       return;
     }
 
-    // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       toast.error("Format d'email invalide");
       return;
     }
 
-    // Validate email length
     if (email.length > 255) {
       toast.error("L'email doit faire moins de 255 caractères");
       return;
@@ -45,7 +49,6 @@ export function CreateUserDialog({ open, onOpenChange, onUserCreated }: CreateUs
 
     setIsCreating(true);
     try {
-      // Call edge function to create user with service role
       const { data, error } = await supabase.functions.invoke('create-user', {
         body: {
           email,
@@ -64,7 +67,11 @@ export function CreateUserDialog({ open, onOpenChange, onUserCreated }: CreateUs
         throw new Error(errorMessage);
       }
 
-      if (!data?.success) throw new Error(data?.error || "Erreur lors de la création de l'utilisateur");
+      // THE FIX: We check if the backend explicitly sent an error. 
+      // We removed the `!data?.success` check because our Edge Function returns the raw user object!
+      if (data?.error) {
+        throw new Error(data.error);
+      }
 
       toast.success(`Compte créé avec succès pour ${email}`);
       setEmail("");
@@ -128,8 +135,9 @@ export function CreateUserDialog({ open, onOpenChange, onUserCreated }: CreateUs
               </SelectContent>
             </Select>
           </div>
-          <Button 
-            onClick={handleCreateUser} 
+          <Button
+            type="button"
+            onClick={handleCreateUser}
             disabled={isCreating}
             className="w-full"
           >

@@ -1,140 +1,47 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "npm:@supabase/supabase-js@2";
-import { z } from "npm:zod@3";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
 
-const createUserSchema = z.object({
-  email: z.string().email({ message: "Invalid email format" }).max(255, { message: "Email must be less than 255 characters" }),
-  password: z.string().min(6, { message: "Password must be at least 6 characters" }).max(128, { message: "Password must be less than 128 characters" }),
-  role: z.enum(["admin", "user"], { message: "Role must be either 'admin' or 'user'" }),
-});
-
-const handler = async (req: Request): Promise<Response> => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+serve(async (req) => {
+  // 1. Handle CORS preflight requests from the browser
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    // 2. Initialize Supabase with the ADMIN bypass key
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
 
-    // Verify the requesting user is authenticated and is an admin
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "No authorization header" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    // 3. Get the data your React app sent
+    const { email, password, role, name } = await req.json()
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: { user: requestingUser }, error: authError } = await supabase.auth.getUser(token);
+    // 4. Tell Supabase to create the user!
+    const { data, error } = await supabaseClient.auth.admin.createUser({
+      email: email,
+      password: password,
+      email_confirm: true, // Auto-confirms so they can log in immediately
+      user_metadata: { role: role, name: name }
+    })
 
-    if (authError || !requestingUser) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (error) throw error
 
-    // Check if requesting user is admin
-    const { data: roleData, error: roleError } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", requestingUser.id)
-      .eq("role", "admin")
-      .maybeSingle();
-
-    if (roleError || !roleData) {
-      return new Response(JSON.stringify({ error: "Forbidden - Admin access required" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const body = await req.json();
-    const validation = createUserSchema.safeParse(body);
-    
-    if (!validation.success) {
-      return new Response(JSON.stringify({ 
-        error: 'Invalid input', 
-        details: validation.error.errors 
-      }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const { email, password, role } = validation.data;
-
-    // Create the user using service role (bypasses auto-login)
-    const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true, // Auto-confirm email
-    });
-
-    if (createError) {
-      return new Response(JSON.stringify({ error: createError.message, stage: "admin_createUser" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    if (!newUser?.user) {
-      return new Response(JSON.stringify({ error: "Failed to create user", stage: "missing_newUser" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Assign role using service role (bypasses RLS)
-    const { error: roleInsertError } = await supabase
-      .from("user_roles")
-      .insert({
-        user_id: newUser.user.id,
-        role: role,
-      });
-
-    if (roleInsertError) {
-      // Try to delete the user if role assignment fails
-      await supabase.auth.admin.deleteUser(newUser.user.id);
-      return new Response(JSON.stringify({ error: roleInsertError.message || "Failed to assign role", stage: "roleInsertError" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    console.log(`User created successfully: ${email}`);
-
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        user: {
-          id: newUser.user.id,
-          email: newUser.user.email,
-        }
-      }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
-  } catch (error: any) {
-    console.error("Error in create-user function:", error);
-    return new Response(
-      JSON.stringify({ error: error.message, stage: "catch_all" }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    // 5. Send success back to React
+    return new Response(JSON.stringify(data), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200,
+    })
+  } catch (error) {
+    // Send the error back if something goes wrong (e.g., email already exists)
+    return new Response(JSON.stringify({ error: error.message }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 400,
+    })
   }
-};
-
-serve(handler);
+})
