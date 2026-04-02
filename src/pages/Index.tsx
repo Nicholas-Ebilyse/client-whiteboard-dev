@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { cn, getShortChantierName } from '@/lib/utils';
 import { Commande } from '@/types/planning';
 import { EditAssignmentDialog } from '@/components/EditAssignmentDialog';
-import { EditNoteDialog } from '@/components/EditNoteDialog';
 import { EditGeneralNoteDialog } from '@/components/EditGeneralNoteDialog';
 import { EditTechnicianWeekNoteDialog } from '@/components/EditTechnicianWeekNoteDialog';
 import { TeamManagementDialog } from '@/components/TeamManagementDialog';
@@ -889,16 +888,6 @@ const Index = () => {
             onDelete={handleDeleteAssignment}
             onDeleteGroup={handleDeleteAssignmentGroup}
             onDuplicate={handleDuplicateAssignment}
-          />
-
-          <EditNoteDialog
-            open={noteDialogOpen}
-            onOpenChange={setNoteDialogOpen}
-            note={selectedNote}
-            technicians={activeTechnicians.map((t) => ({ id: t.id, name: t.name }))}
-            weekDates={weekDates}
-            onSave={handleSaveNote}
-            onDelete={handleDeleteNote}
           />
 
           <EditGeneralNoteDialog

@@ -27,7 +27,8 @@ serve(async (req) => {
       email: email,
       password: password,
       email_confirm: true, // Auto-confirms so they can log in immediately
-      user_metadata: { role: role, name: name }
+      user_metadata: { role: role, name: name },
+      app_metadata: { role: role }
     })
 
     if (error) throw error

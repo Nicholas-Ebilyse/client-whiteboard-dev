@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +8,7 @@ import { Calendar, Trash2, Plus, ChevronDown, ChevronUp, Pencil, Check, X } from
 import { toast } from 'sonner';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   useAbsences,
   useSaveAbsence,
@@ -16,7 +17,6 @@ import {
   useCreateAbsenceMotive,
   useUpdateAbsenceMotive,
   useDeleteAbsenceMotive,
-  useTeams,
   useTechnicians,
 } from '@/hooks/usePlanning';
 
@@ -29,10 +29,12 @@ export const AbsenceManagementDialog: React.FC<AbsenceManagementDialogProps> = (
   open,
   onOpenChange,
 }) => {
+  const queryClient = useQueryClient();
+
   const { data: technicians = [] } = useTechnicians();
   const { data: absences = [] } = useAbsences();
   const { data: motives = [] } = useAbsenceMotives();
-  const { data: teams = [] } = useTeams();
+
   const saveAbsence = useSaveAbsence();
   const deleteAbsence = useDeleteAbsence();
   const createMotive = useCreateAbsenceMotive();
@@ -40,7 +42,6 @@ export const AbsenceManagementDialog: React.FC<AbsenceManagementDialogProps> = (
   const deleteMotive = useDeleteAbsenceMotive();
 
   const [technicianId, setTechnicianId] = useState('');
-  const [filterTeamId, setFilterTeamId] = useState('ALL');
   const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [motiveId, setMotiveId] = useState('');
@@ -53,20 +54,52 @@ export const AbsenceManagementDialog: React.FC<AbsenceManagementDialogProps> = (
 
   const activeTechnicians = technicians.filter(t => !t.is_archived);
 
-  const displayedAbsences = absences
-    .filter(abs => {
-      if (technicianId && abs.technician_id !== technicianId) return false;
-      if (filterTeamId !== 'ALL') {
-        const tech = technicians.find(t => t.id === abs.technician_id);
-        if (!tech || tech.team_id !== filterTeamId) return false;
+  // Initialize defaults every time the dialog opens
+  useEffect(() => {
+    if (open) {
+      setTechnicianId('');
+      setShowMotiveManager(false);
+      const today = format(new Date(), 'yyyy-MM-dd');
+      setStartDate(today);
+      setEndDate(today);
+      
+      // Auto-select "Congés Payés" if it exists
+      if (motives.length > 0) {
+        const cpMotive = motives.find(m => 
+          m.name.toLowerCase().includes('congés payés') || 
+          m.name.toLowerCase().includes('conges payes')
+        );
+        if (cpMotive) {
+          setMotiveId(cpMotive.id);
+        } else {
+          setMotiveId(motives[0]?.id || '');
+        }
       }
-      return true;
-    })
+    }
+  }, [open, motives]);
+
+  // Sync end date when start date changes
+  const handleStartDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newDate = e.target.value;
+    setStartDate(newDate);
+    setEndDate(newDate);
+  };
+
+  const getTechName = (id: string) => {
+    const tech = technicians.find(t => t.id === id);
+    return tech ? tech.name : id;
+  };
+
+  // Filter absences: If a technician is selected, only show theirs. Sort newest first.
+  const displayedAbsences = absences
+    .filter(abs => technicianId ? abs.technician_id === technicianId : true)
     .sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime());
 
+  const selectedTechName = technicianId ? getTechName(technicianId) : null;
+
   const handleAdd = async () => {
-    if (!technicianId || !startDate || !endDate) {
-      toast.error('Veuillez remplir tous les champs obligatoires.');
+    if (!technicianId || !startDate || !endDate || !motiveId) {
+      toast.error('Veuillez remplir tous les champs obligatoires (Technicien, Dates, Motif).');
       return;
     }
     if (endDate < startDate) {
@@ -74,12 +107,17 @@ export const AbsenceManagementDialog: React.FC<AbsenceManagementDialogProps> = (
       return;
     }
     try {
-      await saveAbsence.mutateAsync({ technician_id: technicianId, start_date: startDate, end_date: endDate, motive_id: motiveId || undefined });
+      await saveAbsence.mutateAsync({ 
+        technician_id: technicianId, 
+        start_date: startDate, 
+        end_date: endDate, 
+        motive_id: motiveId 
+      });
+      
+      queryClient.invalidateQueries({ queryKey: ['absences'] }); 
+      
       toast.success('Absence enregistrée');
-      setTechnicianId('');
-      setStartDate('');
-      setEndDate('');
-      setMotiveId('');
+      // We don't clear the technicianId anymore so they can see it in the filtered list below!
     } catch {
       toast.error("Erreur lors de l'enregistrement");
     }
@@ -88,6 +126,7 @@ export const AbsenceManagementDialog: React.FC<AbsenceManagementDialogProps> = (
   const handleDelete = async (id: string) => {
     try {
       await deleteAbsence.mutateAsync(id);
+      queryClient.invalidateQueries({ queryKey: ['absences'] }); 
       toast.success('Absence supprimée');
     } catch {
       toast.error('Erreur lors de la suppression');
@@ -99,6 +138,7 @@ export const AbsenceManagementDialog: React.FC<AbsenceManagementDialogProps> = (
     if (!name) return;
     try {
       await createMotive.mutateAsync({ name });
+      queryClient.invalidateQueries({ queryKey: ['absenceMotives'] });
       toast.success(`Motif « ${name} » ajouté`);
       setNewMotiveName('');
     } catch {
@@ -117,6 +157,7 @@ export const AbsenceManagementDialog: React.FC<AbsenceManagementDialogProps> = (
     if (!name) return;
     try {
       await updateMotive.mutateAsync({ id: editingMotiveId, name });
+      queryClient.invalidateQueries({ queryKey: ['absenceMotives'] });
       toast.success('Motif mis à jour');
       setEditingMotiveId(null);
     } catch {
@@ -128,18 +169,12 @@ export const AbsenceManagementDialog: React.FC<AbsenceManagementDialogProps> = (
     if (!confirm(`Supprimer le motif « ${name} » ?`)) return;
     try {
       await deleteMotive.mutateAsync(id);
+      queryClient.invalidateQueries({ queryKey: ['absenceMotives'] });
       toast.success('Motif supprimé');
       if (motiveId === id) setMotiveId('');
     } catch {
       toast.error('Erreur lors de la suppression');
     }
-  };
-
-  const getTechName = (id: string) => {
-    const tech = technicians.find(t => t.id === id);
-    if (!tech) return id;
-    const team = teams.find(t => t.id === tech.team_id);
-    return team ? `${tech.name} - ${team.name}` : tech.name;
   };
 
   const formatDate = (d: string) => {
@@ -160,6 +195,7 @@ export const AbsenceManagementDialog: React.FC<AbsenceManagementDialogProps> = (
         {/* ── Add form ── */}
         <div className="border rounded-lg p-4 space-y-4 bg-muted/30">
           <h3 className="font-semibold text-sm">Ajouter une absence</h3>
+          
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2 flex flex-col gap-1.5">
               <Label htmlFor="abs-tech">Technicien *</Label>
@@ -169,33 +205,34 @@ export const AbsenceManagementDialog: React.FC<AbsenceManagementDialogProps> = (
                     <SelectValue placeholder="Sélectionner un technicien…" />
                   </SelectTrigger>
                   <SelectContent>
-                    {activeTechnicians.map(t => {
-                      const team = teams.find(team => team.id === t.team_id);
-                      return (
-                        <SelectItem key={t.id} value={t.id}>
-                          {t.name}{team ? ` - ${team.name}` : ''}
-                        </SelectItem>
-                      );
-                    })}
+                    {activeTechnicians.map(t => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 {technicianId && (
-                  <Button variant="outline" type="button" onClick={() => setTechnicianId('')} className="shrink-0 text-xs h-10">
-                    Réinitialiser
+                  <Button variant="outline" type="button" onClick={() => setTechnicianId('')} className="shrink-0 h-10 px-3">
+                    <X className="w-4 h-4 mr-1" />
+                    Effacer
                   </Button>
                 )}
               </div>
             </div>
+            
             <div>
               <Label htmlFor="abs-start">Date de début *</Label>
-              <Input id="abs-start" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+              <Input id="abs-start" type="date" value={startDate} onChange={handleStartDateChange} />
             </div>
+            
             <div>
               <Label htmlFor="abs-end">Date de fin *</Label>
               <Input id="abs-end" type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
             </div>
+            
             <div className="col-span-2">
-              <Label>Motif</Label>
+              <Label>Motif *</Label>
               <div className="flex flex-wrap gap-2 mt-2">
                 {motives.map(motive => (
                   <Button
@@ -212,101 +249,90 @@ export const AbsenceManagementDialog: React.FC<AbsenceManagementDialogProps> = (
               </div>
             </div>
           </div>
-          <Button onClick={handleAdd} disabled={saveAbsence.isPending} className="w-full gap-2">
-            <Plus className="w-4 h-4" />
-            Enregistrer l'absence
-          </Button>
+
+          {/* ── Action Buttons (1/3 and 2/3 ratio) ── */}
+          <div className="flex items-center gap-3 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowMotiveManager(v => !v)}
+              className="w-1/3 flex justify-between px-3 bg-background"
+            >
+              <span className="truncate">Gérer les motifs</span>
+              {showMotiveManager ? <ChevronUp className="w-4 h-4 shrink-0" /> : <ChevronDown className="w-4 h-4 shrink-0" />}
+            </Button>
+            
+            <Button onClick={handleAdd} disabled={saveAbsence.isPending} className="w-2/3 gap-2">
+              <Plus className="w-4 h-4" />
+              Enregistrer l'absence
+            </Button>
+          </div>
         </div>
 
-        {/* ── Motif manager ── */}
-        <div className="border rounded-lg overflow-hidden">
-          <button
-            type="button"
-            onClick={() => setShowMotiveManager(v => !v)}
-            className="w-full flex items-center justify-between px-4 py-3 bg-muted/20 text-sm font-semibold hover:bg-muted/40 transition-colors"
-          >
-            <span>Gérer les motifs d'absence</span>
-            {showMotiveManager ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </button>
-
-          {showMotiveManager && (
-            <div className="p-4 space-y-3">
-              {/* Existing motives */}
-              <div className="divide-y rounded-md border overflow-hidden">
-                {motives.length === 0 && (
-                  <p className="text-sm text-muted-foreground text-center py-4">Aucun motif défini.</p>
-                )}
-                {motives.map(m => (
-                  <div key={m.id} className="flex items-center gap-2 px-3 py-2 bg-background">
-                    {editingMotiveId === m.id ? (
-                      <>
-                        <Input
-                          value={editingMotiveName}
-                          onChange={e => setEditingMotiveName(e.target.value)}
-                          className="h-7 text-sm flex-1"
-                          onKeyDown={e => { if (e.key === 'Enter') handleSaveEdit(); if (e.key === 'Escape') setEditingMotiveId(null); }}
-                          autoFocus
-                        />
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600" onClick={handleSaveEdit}><Check className="w-3.5 h-3.5" /></Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={() => setEditingMotiveId(null)}><X className="w-3.5 h-3.5" /></Button>
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-sm flex-1">{m.name}</span>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => handleStartEdit(m.id, m.name)}><Pencil className="w-3.5 h-3.5" /></Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteMotive(m.id, m.name)}><Trash2 className="w-3.5 h-3.5" /></Button>
-                      </>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {/* Add new motive */}
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Nouveau motif…"
-                  value={newMotiveName}
-                  onChange={e => setNewMotiveName(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') handleAddMotive(); }}
-                  className="h-9 text-sm"
-                />
-                <Button size="sm" onClick={handleAddMotive} disabled={!newMotiveName.trim() || createMotive.isPending} className="gap-1.5 shrink-0">
-                  <Plus className="w-3.5 h-3.5" />
-                  Ajouter
-                </Button>
-              </div>
+        {/* ── Motif manager Panel ── */}
+        {showMotiveManager && (
+          <div className="border rounded-lg p-4 space-y-3 bg-muted/10 shadow-inner">
+            <h3 className="font-semibold text-sm">Éditeur de motifs</h3>
+            <div className="divide-y rounded-md border overflow-hidden bg-background">
+              {motives.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">Aucun motif défini.</p>
+              )}
+              {motives.map(m => (
+                <div key={m.id} className="flex items-center gap-2 px-3 py-2">
+                  {editingMotiveId === m.id ? (
+                    <>
+                      <Input
+                        value={editingMotiveName}
+                        onChange={e => setEditingMotiveName(e.target.value)}
+                        className="h-7 text-sm flex-1"
+                        onKeyDown={e => { if (e.key === 'Enter') handleSaveEdit(); if (e.key === 'Escape') setEditingMotiveId(null); }}
+                        autoFocus
+                      />
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600" onClick={handleSaveEdit}><Check className="w-3.5 h-3.5" /></Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={() => setEditingMotiveId(null)}><X className="w-3.5 h-3.5" /></Button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-sm flex-1">{m.name}</span>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => handleStartEdit(m.id, m.name)}><Pencil className="w-3.5 h-3.5" /></Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteMotive(m.id, m.name)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                    </>
+                  )}
+                </div>
+              ))}
             </div>
-          )}
-        </div>
+
+            <div className="flex gap-2">
+              <Input
+                placeholder="Nouveau motif…"
+                value={newMotiveName}
+                onChange={e => setNewMotiveName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleAddMotive(); }}
+                className="h-9 text-sm bg-background"
+              />
+              <Button size="sm" onClick={handleAddMotive} disabled={!newMotiveName.trim() || createMotive.isPending} className="gap-1.5 shrink-0">
+                <Plus className="w-3.5 h-3.5" />
+                Ajouter
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* ── Existing absences list ── */}
-        <div className="space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <h3 className="font-semibold text-sm">Absences enregistrées</h3>
-            
-            <Select value={filterTeamId} onValueChange={setFilterTeamId}>
-              <SelectTrigger className="w-full sm:w-[220px] h-8 text-xs bg-muted/20">
-                <SelectValue placeholder="Toutes les équipes" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">Toutes les équipes</SelectItem>
-                {teams.map(team => (
-                  <SelectItem key={team.id} value={team.id}>
-                    {team.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="space-y-3 mt-2">
+          <h3 className="font-semibold text-sm">
+            Absences enregistrées {selectedTechName ? `(${selectedTechName})` : ''}
+          </h3>
           {displayedAbsences.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-6">Aucune absence enregistrée.</p>
+            <p className="text-sm text-muted-foreground text-center py-6">Aucune absence enregistrée pour cette sélection.</p>
           ) : (
             <div className="divide-y rounded-lg border overflow-hidden">
               {displayedAbsences.map(abs => (
                 <div key={abs.id} className="flex items-center justify-between px-4 py-3 bg-background">
                   <div className="flex flex-col">
-                    <span className="font-medium text-sm">{getTechName(abs.technician_id)}</span>
-                    <span className="text-xs text-muted-foreground">
+                    {/* Only show the name in the list if we aren't already filtering by a specific technician */}
+                    {!technicianId && <span className="font-medium text-sm">{getTechName(abs.technician_id)}</span>}
+                    <span className={`text-xs text-muted-foreground ${!technicianId ? 'mt-0.5' : 'font-medium text-sm text-foreground'}`}>
                       {formatDate(abs.start_date)}
                       {abs.end_date !== abs.start_date ? ` → ${formatDate(abs.end_date)}` : ''}
                       {(abs as any).absence_motives?.name ? ` · ${(abs as any).absence_motives.name}` : ''}

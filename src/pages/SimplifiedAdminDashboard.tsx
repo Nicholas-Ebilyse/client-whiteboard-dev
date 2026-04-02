@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, UserCheck, UserX, Shield, UserPlus, Settings } from "lucide-react";
+import { ArrowLeft, Shield, UserPlus, Settings } from "lucide-react";
 import { SyncGoogleSheetsButton } from "@/components/SyncGoogleSheetsButton";
 import { SyncGoogleCalendarButton } from "@/components/SyncGoogleCalendarButton";
 import { SyncStatusDisplay } from "@/components/SyncStatusDisplay";
@@ -44,7 +44,6 @@ interface UserWithRole {
   suspension_reason: string | null;
 }
 
-
 export default function SimplifiedAdminDashboard() {
   const navigate = useNavigate();
   const { user, session, isAdmin, loading } = useAuth();
@@ -59,7 +58,7 @@ export default function SimplifiedAdminDashboard() {
     action: 'grant' | 'revoke' | 'suspend' | 'unsuspend';
   }>({ open: false, userId: '', email: '', action: 'grant' });
   const [suspensionReason, setSuspensionReason] = useState('');
-  
+
   // App settings
   const { maxAssignments, isLoading: settingsLoading } = useMaxAssignmentsPerPeriod();
   const updateSetting = useUpdateAppSetting();
@@ -82,15 +81,12 @@ export default function SimplifiedAdminDashboard() {
       });
       return;
     }
-    
+
     updateSetting.mutate(
       { key: 'max_assignments_per_period', value },
       {
         onSuccess: () => {
-          toast({
-            title: "Succès",
-            description: "Paramètre mis à jour",
-          });
+          toast({ title: "Succès", description: "Paramètre mis à jour" });
         },
         onError: () => {
           toast({
@@ -121,7 +117,6 @@ export default function SimplifiedAdminDashboard() {
 
   const loadUsers = async () => {
     if (!session?.access_token) {
-      console.log('[loadUsers] No session or access_token available');
       toast({
         variant: "destructive",
         title: "Erreur",
@@ -130,25 +125,15 @@ export default function SimplifiedAdminDashboard() {
       return;
     }
 
-    console.log('[loadUsers] Calling list-users with token length:', session.access_token.length);
-    
     setLoadingUsers(true);
     try {
       const { data, error } = await supabase.functions.invoke('list-users', {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`
-        }
+        headers: { Authorization: `Bearer ${session.access_token}` }
       });
-      
-      console.log('[loadUsers] Response:', { data, error });
-      
+
       if (error) throw error;
-      
-      // Check if the response indicates an error even if no exception was thrown
-      if (data?.error) {
-        throw new Error(data.error + (data.details ? `: ${data.details}` : ''));
-      }
-      
+      if (data?.error) throw new Error(data.error + (data.details ? `: ${data.details}` : ''));
+
       setUsers(data.users || []);
     } catch (error: any) {
       toast({
@@ -159,7 +144,6 @@ export default function SimplifiedAdminDashboard() {
     }
     setLoadingUsers(false);
   };
-
 
   const handleGrantAdmin = (userId: string, email: string) => {
     setActionDialog({ open: true, userId, email, action: 'grant' });
@@ -178,50 +162,31 @@ export default function SimplifiedAdminDashboard() {
     setActionDialog({ open: true, userId, email, action: 'unsuspend' });
   };
 
-
+  // --- THE FIX IS HERE --- 
+  // We route all requests to the single 'manage-user' edge function
   const executeAction = async () => {
     const { userId, email, action } = actionDialog;
-    
-    try {
-      let functionName = '';
-      let body: any = { userId };
 
-      switch (action) {
-        case 'grant':
-          functionName = 'grant-admin-role';
-          break;
-        case 'revoke':
-          functionName = 'revoke-admin-role';
-          break;
-        case 'suspend':
-          if (!suspensionReason.trim()) {
-            toast({
-              variant: "destructive",
-              title: "Erreur",
-              description: "Veuillez fournir une raison pour la suspension",
-            });
-            return;
-          }
-          if (suspensionReason.length > 500) {
-            toast({
-              variant: "destructive",
-              title: "Erreur",
-              description: "La raison doit faire moins de 500 caractères",
-            });
-            return;
-          }
-          functionName = 'suspend-user';
-          body.reason = suspensionReason;
-          break;
-        case 'unsuspend':
-          functionName = 'unsuspend-user';
-          break;
+    try {
+      if (action === 'suspend') {
+        if (!suspensionReason.trim()) {
+          toast({ variant: "destructive", title: "Erreur", description: "Veuillez fournir une raison pour la suspension" });
+          return;
+        }
+        if (suspensionReason.length > 500) {
+          toast({ variant: "destructive", title: "Erreur", description: "La raison doit faire moins de 500 caractères" });
+          return;
+        }
       }
 
-      const { data, error } = await supabase.functions.invoke(functionName, { body });
+      // Call our unified Edge Function!
+      const { data, error } = await supabase.functions.invoke('manage-user', {
+        body: { userId, action, reason: suspensionReason },
+        headers: { Authorization: `Bearer ${session?.access_token}` }
+      });
 
       if (error) throw error;
-      if (data && !data.success) throw new Error('Action failed');
+      if (data && data.error) throw new Error(data.error);
 
       // Show success message
       const messages = {
@@ -231,28 +196,16 @@ export default function SimplifiedAdminDashboard() {
         unsuspend: `${email} a été réactivé.`,
       };
 
-      toast({
-        title: "Succès",
-        description: messages[action as keyof typeof messages],
-      });
+      toast({ title: "Succès", description: messages[action as keyof typeof messages] });
 
-      if (action === 'suspend') {
-        setSuspensionReason('');
-      }
-      
-      // Close dialog first
+      if (action === 'suspend') setSuspensionReason('');
       setActionDialog({ open: false, userId: '', email: '', action: 'grant' });
-      
-      // Wait for database transaction to complete and force refresh
+
       await new Promise(resolve => setTimeout(resolve, 1000));
       await loadUsers();
     } catch (error) {
       console.error('Error executing action:', error);
-      toast({
-        variant: "destructive",
-        title: "Erreur",
-        description: "Impossible d'effectuer l'action",
-      });
+      toast({ variant: "destructive", title: "Erreur", description: "Impossible d'effectuer l'action" });
       setActionDialog({ open: false, userId: '', email: '', action: 'grant' });
     }
   };
@@ -324,38 +277,22 @@ export default function SimplifiedAdminDashboard() {
                       </TableCell>
                       <TableCell className="text-right space-x-2">
                         {!u.is_admin && !u.is_suspended && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleGrantAdmin(u.id, u.email)}
-                          >
+                          <Button size="sm" variant="outline" onClick={() => handleGrantAdmin(u.id, u.email)}>
                             Accorder Admin
                           </Button>
                         )}
                         {u.is_admin && u.email !== user?.email && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleRevokeAdmin(u.id, u.email)}
-                          >
+                          <Button size="sm" variant="outline" onClick={() => handleRevokeAdmin(u.id, u.email)}>
                             Révoquer Admin
                           </Button>
                         )}
                         {!u.is_suspended && u.email !== user?.email && (
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => handleSuspendUser(u.id, u.email)}
-                          >
+                          <Button size="sm" variant="destructive" onClick={() => handleSuspendUser(u.id, u.email)}>
                             Suspendre
                           </Button>
                         )}
                         {u.is_suspended && (
-                          <Button
-                            size="sm"
-                            variant="default"
-                            onClick={() => handleUnsuspendUser(u.id, u.email)}
-                          >
+                          <Button size="sm" variant="default" onClick={() => handleUnsuspendUser(u.id, u.email)}>
                             Réactiver
                           </Button>
                         )}
@@ -398,10 +335,7 @@ export default function SimplifiedAdminDashboard() {
                   </span>
                 </div>
               </div>
-              <Button 
-                onClick={handleSaveMaxAssignments}
-                disabled={updateSetting.isPending || settingsLoading}
-              >
+              <Button onClick={handleSaveMaxAssignments} disabled={updateSetting.isPending || settingsLoading}>
                 Enregistrer
               </Button>
             </div>
