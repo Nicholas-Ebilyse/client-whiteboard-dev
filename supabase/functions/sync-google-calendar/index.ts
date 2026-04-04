@@ -7,8 +7,8 @@ const corsHeaders = {
 
 // Default to the shared group calendar
 const DEFAULT_CALENDAR_ID =
-  "c_8ca18ced58f50f7a5d670b6bee03ca40017d805860177daba7efcd7a6a53b8b2@group.calendar.google.com";
-
+  // "c_8ca18ced58f50f7a5d670b6bee03ca40017d805860177daba7efcd7a6a53b8b2@group.calendar.google.com";
+  "c_aacbc90eaebcaf22d5a2f4f995ea620f4a896aca3e25266b0781b7abe2c1a792@group.calendar.google.com";
 interface GoogleCredentials {
   client_email: string;
   private_key: string;
@@ -569,7 +569,7 @@ Deno.serve(async (req) => {
         .select('value')
         .eq('key', 'google_calendar_id')
         .maybeSingle();
-      
+
       calendarId = setting?.value || DEFAULT_CALENDAR_ID;
     }
 

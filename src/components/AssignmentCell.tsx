@@ -1,6 +1,6 @@
 import { Assignment } from '@/types/planning';
 import { cn } from '@/lib/utils';
-import { StickyNote, CalendarPlus, Link2, MapPin, GripVertical, Lock, Check, Receipt, ArrowDown, ArrowUp, ChevronsDown, ChevronsUp } from 'lucide-react';
+import { StickyNote, CalendarPlus, Link2, MapPin, GripVertical, Lock, Check, Receipt, ArrowDown, ArrowUp, ChevronsDown, ChevronsUp, Car, Wrench } from 'lucide-react';
 import { AssignmentContextMenu } from './AssignmentContextMenu';
 import { NoteContextMenu } from './NoteContextMenu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
@@ -10,6 +10,8 @@ interface Note {
   id: string;
   text: string;
   weather_condition?: string;
+  vehicle_ids?: string[];
+  equipment_ids?: string[];
 }
 
 interface DraggableNote {
@@ -19,6 +21,8 @@ interface DraggableNote {
   start_date: string;
   end_date: string;
   weather_condition?: string;
+  vehicle_ids?: string[];
+  equipment_ids?: string[];
 }
 
 interface Commande {
@@ -26,8 +30,9 @@ interface Commande {
   client: string;
   chantier: string;
   display_name?: string;
-  client_presence?: string; // <--- Add this line!
+  client_presence?: string;
 }
+
 interface Chantier {
   id: string;
   name: string;
@@ -54,7 +59,6 @@ interface AssignmentCellProps {
 
   isAdmin?: boolean;
   maxAssignmentsPerPeriod?: number;
-  // Drag and drop props for assignments
   cellDate?: string;
   cellTechnicianId?: string;
   isDraggable?: (assignment: Assignment) => boolean;
@@ -67,7 +71,6 @@ interface AssignmentCellProps {
   isPreviewCell?: boolean;
   draggedAssignmentId?: string | null;
   draggedGroupId?: string | null;
-  // Note drag and drop props
   fullNotes?: DraggableNote[];
   onNoteDragStart?: (e: React.DragEvent, note: DraggableNote) => void;
   onNoteDragOver?: (e: React.DragEvent, technicianId: string | null, date: string) => void;
@@ -75,17 +78,13 @@ interface AssignmentCellProps {
   onNoteDragEnd?: () => void;
   isNoteDragging?: boolean;
   noteDropTarget?: { technicianId: string | null; date: string } | null;
-  // For showing linked technician info
   allAssignments?: Assignment[];
   technicians?: { id: string; name: string }[];
-  // For highlighting linked assignments on hover
   highlightedGroupId?: string | null;
   onHighlightGroup?: (groupId: string | null) => void;
-  // For absence overlap display
   absentTechNames?: string[];
 }
 
-// Helper to remove ", France" from addresses for display
 const formatAddressForDisplay = (address: string): string => {
   return address.replace(/, France$/i, '').replace(/,\s*France$/i, '');
 };
@@ -104,9 +103,8 @@ const getWeatherEmoji = (condition?: string) => {
 const getAssignmentDisplayName = (assignment: Assignment, commandes: Commande[]): string => {
   const commande = commandes.find(c => c.id === assignment.commandeId);
   if (!commande) return "Nouvelle affectation";
-
   // Use the normalized display_name from the commande, or generate one if missing
-  return commande.display_name || `${commande.client} - ${getShortChantierName(commande.chantier || '')}`;
+  return commande.display_name || `${commande.client} - ${commande.chantier || ''}`;
 };
 
 export const AssignmentCell = ({
@@ -156,18 +154,14 @@ export const AssignmentCell = ({
 }: AssignmentCellProps) => {
   const hasContent = assignments.length > 0 || notes.length > 0;
   const limitedNotes = notes.slice(0, 3);
-  // Issue #5 & #9: Show ALL assignments
   const limitedAssignments = assignments;
 
-  // Helper to find linked technician names for an assignment
   const getLinkedTechnicianName = (assignment: Assignment): string | null => {
     if (!assignment.assignment_group_id || allAssignments.length === 0) return null;
-
     const linkedAssignment = allAssignments.find(
       a => a.assignment_group_id === assignment.assignment_group_id &&
         a.teamId !== assignment.teamId
     );
-
     if (linkedAssignment) {
       const tech = technicians.find(t => t.id === linkedAssignment.teamId);
       return tech?.name || null;
@@ -175,7 +169,6 @@ export const AssignmentCell = ({
     return null;
   };
 
-  // Check if an assignment is being dragged (either by ID or group ID)
   const isBeingDragged = (assignment: Assignment) => {
     if (!draggedAssignmentId) return false;
     if (assignment.id === draggedAssignmentId) return true;
@@ -184,11 +177,6 @@ export const AssignmentCell = ({
   };
 
   const getAssignmentClasses = (assignment: Assignment): string => {
-    // Find the commande for this assignment
-    const commande = commandes.find(c => c.id === assignment.commandeId);
-
-
-    // Confirmed / Unconfirmed: Handled by inline background color (teamColor)
     return "text-white border border-black/10 shadow-sm drop-shadow-sm";
   };
 
@@ -197,39 +185,29 @@ export const AssignmentCell = ({
   };
 
   const handleCellDragOver = (e: React.DragEvent) => {
-    // Handle assignment drag
     if (onDragOver && cellTechnicianId && cellDate) {
       onDragOver(e, cellTechnicianId, cellDate);
     }
-    // Handle note drag
     if (onNoteDragOver && cellDate) {
       onNoteDragOver(e, cellTechnicianId || null, cellDate);
     }
   };
 
   const handleCellDrop = (e: React.DragEvent) => {
-    // Check if dropping a note
     if (e.dataTransfer.types.includes('application/note-json') && onNoteDrop && cellDate) {
-      // Assignment cells preserve duration when dropping notes
       onNoteDrop(e, cellTechnicianId || null, cellDate, true);
       return;
     }
-    // Handle assignment drop
     if (onDrop && cellTechnicianId && cellDate) {
       onDrop(e, cellTechnicianId, cellDate);
     }
   };
 
-  const isCurrentDropTarget = isDropTarget?.technicianId === cellTechnicianId &&
-    isDropTarget?.date === cellDate;
+  const isCurrentDropTarget = isDropTarget?.technicianId === cellTechnicianId && isDropTarget?.date === cellDate;
   const isValidDrop = isCurrentDropTarget && isDropTarget?.isValid;
   const isInvalidDrop = isCurrentDropTarget && !isDropTarget?.isValid;
+  const isNoteDropTarget = noteDropTarget?.technicianId === (cellTechnicianId || null) && noteDropTarget?.date === cellDate;
 
-  // Note drop target indicator
-  const isNoteDropTarget = noteDropTarget?.technicianId === (cellTechnicianId || null) &&
-    noteDropTarget?.date === cellDate;
-
-  // Find full note data for drag
   const getFullNote = (noteId: string): DraggableNote | undefined => {
     return fullNotes.find(n => n.id === noteId);
   };
@@ -251,29 +229,13 @@ export const AssignmentCell = ({
         onDragLeave={onDragLeave}
         onDrop={handleCellDrop}
       >
-        {/* Add assignment button - appears on hover (top left) - only for admins */}
         {onAddAssignment && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onAddAssignment();
-            }}
-            className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-accent rounded"
-            title="Ajouter une affectation"
-          >
+          <button onClick={(e) => { e.stopPropagation(); onAddAssignment(); }} className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-accent rounded" title="Ajouter une affectation">
             <CalendarPlus className="h-3 w-3" />
           </button>
         )}
-        {/* Add note button - appears on hover (top right) - only for admins */}
         {onAddNote && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onAddNote();
-            }}
-            className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-accent rounded"
-            title="Ajouter une note"
-          >
+          <button onClick={(e) => { e.stopPropagation(); onAddNote(); }} className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-accent rounded" title="Ajouter une note">
             <StickyNote className="h-3 w-3" />
           </button>
         )}
@@ -296,29 +258,13 @@ export const AssignmentCell = ({
       onDragLeave={onDragLeave}
       onDrop={handleCellDrop}
     >
-      {/* Add assignment button - appears on hover (top left) - only for admins - Issue #9 */}
       {onAddAssignment && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onAddAssignment();
-          }}
-          className="absolute top-1 left-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-accent rounded bg-background"
-          title="Ajouter une affectation"
-        >
+        <button onClick={(e) => { e.stopPropagation(); onAddAssignment(); }} className="absolute top-1 left-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-accent rounded bg-background" title="Ajouter une affectation">
           <CalendarPlus className="h-3 w-3" />
         </button>
       )}
-      {/* Add note button - appears on hover (top right) - only for admins - Issue #9 */}
       {onAddNote && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onAddNote();
-          }}
-          className="absolute top-1 right-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-accent rounded bg-background"
-          title="Ajouter une note"
-        >
+        <button onClick={(e) => { e.stopPropagation(); onAddNote(); }} className="absolute top-1 right-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-accent rounded bg-background" title="Ajouter une note">
           <StickyNote className="h-3 w-3" />
         </button>
       )}
@@ -362,15 +308,38 @@ export const AssignmentCell = ({
                       )}
                     >
                       <GripVertical className={cn("h-3 w-3 flex-shrink-0 mt-0.5 opacity-30", canDragNote && "group-hover:opacity-60")} />
-                      <StickyNote className="h-3 w-3 flex-shrink-0 mt-0.5" />
-                      <span className="break-words flex-1">
+
+                      {/* Flex container to wrap the badges smoothly */}
+                      <div className="flex flex-wrap items-center flex-1 gap-1.5 leading-tight">
+                        {/* Display StickyNote only if there is text, or if no other icon exists */}
+                        {(note.text || (!note.weather_condition && !note.vehicle_ids?.length && !note.equipment_ids?.length)) && (
+                          <StickyNote className="h-3 w-3 flex-shrink-0 inline-block align-middle" />
+                        )}
+
                         {getWeatherEmoji(note.weather_condition) && (
-                          <span className="mr-1" title={`Météo: ${note.weather_condition}`}>
+                          <span title={`Météo: ${note.weather_condition}`} className="inline-block">
                             {getWeatherEmoji(note.weather_condition)}
                           </span>
                         )}
-                        {note.text}
-                      </span>
+
+                        {note.vehicle_ids && note.vehicle_ids.length > 0 && (
+                          <span title={`${note.vehicle_ids.length} véhicule(s)`} className="flex items-center text-blue-700 dark:text-blue-400">
+                            <Car className="h-3.5 w-3.5 inline-block" />
+                            {note.vehicle_ids.length > 1 && <span className="text-[10px] ml-0.5">{note.vehicle_ids.length}</span>}
+                          </span>
+                        )}
+
+                        {note.equipment_ids && note.equipment_ids.length > 0 && (
+                          <span title={`${note.equipment_ids.length} matériel(s)`} className="flex items-center text-orange-700 dark:text-orange-400">
+                            <Wrench className="h-3.5 w-3.5 inline-block" />
+                            {note.equipment_ids.length > 1 && <span className="text-[10px] ml-0.5">{note.equipment_ids.length}</span>}
+                          </span>
+                        )}
+
+                        <span className="break-words">
+                          {note.text}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </NoteContextMenu>
@@ -382,7 +351,6 @@ export const AssignmentCell = ({
         {/* Assignments section */}
         {limitedAssignments.length > 0 && (
           <div className="flex-1 flex flex-col justify-stretch gap-0.5">
-            {/* Capacity badge - only show when more than 1 assignment */}
             {isAdmin && maxAssignmentsPerPeriod > 0 && limitedAssignments.length > 1 && (
               <div className="flex justify-end mb-0.5">
                 <span
@@ -472,7 +440,6 @@ export const AssignmentCell = ({
                         backgroundColor: (teamColor) ? teamColor : undefined
                       }}
                     >
-                      {/* Drag handle indicator - shown for all assignments, grayed out if not draggable */}
                       {isAdmin && (
                         <span title={!draggable ? "Non déplaçable (confirmé ou facturé)" : "Glisser pour déplacer"}>
                           <GripVertical
@@ -485,7 +452,6 @@ export const AssignmentCell = ({
                           />
                         </span>
                       )}
-                      {/* Linked technician indicator - bottom left, visible on hover */}
                       {linkedTechName && (
                         <TooltipProvider delayDuration={300}>
                           <Tooltip>
@@ -501,7 +467,6 @@ export const AssignmentCell = ({
                           </Tooltip>
                         </TooltipProvider>
                       )}
-                      {/* Lock icon/Badge for confirmed or invoiced assignments */}
                       {!draggable && isAdmin && (
                         <TooltipProvider delayDuration={300}>
                           <Tooltip>
@@ -526,7 +491,8 @@ export const AssignmentCell = ({
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
-                      )}                      <div className="flex flex-col text-left justify-center flex-1 py-1">
+                      )}
+                      <div className="flex flex-col text-left justify-center flex-1 py-1">
                         {absentTechNames.length > 0 && (
                           <span className="text-red-600 font-bold text-[10px] leading-tight mb-0.5 bg-white/70 px-1 rounded w-fit">
                             Absence {absentTechNames.join(', ')}
@@ -542,7 +508,6 @@ export const AssignmentCell = ({
                         )}
                       </div>
                     </button>
-                    {/* Google Maps button using commande address */}
                     {hasAddress && (
                       <a
                         href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(hasAddress)}`}
@@ -555,7 +520,6 @@ export const AssignmentCell = ({
                         <MapPin className="h-3 w-3" />
                       </a>
                     )}
-                    {/* Reorder buttons for assignments - inside the assignment box on the right */}
                     {isAdmin && limitedAssignments.length > 1 && (onAssignmentMoveUp || onAssignmentMoveDown) && (
                       <div className="absolute right-1 top-1/2 -translate-y-1/2 flex flex-col gap-0.5 opacity-0 group-hover/assignment:opacity-100 transition-opacity z-10">
                         {canMoveUp && onAssignmentMoveUp && (

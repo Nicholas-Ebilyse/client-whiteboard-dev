@@ -82,7 +82,7 @@ export const useCreateTechnician = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ name, isTemp, skills, isAccompanied }: { name: string; isTemp?: boolean; skills?: string; isAccompanied?: boolean }) => {
+    mutationFn: async ({ name, first_name, last_name, isTemp, skills, isAccompanied }: { name: string; first_name?: string; last_name?: string; isTemp?: boolean; skills?: string; isAccompanied?: boolean }) => {
       const { data: existingTechs } = await supabase
         .from('technicians')
         .select('position')
@@ -94,12 +94,44 @@ export const useCreateTechnician = () => {
       const { data, error } = await supabase
         .from('technicians')
         .insert({
-          name,
+          name, // This acts as the usual_name
+          first_name,
+          last_name,
           position: maxPosition + 1,
           is_temp: isTemp || false,
           skills,
           is_accompanied: isAccompanied || false
         })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['technicians'] });
+    },
+  });
+};
+
+export const useUpdateTechnician = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, name, first_name, last_name, is_temp, team_id, skills, isAccompanied }: { id: string; name?: string; first_name?: string; last_name?: string; is_temp?: boolean; team_id?: string | null; skills?: string; isAccompanied?: boolean }) => {
+      const updates: any = {};
+      if (name !== undefined) updates.name = name; // This acts as the usual_name
+      if (first_name !== undefined) updates.first_name = first_name;
+      if (last_name !== undefined) updates.last_name = last_name;
+      if (is_temp !== undefined) updates.is_temp = is_temp;
+      if (team_id !== undefined) updates.team_id = team_id;
+      if (skills !== undefined) updates.skills = skills;
+      if (isAccompanied !== undefined) updates.is_accompanied = isAccompanied;
+
+      const { data, error } = await supabase
+        .from('technicians')
+        .update(updates)
+        .eq('id', id)
         .select()
         .single();
 
@@ -129,34 +161,6 @@ export const useDailyTeamRosters = (startDate: string, endDate: string) => {
       return data;
     },
     enabled: !!startDate && !!endDate,
-  });
-};
-
-export const useUpdateTechnician = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ id, name, is_temp, team_id, skills, isAccompanied }: { id: string; name?: string; is_temp?: boolean; team_id?: string | null; skills?: string; isAccompanied?: boolean }) => {
-      const updates: any = {};
-      if (name !== undefined) updates.name = name;
-      if (is_temp !== undefined) updates.is_temp = is_temp;
-      if (team_id !== undefined) updates.team_id = team_id;
-      if (skills !== undefined) updates.skills = skills;
-      if (isAccompanied !== undefined) updates.is_accompanied = isAccompanied;
-
-      const { data, error } = await supabase
-        .from('technicians')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['technicians'] });
-    },
   });
 };
 
@@ -375,6 +379,8 @@ export const useSaveNote = () => {
         end_date: note.end_date || note.start_date,
         team_id: note.team_id || null,
         weather_condition: note.weather_condition || null,
+        vehicle_ids: note.vehicle_ids || [],      // <--- NEW: Grab vehicles
+        equipment_ids: note.equipment_ids || [],  // <--- NEW: Grab equipment
       };
 
       if (note.id) {

@@ -23,9 +23,9 @@ const PREDEFINED_SKILLS = ["N1", "N2", "N3", "CACES", "Amiante", "Hab. Élec", "
 const toggleSkill = (currentSkills: string, skill: string) => {
   const skillsArray = (currentSkills || '').split(',').map(s => s.trim()).filter(Boolean);
   if (skillsArray.includes(skill)) {
-    return skillsArray.filter(s => s !== skill).join(', '); // Remove it
+    return skillsArray.filter(s => s !== skill).join(', ');
   } else {
-    return [...skillsArray, skill].join(', '); // Add it
+    return [...skillsArray, skill].join(', ');
   }
 };
 
@@ -39,6 +39,8 @@ interface Team {
 interface Technician {
   id: string;
   name: string;
+  first_name?: string;
+  last_name?: string;
   is_archived: boolean;
   position: number;
   is_temp?: boolean;
@@ -54,8 +56,8 @@ interface TeamManagementDialogProps {
   teams: Team[];
   technicians: Technician[];
   onArchive: (technicianId: string, archived: boolean) => void;
-  onNameChange: (technicianId: string, newName?: string, is_temp?: boolean, skills?: string, is_accompanied?: boolean) => void;
-  onAdd: (name: string, isTemp: boolean, skills?: string, isAccompanied?: boolean) => void;
+  onNameChange: (technicianId: string, newName?: string, firstName?: string, lastName?: string, is_temp?: boolean, skills?: string, is_accompanied?: boolean) => void;
+  onAdd: (name: string, firstName?: string, lastName?: string, isTemp?: boolean, skills?: string, isAccompanied?: boolean) => void;
   onAssignTeam: (technicianId: string, teamId: string | null) => void;
 }
 
@@ -73,13 +75,16 @@ export const TeamManagementDialog = ({
 }: TeamManagementDialogProps) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
+  const [editFirstName, setEditFirstName] = useState('');
+  const [editLastName, setEditLastName] = useState('');
   const [editSkills, setEditSkills] = useState('');
   const [editIsTemp, setEditIsTemp] = useState(false);
   const [editIsAccompanied, setEditIsAccompanied] = useState(false);
 
-  // New technician dialog state
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [newTechName, setNewTechName] = useState('');
+  const [newFirstName, setNewFirstName] = useState('');
+  const [newLastName, setNewLastName] = useState('');
   const [newTechSkills, setNewTechSkills] = useState('');
   const [newIsTemp, setNewIsTemp] = useState(false);
   const [newIsAccompanied, setNewIsAccompanied] = useState(false);
@@ -104,7 +109,11 @@ export const TeamManagementDialog = ({
     members: activeTechs.filter((t) => t.team_id === team.id).sort((a, b) => a.position - b.position),
   }));
 
-  const unassignedTechs = activeTechs.filter((t) => !t.team_id).sort((a, b) => a.position - b.position);
+  // THE FIX: Sort unassigned technicians alphabetically (A to Z). 
+  // (If you strictly wanted Z to A, change it to `b.name.localeCompare(a.name, 'fr')`)
+  const unassignedTechs = activeTechs
+    .filter((t) => !t.team_id)
+    .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
 
   const handleConfirmAction = () => {
     const newArchiveState = confirmDialog.action === 'archive';
@@ -116,6 +125,8 @@ export const TeamManagementDialog = ({
   const handleStartEdit = (tech: Technician) => {
     setEditingId(tech.id);
     setEditName(tech.name);
+    setEditFirstName(tech.first_name || '');
+    setEditLastName(tech.last_name || '');
     setEditSkills(tech.skills || '');
     setEditIsTemp(tech.is_temp || false);
     setEditIsAccompanied(tech.is_accompanied || false);
@@ -127,12 +138,14 @@ export const TeamManagementDialog = ({
       (t) => t.id !== techId && normalizeTechName(t.name) === normalizeTechName(editName)
     );
     if (duplicate) {
-      toast.error(`Un technicien avec le nom "${normalizeTechName(editName)}" existe déjà.`);
+      toast.error(`Un technicien avec le nom d'usage "${normalizeTechName(editName)}" existe déjà.`);
       return;
     }
     const baseName = editName.replace(/^INT\s+/i, '').trim();
     const finalName = editIsTemp ? `INT ${baseName}` : baseName;
-    onNameChange(techId, finalName, editIsTemp, editSkills.trim() || undefined, editIsAccompanied);
+
+    onNameChange(techId, finalName, editFirstName.trim(), editLastName.trim(), editIsTemp, editSkills.trim() || undefined, editIsAccompanied);
+
     toast.success('Technicien mis à jour');
     setEditingId(null);
   };
@@ -140,6 +153,8 @@ export const TeamManagementDialog = ({
   const handleCancelEdit = () => {
     setEditingId(null);
     setEditName('');
+    setEditFirstName('');
+    setEditLastName('');
     setEditSkills('');
     setEditIsTemp(false);
     setEditIsAccompanied(false);
@@ -153,11 +168,15 @@ export const TeamManagementDialog = ({
 
     const duplicate = activeTechs.some((t) => normalizeTechName(t.name) === normalizeTechName(finalName));
     if (duplicate) {
-      toast.error(`Un technicien avec le nom "${normalizeTechName(finalName)}" existe déjà.`);
+      toast.error(`Un technicien avec le nom d'usage "${normalizeTechName(finalName)}" existe déjà.`);
       return;
     }
-    onAdd(finalName, newIsTemp, newTechSkills.trim() || undefined, newIsAccompanied);
+
+    onAdd(finalName, newFirstName.trim(), newLastName.trim(), newIsTemp, newTechSkills.trim() || undefined, newIsAccompanied);
+
     setNewTechName('');
+    setNewFirstName('');
+    setNewLastName('');
     setNewTechSkills('');
     setNewIsTemp(false);
     setNewIsAccompanied(false);
@@ -173,21 +192,46 @@ export const TeamManagementDialog = ({
     >
       {editingId === tech.id ? (
         /* ── Edit mode ── */
-        <div className="p-2 space-y-2 w-full">
+        <div className="p-3 space-y-3 w-full">
           <p className="text-[10px] text-muted-foreground font-mono px-1">
             ID: {tech.short_id != null ? `#${tech.short_id}` : tech.id.substring(0, 8)}
           </p>
-          <Input
-            value={editName}
-            onChange={(e) => setEditName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleSaveEdit(tech.id);
-              if (e.key === 'Escape') handleCancelEdit();
-            }}
-            className="h-8 text-sm"
-            autoFocus
-            placeholder="Nom du technicien"
-          />
+
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Prénom</Label>
+              <Input
+                value={editFirstName}
+                onChange={(e) => setEditFirstName(e.target.value)}
+                className="h-8 text-xs"
+                placeholder="Ex: Nicolas"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Nom de famille</Label>
+              <Input
+                value={editLastName}
+                onChange={(e) => setEditLastName(e.target.value)}
+                className="h-8 text-xs"
+                placeholder="Ex: Dupont"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1 border-b pb-3">
+            <Label className="text-xs text-primary font-semibold">Nom d'usage (Affiché sur le planning) *</Label>
+            <Input
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSaveEdit(tech.id);
+                if (e.key === 'Escape') handleCancelEdit();
+              }}
+              className="h-8 text-sm border-primary/50"
+              autoFocus
+            />
+          </div>
+
           <div className="flex flex-col gap-1.5 text-xs">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
@@ -404,24 +448,48 @@ export const TeamManagementDialog = ({
       </Dialog>
 
       {/* ── Add technician dialog ── */}
-      <Dialog open={addDialogOpen} onOpenChange={(v) => { setAddDialogOpen(v); if (!v) { setNewTechName(''); setNewTechSkills(''); setNewIsTemp(false); setNewIsAccompanied(false); } }}>
+      <Dialog open={addDialogOpen} onOpenChange={(v) => { setAddDialogOpen(v); if (!v) { setNewTechName(''); setNewFirstName(''); setNewLastName(''); setNewTechSkills(''); setNewIsTemp(false); setNewIsAccompanied(false); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Nouveau technicien</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="new-tech-name">Nom *</Label>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Prénom</Label>
+                <Input
+                  value={newFirstName}
+                  onChange={(e) => setNewFirstName(e.target.value)}
+                  className="h-8 text-xs"
+                  placeholder="Ex: Nicolas"
+                  autoFocus
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Nom de famille</Label>
+                <Input
+                  value={newLastName}
+                  onChange={(e) => setNewLastName(e.target.value)}
+                  className="h-8 text-xs"
+                  placeholder="Ex: Dupont"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5 border-t pt-3">
+              <Label htmlFor="new-tech-name" className="text-primary font-semibold">Nom d'usage *</Label>
+              <p className="text-[10px] text-muted-foreground leading-tight pb-1">Ce nom sera affiché partout sur le planning. (ex: Nico)</p>
               <Input
                 id="new-tech-name"
-                placeholder="Prénom Nom"
+                placeholder="Ex: Nico"
                 value={newTechName}
                 onChange={(e) => setNewTechName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleAddNew()}
-                autoFocus
               />
             </div>
-            <div className="flex flex-col gap-2 text-sm">
+
+            <div className="flex flex-col gap-2 text-sm pt-2">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -441,6 +509,7 @@ export const TeamManagementDialog = ({
                 <span>Doit être accompagné</span>
               </label>
             </div>
+
             <div className="space-y-1.5 pt-1">
               <Label htmlFor="new-tech-skills">Compétences</Label>
               <div className="flex flex-wrap gap-1.5 mb-2">

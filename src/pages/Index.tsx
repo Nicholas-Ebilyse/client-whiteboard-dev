@@ -43,7 +43,7 @@ import {
   useTechnicians,
   useTeams,
   useDailyTeamRosters,
-  useUpdateDailyTeamRosters, // <--- Add this
+  useUpdateDailyTeamRosters,
   useCreateTechnician,
   useUpdateTechnician,
   useUpdateTechnicianPositions,
@@ -67,7 +67,7 @@ import { useDragAndDropAssignment } from '@/hooks/useDragAndDropAssignment';
 import { useDragAndDropNote } from '@/hooks/useDragAndDropNote';
 import { useMaxAssignmentsPerPeriod } from '@/hooks/useAppSettings';
 import { FleetManagementDialog } from '@/components/FleetManagementDialog';
-import { Car } from 'lucide-react'; // Add 'Car' to your lucide-react imports if it isn't there
+import { Car } from 'lucide-react';
 
 const Index = () => {
   const navigate = useNavigate();
@@ -78,11 +78,11 @@ const Index = () => {
   const [isRefreshingSession, setIsRefreshingSession] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
   const [assignmentDialogOpen, setAssignmentDialogOpen] = useState(false);
-  const [selectedNote, setSelectedNote] = useState<any>(null); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const [selectedNote, setSelectedNote] = useState<any>(null);
   const [noteDialogOpen, setNoteDialogOpen] = useState(false);
-  const [selectedGeneralNote, setSelectedGeneralNote] = useState<any>(null); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const [selectedGeneralNote, setSelectedGeneralNote] = useState<any>(null);
   const [generalNoteDialogOpen, setGeneralNoteDialogOpen] = useState(false);
-  const [selectedTechWeekNote, setSelectedTechWeekNote] = useState<any>(null); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const [selectedTechWeekNote, setSelectedTechWeekNote] = useState<any>(null);
   const [techWeekNoteDialogOpen, setTechWeekNoteDialogOpen] = useState(false);
   const [manageTechsDialogOpen, setManageTechsDialogOpen] = useState(false);
   const [absenceManagementOpen, setAbsenceManagementOpen] = useState(false);
@@ -250,8 +250,9 @@ const Index = () => {
     });
   };
 
-  const handleAddTechnician = (name: string, isTemp: boolean, skills?: string) => {
-    createTechnician.mutate({ name, isTemp, skills }, {
+  // Kept for programmatic logic elsewhere
+  const handleAddTechnician = (name: string, first_name?: string, last_name?: string, isTemp?: boolean, skills?: string) => {
+    createTechnician.mutate({ name, first_name, last_name, isTemp, skills }, {
       onSuccess: () => {
         toast.success(`Technicien ${name} ajouté`);
       },
@@ -261,8 +262,8 @@ const Index = () => {
     });
   };
 
-  const handleUpdateTechnicianName = (id: string, name?: string, is_temp?: boolean, skills?: string) => {
-    updateTechnician.mutate({ id, name, is_temp, skills }, {
+  const handleUpdateTechnicianName = (id: string, name?: string, first_name?: string, last_name?: string, is_temp?: boolean, skills?: string) => {
+    updateTechnician.mutate({ id, name, first_name, last_name, is_temp, skills }, {
       onSuccess: () => {
         toast.success(is_temp !== undefined ? 'Statut intérim mis à jour' : 'Nom mis à jour');
       },
@@ -488,7 +489,7 @@ const Index = () => {
     }
   };
 
-  const handleSaveNote = (note: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+  const handleSaveNote = (note: any) => {
     saveNote.mutate(note, {
       onSuccess: () => {
         toast.success('Note enregistrée');
@@ -516,19 +517,14 @@ const Index = () => {
     });
   };
 
-
-
   const handleToggleNoteDisplayBelow = (_noteId: string, _displayBelow: boolean) => {
     // display_below removed
   };
 
-  // Handler for bulk toggling notes display_below
   const handleBulkToggleNotesDisplayBelow = (_noteIds: string[], _displayBelow: boolean) => {
     // display_below removed
   };
 
-  // Handler for swapping assignment positions (reordering within a cell)
-  // Note: This is a visual reorder within the UI - we swap the assignments' positions
   const handleAssignmentSwap = (assignment1: Assignment, assignment2: Assignment) => {
     const dbAssignment1 = assignments.find(a => a.id === assignment1.id);
     const dbAssignment2 = assignments.find(a => a.id === assignment2.id);
@@ -583,8 +579,7 @@ const Index = () => {
     setGeneralNoteDialogOpen(true);
   };
 
-  // Handler for clicking on an existing general note
-  const handleGeneralNoteClick = (note: any, date: string) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+  const handleGeneralNoteClick = (note: any, date: string) => {
     const period = note.start_period === note.end_period
       ? note.start_period
       : 'Journée';
@@ -597,8 +592,7 @@ const Index = () => {
     setGeneralNoteDialogOpen(true);
   };
 
-  // Handler for saving general notes
-  const handleSaveGeneralNote = (note: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+  const handleSaveGeneralNote = (note: any) => {
     saveNote.mutate(note, {
       onSuccess: () => {
         toast.success('Note générale enregistrée');
@@ -611,7 +605,6 @@ const Index = () => {
     });
   };
 
-  // Handler for adding day notes for a specific team (per day)
   const handleAddTechDayNote = (teamId: string, teamName: string, date: string) => {
     setSelectedTechWeekNote({
       id: '',
@@ -620,12 +613,11 @@ const Index = () => {
       technician_name: teamName,
       team_id: teamId,
       date: date,
-      weather_condition: 'none', // <--- We added this!
+      weather_condition: 'none',
     });
     setTechWeekNoteDialogOpen(true);
   };
 
-  // Handler for clicking on an existing team day note
   const handleTechDayNoteClick = (note: any, _technicianId: string, _technicianName: string, date: string) => {
     setSelectedTechWeekNote({
       id: note.id,
@@ -634,13 +626,14 @@ const Index = () => {
       technician_name: '',
       team_id: note.team_id,
       date: date,
-      weather_condition: note.weather_condition, // <--- We added this!
+      weather_condition: note.weather_condition,
+      vehicle_ids: note.vehicle_ids,
+      equipment_ids: note.equipment_ids
     });
     setTechWeekNoteDialogOpen(true);
   };
 
-  // Handler for saving technician day notes
-  const handleSaveTechDayNote = (note: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+  const handleSaveTechDayNote = (note: any) => {
     saveNote.mutate(note, {
       onSuccess: () => {
         toast.success('Note enregistrée');
@@ -653,7 +646,6 @@ const Index = () => {
     });
   };
 
-  // Get general notes for a specific date (notes without team_id)
   const getGeneralNotesForDate = (date: string) => {
     return notes.filter((n) => {
       if (n.team_id !== null) return false;
@@ -687,7 +679,6 @@ const Index = () => {
     };
   });
 
-  // Filter assignments by search term (client name or chantier/address)
   const filteredAssignmentsFormatted = searchTerm.trim()
     ? allAssignmentsFormatted.filter(a => {
       const commande = a.commandes || commandes.find(c => c.id === a.commandeId);
@@ -701,7 +692,6 @@ const Index = () => {
     })
     : allAssignmentsFormatted;
 
-  // Returns assignments for a given team + date (full-day model, no period filter)
   const getAssignmentsForCell = (teamId: string, date: string): Assignment[] => {
     return filteredAssignmentsFormatted.filter(
       (a) => a.teamId === teamId && date >= a.startDate && date <= a.endDate
@@ -720,7 +710,6 @@ const Index = () => {
   const visibleCommandeIds = new Set(
     assignments
       .filter((a: any) => {
-        // Check if assignment is active during any day of the displayed week
         const start = a.start_date || a.startDate;
         const end = a.end_date || a.endDate;
 
@@ -730,33 +719,24 @@ const Index = () => {
         });
       })
       .map((a: any) => a.commande_id || a.commandeId)
-      .filter(Boolean) // Remove null values
+      .filter(Boolean)
   );
-  // Use teams as the display rows — ordered by position (from DB)
+
   const displayTeams = teams;
 
   const handleSignOut = async () => {
     try {
-      // Clear local state first
       setUser(null);
       setSession(null);
 
-      // Sign out with global scope to invalidate all sessions
       await supabase.auth.signOut({ scope: 'global' }).catch(() => {
-        // Session was already missing, this is fine
       });
 
-      // Clear any cached data
       queryClient.clear();
-
-      // Clear localStorage auth data
       localStorage.removeItem('sb-fguflyjgzzeiicefilmb-auth-token');
-
-      // Force full page reload to clear all state
       window.location.replace("/auth");
     } catch (error) {
       console.error("Erreur de déconnexion:", error);
-      // Clear localStorage and navigate anyway
       localStorage.removeItem('sb-fguflyjgzzeiicefilmb-auth-token');
       window.location.replace("/auth");
     }
@@ -776,7 +756,6 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Session expiry warning */}
       {sessionExpiringSoon && (
         <SessionExpiryWarning
           timeUntilExpiry={timeUntilExpiry}
@@ -784,12 +763,9 @@ const Index = () => {
           isRefreshing={isRefreshingSession}
         />
       )}
-      {/* Drag mode indicator */}
       <DragIndicator isDragging={isDragging} isCopyMode={isCopyMode} />
-      {/* Issue #10: Mobile responsive layout */}
       <div className="w-full p-2 sm:p-4 lg:p-8">
         <div className="max-w-[2000px] mx-auto">
-          {/* SAV Table is now at the bottom only */}
           <div className="grid grid-cols-1 gap-4 lg:gap-6">
             <Card className="overflow-hidden shadow-lg" data-schedule-container>
               <PlanningToolbar
@@ -863,18 +839,6 @@ const Index = () => {
             </Card>
           </div>
 
-          {/* SAV Table */}
-          {/* SAV Table temporarily hidden by user request
-        {savVisible && savRecords.length > 0 && (
-          <SAVTable
-            savRecords={savRecords}
-            weekStart={weekStart}
-            isAdmin={isAdmin}
-            onClose={() => setSavVisible(false)}
-          />
-        )}
-        */}
-
           <EditAssignmentDialog
             open={assignmentDialogOpen}
             onOpenChange={setAssignmentDialogOpen}
@@ -920,9 +884,12 @@ const Index = () => {
             open={manageTechsDialogOpen}
             onOpenChange={setManageTechsDialogOpen}
             teams={teams}
+            // MAPPING THE NEW FIELDS HERE!
             technicians={technicians.map((t) => ({
               id: t.id,
               name: t.name,
+              first_name: (t as any).first_name,
+              last_name: (t as any).last_name,
               is_archived: t.is_archived || false,
               position: (t as any).position ?? 0,
               team_id: t.team_id,
@@ -930,8 +897,10 @@ const Index = () => {
               skills: t.skills
             }))}
             onArchive={handleArchiveTechnician}
-            onNameChange={(id, name, isTemp, skills, isAccompanied) => updateTechnician.mutate({ id, name, is_temp: isTemp, skills, isAccompanied })}
-            onAdd={(name, isTemp, skills, isAccompanied) => createTechnician.mutate({ name, isTemp, skills, isAccompanied })}
+            // PASSING THE NEW FIELDS TO THE DATABASE HOOK HERE!
+            onNameChange={(id, name, firstName, lastName, isTemp, skills, isAccompanied) => updateTechnician.mutate({ id, name, first_name: firstName, last_name: lastName, is_temp: isTemp, skills, isAccompanied })}
+            // AND HERE!
+            onAdd={(name, firstName, lastName, isTemp, skills, isAccompanied) => createTechnician.mutate({ name, first_name: firstName, last_name: lastName, isTemp, skills, isAccompanied })}
             onAssignTeam={(id, team_id) => {
               updateTechnician.mutate(
                 { id, team_id },
@@ -1012,7 +981,7 @@ const Index = () => {
                 },
                 {
                   onSuccess: () => toast.success('Équipe journalière enregistrée !'),
-                  onError: (err) => toast.error(err.message) // This will now display our friendly translated error!
+                  onError: (err) => toast.error(err.message)
                 }
               );
             }}
@@ -1059,7 +1028,6 @@ const Index = () => {
             </AlertDialogContent>
           </AlertDialog>
 
-          {/* Cross-technician drop confirmation dialog */}
           <AlertDialog open={!!pendingDrop} onOpenChange={(open) => !open && cancelPendingDrop()}>
             <AlertDialogContent className="bg-card">
               <AlertDialogHeader>

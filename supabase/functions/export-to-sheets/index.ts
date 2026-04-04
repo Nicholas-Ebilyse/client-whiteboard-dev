@@ -166,7 +166,7 @@ Deno.serve(async (req) => {
   const responseHeaders = {
     ...corsHeaders,
     "Content-Type": "application/json",
-    "X-Edge-Version": "2026.03.13.2",
+    "X-Edge-Version": "2026.03.13.3",
   };
 
   try {
@@ -243,16 +243,22 @@ Deno.serve(async (req) => {
     const accessToken = await getAccessToken(credentials);
 
     // ── 1. Techniciens ───────────────────────────────────────────────────────
-    const { data: technicians } = await supabase
+    const { data: technicians, error: techError } = await supabase
       .from("technicians")
-      .select("id, name, is_temp, created_at, is_accompanied, skills")
+      // WE ADDED first_name AND last_name TO THE SELECT QUERY
+      .select("id, name, first_name, last_name, is_temp, created_at, is_accompanied, skills")
       .order("position");
 
+    if (techError) throw new Error(`Erreur DB Techniciens: ${techError.message}`);
+
     const techRows: string[][] = [
-      ["ID", "Nom", "Interim", "Créé le", "Accompagné", "Compétences"],
+      // WE ADDED THE NEW HEADERS HERE
+      ["ID", "Nom d'usage", "Prénom", "Nom de famille", "Interim", "Créé le", "Accompagné", "Compétences"],
       ...(technicians || []).map((t: any) => [
         t.id,
         t.name || "Sans nom",
+        t.first_name || "", // <-- MAP FIRST NAME
+        t.last_name || "",  // <-- MAP LAST NAME
         t.is_temp ? "TRUE" : "FALSE",
         fmtDate(t.created_at),
         t.is_accompanied ? "TRUE" : "FALSE",
@@ -262,31 +268,34 @@ Deno.serve(async (req) => {
     await writeSheet(spreadsheetId, "Techniciens", techRows, accessToken);
 
     // ── 2. Commandes ─────────────────────────────────────────────────────────
-    const { data: commandes } = await supabase
+    const { data: commandes, error: cmdError } = await supabase
       .from("commandes")
-      .select("*, display_name")
-      .order("numero", { ascending: false });
+      .select("*")
+      .order("client", { ascending: true }); // Fixed sorting to use an existing column!
+
+    if (cmdError) throw new Error(`Erreur DB Commandes: ${cmdError.message}`);
 
     const commandeRows: string[][] = [
-      ["ID", "Numéro", "Nom client", "Chantier", "Nom court", "UUID", "Présence Client", "Type SAV"],
+      ["ID", "Nom client", "Chantier", "Nom court", "Présence Client", "Type SAV"],
       ...(commandes || []).map((c: any) => [
-        c.external_id || "",
-        c.numero || "",
+        c.id,
         c.client || "",
         c.chantier || "",
         c.display_name || "",
-        c.id,
         c.client_presence || "",
         c.sav_type || "",
       ]),
     ];
+    // Note: Writing exactly to a tab named "Commandes"
     await writeSheet(spreadsheetId, "Commandes", commandeRows, accessToken);
 
     // ── 3. SAV ───────────────────────────────────────────────────────────────
-    const { data: savRecords } = await supabase
+    const { data: savRecords, error: savError } = await supabase
       .from("sav")
       .select("*")
       .order("date", { ascending: false });
+
+    if (savError) throw new Error(`Erreur DB SAV: ${savError.message}`);
 
     const savRows: string[][] = [
       ["ID", "Numéro", "Nom du client", "Adresse", "Numéro de téléphone", "Problème", "Date", "Est résolu"],
@@ -304,10 +313,12 @@ Deno.serve(async (req) => {
     await writeSheet(spreadsheetId, "SAV", savRows, accessToken);
 
     // ── 4. Affectations ──────────────────────────────────────────────────────
-    const { data: assignments } = await supabase
+    const { data: assignments, error: assignError } = await supabase
       .from("assignments")
-      .select("*, commande_id")
+      .select("*")
       .order("start_date", { ascending: false });
+
+    if (assignError) throw new Error(`Erreur DB Affectations: ${assignError.message}`);
 
     const assignmentRows: string[][] = [
       ["ID", "Equipe", "Chantier", "Date début", "Date fin", "Commentaire"],
@@ -323,10 +334,12 @@ Deno.serve(async (req) => {
     await writeSheet(spreadsheetId, "Affectations", assignmentRows, accessToken);
 
     // ── 5. Absences ─────────────────────────────────────────────────────────
-    const { data: absencesData } = await supabase
+    const { data: absencesData, error: absError } = await supabase
       .from("absences")
       .select("*, motive:absence_motives(name)")
       .order("start_date", { ascending: false });
+
+    if (absError) throw new Error(`Erreur DB Absences: ${absError.message}`);
 
     const absenceRows: string[][] = [
       ["ID", "Technicien", "Date début", "Date fin", "Motif", "Commentaire"],
@@ -342,10 +355,12 @@ Deno.serve(async (req) => {
     await writeSheet(spreadsheetId, "Absences", absenceRows, accessToken);
 
     // ── 6. Motifs ────────────────────────────────────────────────
-    const { data: absenceMotives } = await supabase
+    const { data: absenceMotives, error: motError } = await supabase
       .from("absence_motives")
-      .select("id, name, created_at")
+      .select("*")
       .order("name");
+
+    if (motError) throw new Error(`Erreur DB Motifs: ${motError.message}`);
 
     const motiveRows: string[][] = [
       ["ID", "Nom", "Créé le"],
@@ -358,10 +373,12 @@ Deno.serve(async (req) => {
     await writeSheet(spreadsheetId, "Motifs", motiveRows, accessToken);
 
     // ── 7. Notes ─────────────────────────────────────────────────────────────
-    const { data: notes } = await supabase
+    const { data: notes, error: notesError } = await supabase
       .from("notes")
       .select("*")
       .order("start_date", { ascending: false });
+
+    if (notesError) throw new Error(`Erreur DB Notes: ${notesError.message}`);
 
     const noteRows: string[][] = [
       ["ID", "Equipe", "Date", "Texte", "Météo"],
@@ -376,10 +393,12 @@ Deno.serve(async (req) => {
     await writeSheet(spreadsheetId, "Notes", noteRows, accessToken);
 
     // ── 8. Véhicules ─────────────────────────────────────────────────────────
-    const { data: vehicles } = await supabase
+    const { data: vehicles, error: vehError } = await supabase
       .from("vehicles")
       .select("*")
       .order("name");
+
+    if (vehError) throw new Error(`Erreur DB Vehicules: ${vehError.message}`);
 
     const vehicleRows: string[][] = [
       ["ID", "Nom", "Immatriculation", "Statut", "Créé le"],
@@ -394,10 +413,12 @@ Deno.serve(async (req) => {
     await writeSheet(spreadsheetId, "Véhicules", vehicleRows, accessToken);
 
     // ── 9. Matériel ─────────────────────────────────────────────────────────
-    const { data: equipment } = await supabase
+    const { data: equipment, error: equipError } = await supabase
       .from("equipment")
       .select("*")
       .order("name");
+
+    if (equipError) throw new Error(`Erreur DB Materiel: ${equipError.message}`);
 
     const equipmentRows: string[][] = [
       ["ID", "Nom", "Référence", "Statut", "Créé le"],

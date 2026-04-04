@@ -16,18 +16,12 @@ function tryParseServiceAccountKey(key: string): GoogleSheetsCredentials {
   try {
     return JSON.parse(trimmed);
   } catch (err) {
-    console.error("Direct JSON.parse failed, trying robust extraction:", (err as any).message);
-
-    // Find the first '{' and the last '}'
     const firstBrace = trimmed.indexOf('{');
     const lastBrace = trimmed.lastIndexOf('}');
-
     if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
       throw new Error(`Invalid secret format: No JSON object found.`);
     }
-
     let currentContent = trimmed.substring(firstBrace, lastBrace + 1);
-
     while (currentContent.length > 2) {
       try {
         return JSON.parse(currentContent);
@@ -37,7 +31,6 @@ function tryParseServiceAccountKey(key: string): GoogleSheetsCredentials {
         currentContent = currentContent.substring(0, nextLastBrace + 1);
       }
     }
-
     throw new Error(`Malformed Service Account Key: Could not find valid JSON object in secret string.`);
   }
 }
@@ -47,9 +40,7 @@ function b64url(str: string): string {
 }
 
 async function getAccessToken(credentials: GoogleSheetsCredentials): Promise<string> {
-  console.log('Getting access token for:', credentials.client_email);
   const jwtHeader = b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
-
   const now = Math.floor(Date.now() / 1000);
   const jwtClaimSet = {
     iss: credentials.client_email,
@@ -59,10 +50,7 @@ async function getAccessToken(credentials: GoogleSheetsCredentials): Promise<str
     iat: now,
   };
   const jwtClaimSetEncoded = b64url(JSON.stringify(jwtClaimSet));
-
   const signatureInput = `${jwtHeader}.${jwtClaimSetEncoded}`;
-
-  console.log('Parsing private key, length:', credentials.private_key.length);
   const privateKey = credentials.private_key;
   const keyData = await crypto.subtle.importKey(
     "pkcs8",
@@ -71,21 +59,11 @@ async function getAccessToken(credentials: GoogleSheetsCredentials): Promise<str
     false,
     ["sign"]
   );
-
-  const signature = await crypto.subtle.sign(
-    "RSASSA-PKCS1-v1_5",
-    keyData,
-    new TextEncoder().encode(signatureInput)
-  );
-
+  const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", keyData, new TextEncoder().encode(signatureInput));
   const sigBytes = new Uint8Array(signature);
   let sigBinary = '';
   for (let i = 0; i < sigBytes.length; i++) sigBinary += String.fromCharCode(sigBytes[i]);
-  const signatureEncoded = btoa(sigBinary)
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=/g, '');
-
+  const signatureEncoded = btoa(sigBinary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
   const jwt = `${jwtHeader}.${jwtClaimSetEncoded}.${signatureEncoded}`;
 
   const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
@@ -93,108 +71,57 @@ async function getAccessToken(credentials: GoogleSheetsCredentials): Promise<str
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
   });
-
   const tokenData = await tokenResponse.json();
   return tokenData.access_token;
 }
 
 function pemToArrayBuffer(pem: string): ArrayBuffer {
-  const normalized = pem
-    .replace(/\\n/g, '\n')
-    .replace(/-----BEGIN PRIVATE KEY-----/g, '')
-    .replace(/-----END PRIVATE KEY-----/g, '')
-    .replace(/\s+/g, '');
-
+  const normalized = pem.replace(/\\n/g, '\n').replace(/-----BEGIN PRIVATE KEY-----/g, '').replace(/-----END PRIVATE KEY-----/g, '').replace(/\s+/g, '');
   if (!normalized) throw new Error('PEM private key is empty after stripping headers');
-
-  if (!/^[A-Za-z0-9+/=]+$/.test(normalized)) {
-    throw new Error(`PEM contains invalid base64 characters`);
-  }
-
+  if (!/^[A-Za-z0-9+/=]+$/.test(normalized)) throw new Error(`PEM contains invalid base64 characters`);
   const binary = atob(normalized);
   const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   return bytes.buffer;
 }
 
-async function fetchSheetData(
-  spreadsheetId: string,
-  sheetName: string,
-  accessToken: string
-): Promise<any[][]> {
-  const range = `${sheetName}`;
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}`;
-
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-
+async function fetchSheetData(spreadsheetId: string, sheetName: string, accessToken: string): Promise<any[][]> {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName)}`;
+  const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`Failed to fetch ${sheetName}: ${response.status} - ${errorText}`);
   }
-
   const data = await response.json();
   return data.values || [];
 }
 
-async function ensureHeaders(
-  spreadsheetId: string,
-  sheetName: string,
-  requiredHeaders: string[],
-  accessToken: string
-): Promise<void> {
+async function ensureHeaders(spreadsheetId: string, sheetName: string, requiredHeaders: string[], accessToken: string): Promise<void> {
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName + '!1:1')}`;
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-
+  const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
   let existingHeaders: string[] = [];
   if (response.ok) {
     const data = await response.json();
     existingHeaders = (data.values?.[0] || []).map((h: string) => h.trim());
   }
-
   const missingHeaders = requiredHeaders.filter(h => !existingHeaders.includes(h));
-
-  if (missingHeaders.length === 0) {
-    console.log(`[${sheetName}] All required headers already present.`);
-    return;
-  }
+  if (missingHeaders.length === 0) return;
 
   const startCol = existingHeaders.length;
   const startColLetter = String.fromCharCode(65 + startCol);
   const endColLetter = String.fromCharCode(65 + startCol + missingHeaders.length - 1);
-  const range = `${sheetName}!${startColLetter}1:${endColLetter}1`;
-
-  const writeRange = existingHeaders.length === 0
-    ? `${sheetName}!A1:${String.fromCharCode(65 + missingHeaders.length - 1)}1`
-    : range;
-
+  const writeRange = existingHeaders.length === 0 ? `${sheetName}!A1:${String.fromCharCode(65 + missingHeaders.length - 1)}1` : `${sheetName}!${startColLetter}1:${endColLetter}1`;
   const writeUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(writeRange)}?valueInputOption=RAW`;
-  const writeResponse = await fetch(writeUrl, {
+  await fetch(writeUrl, {
     method: 'PUT',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ values: [missingHeaders] }),
   });
-
-  if (!writeResponse.ok) {
-    const errText = await writeResponse.text();
-    console.error(`[${sheetName}] Failed to write headers: ${writeResponse.status} - ${errText}`);
-  } else {
-    console.log(`[${sheetName}] Added missing headers: ${missingHeaders.join(', ')}`);
-  }
 }
 
-// UPGRADED HEADERS
 const COMMANDES_HEADERS = ["ID", "Numéro", "Nom client", "Chantier", "Nom court", "UUID", "Présence Client", "Type SAV"];
 const SAV_HEADERS = ['ID', 'Numéro', 'Nom du client', 'Adresse', 'Numéro de téléphone', 'Problème', 'Date', 'Est résolu'];
-const TECHNICIENS_HEADERS = ['ID', 'Nom', 'Interim', 'Créé le', 'Accompagné', 'Compétences'];
+const TECHNICIENS_HEADERS = ['ID', "Nom d'usage", 'Prénom', 'Nom de famille', 'Interim', 'Créé le', 'Accompagné', 'Compétences'];
 const AFFECTATIONS_HEADERS = ['ID', 'Equipe', 'Chantier', 'Date début', 'Date fin', 'Commentaire'];
 const ABSENCES_HEADERS = ['ID', 'Technicien', 'Date début', 'Date fin', 'Motif', 'Commentaire'];
 const NOTES_HEADERS = ['ID', 'Equipe', 'Date', 'Texte', 'Météo'];
@@ -205,52 +132,29 @@ const MATERIEL_HEADERS = ['ID', 'Nom', 'Référence', 'Statut', 'Créé le'];
 function parseDate(dateStr: string): string | null {
   if (!dateStr) return null;
   const parts = dateStr.split('/');
-  if (parts.length === 3) {
-    const [day, month, year] = parts;
-    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-  }
-  if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
-    return dateStr;
-  }
+  if (parts.length === 3) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+  if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) return dateStr;
   return null;
 }
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
+  if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
-  const responseHeaders = {
-    ...corsHeaders,
-    'Content-Type': 'application/json',
-    'X-Edge-Version': '2026.03.13.2' // Version bumped
-  };
+  const responseHeaders = { ...corsHeaders, 'Content-Type': 'application/json', 'X-Edge-Version': '2026.03.14.FULL_SYNC' };
 
   try {
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Authentification requise' }), { status: 401, headers: responseHeaders });
-    }
+    if (!authHeader) return new Response(JSON.stringify({ error: 'Authentification requise' }), { status: 401, headers: responseHeaders });
 
     const token = authHeader.replace('Bearer ', '');
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return new Response(JSON.stringify({ error: 'Configuration du serveur manquante' }), { status: 500, headers: responseHeaders });
-    }
+    if (!supabaseUrl || !supabaseServiceKey) return new Response(JSON.stringify({ error: 'Configuration serveur manquante' }), { status: 500, headers: responseHeaders });
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { data: syncRecord } = await supabaseAdmin
-      .from('sync_status')
-      .insert({
-        sync_type: 'google_sheets',
-        status: 'running',
-        started_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
+    const { data: syncRecord } = await supabaseAdmin.from('sync_status').insert({ sync_type: 'google_sheets', status: 'running', started_at: new Date().toISOString() }).select().single();
 
     const isServiceRole = authHeader.includes(supabaseServiceKey);
     let isAdmin = isServiceRole;
@@ -258,37 +162,22 @@ serve(async (req) => {
     if (!isServiceRole) {
       const { data: { user } } = await supabaseAdmin.auth.getUser(token);
       if (!user) return new Response(JSON.stringify({ error: 'Token invalide' }), { status: 401, headers: responseHeaders });
-
-      const { data: adminCheck } = await supabaseAdmin
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', user.id)
-        .eq('role', 'admin')
-        .maybeSingle();
-
+      const { data: adminCheck } = await supabaseAdmin.from('user_roles').select('role').eq('user_id', user.id).eq('role', 'admin').maybeSingle();
       if (adminCheck) isAdmin = true;
     }
 
-    if (!isAdmin) {
-      return new Response(JSON.stringify({ error: 'Accès administrateur requis' }), { status: 403, headers: responseHeaders });
-    }
+    if (!isAdmin) return new Response(JSON.stringify({ error: 'Accès admin requis' }), { status: 403, headers: responseHeaders });
 
     const body = await req.json().catch(() => ({}));
     let spreadsheetId = body.spreadsheetId;
 
     if (!spreadsheetId) {
-      const { data: setting } = await supabaseAdmin
-        .from('global_settings')
-        .select('value')
-        .eq('key', 'google_spreadsheet_id')
-        .maybeSingle();
+      const { data: setting } = await supabaseAdmin.from('global_settings').select('value').eq('key', 'google_spreadsheet_id').maybeSingle();
       spreadsheetId = setting?.value || '1699-HaYP4W2rSJUscbXCvp7fVW0vR95NRpjl5QpBUeY';
     }
 
     const serviceAccountKey = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_KEY_V2');
-    if (!serviceAccountKey) {
-      return new Response(JSON.stringify({ error: 'Service account key not configured' }), { status: 500, headers: responseHeaders });
-    }
+    if (!serviceAccountKey) return new Response(JSON.stringify({ error: 'Service account non configuré' }), { status: 500, headers: responseHeaders });
 
     const credentials = tryParseServiceAccountKey(serviceAccountKey);
     const accessToken = await getAccessToken(credentials);
@@ -301,27 +190,27 @@ serve(async (req) => {
       const techData = await fetchSheetData(spreadsheetId, 'Techniciens', accessToken);
       if (techData.length > 1) {
         const h = techData[0];
-        const iID = h.indexOf('ID');
-        const iNom = h.indexOf('Nom');
-        const iInterim = h.indexOf('Interim');
-        const iAcc = h.indexOf('Accompagné');
-        const iComp = h.indexOf('Compétences');
-
+        const validIds: string[] = [];
         for (let i = 1; i < techData.length; i++) {
           const row = techData[i];
-          const id = row[iID]?.trim();
-          const name = row[iNom]?.trim();
+          // Support both the new header and the old 'Nom' header for safety
+          const name = row[h.indexOf("Nom d'usage")]?.trim() || row[h.indexOf('Nom')]?.trim();
           if (!name) continue;
 
-          await supabase.from('technicians').upsert({
-            id: id || undefined,
+          const { data } = await supabase.from('technicians').upsert({
+            id: row[h.indexOf('ID')]?.trim() || undefined,
             name,
-            is_temp: row[iInterim]?.toUpperCase() === 'TRUE',
-            is_accompanied: iAcc >= 0 && row[iAcc]?.toUpperCase() === 'TRUE',
-            skills: iComp >= 0 ? row[iComp]?.trim() : null,
-          }, { onConflict: 'id' });
+            first_name: h.indexOf('Prénom') >= 0 ? row[h.indexOf('Prénom')]?.trim() : null,
+            last_name: h.indexOf('Nom de famille') >= 0 ? row[h.indexOf('Nom de famille')]?.trim() : null,
+            is_temp: row[h.indexOf('Interim')]?.toUpperCase() === 'TRUE',
+            is_accompanied: h.indexOf('Accompagné') >= 0 && row[h.indexOf('Accompagné')]?.toUpperCase() === 'TRUE',
+            skills: h.indexOf('Compétences') >= 0 ? row[h.indexOf('Compétences')]?.trim() : null,
+          }, { onConflict: 'id' }).select('id').single();
+
+          if (data?.id) validIds.push(data.id);
           techCount++;
         }
+        if (validIds.length > 0) await supabase.from('technicians').delete().not('id', 'in', `(${validIds.join(',')})`);
       }
     } catch (e) { console.error('Tech sync error:', e); }
 
@@ -329,36 +218,28 @@ serve(async (req) => {
     let commandesCount = 0;
     try {
       await ensureHeaders(spreadsheetId, 'Commandes', COMMANDES_HEADERS, accessToken);
-      const commandesData = await fetchSheetData(spreadsheetId, 'Commandes', accessToken);
-
-      if (commandesData.length > 1) {
-        const h = commandesData[0];
-        const iUUID = h.indexOf('UUID');
-        const iExtID = h.indexOf('ID');
-        const iNum = h.indexOf('Numéro');
-        const iClient = h.indexOf('Nom client');
-        const iChantier = h.indexOf('Chantier');
-        const iNomCourt = h.indexOf('Nom court');
-        const iPres = h.indexOf('Présence Client');
-        const iSavType = h.indexOf('Type SAV');
-
-        for (let i = 1; i < commandesData.length; i++) {
-          const row = commandesData[i];
-          const id = row[iUUID]?.trim() || row[iExtID]?.trim();
-          if (!id || !row[iClient]) continue;
-
-          const { error } = await supabase.from('commandes').upsert({
-            id: row[iUUID]?.trim() || undefined,
-            external_id: row[iExtID]?.trim(),
-            numero: row[iNum]?.trim(),
-            client: row[iClient]?.trim(),
-            chantier: row[iChantier]?.trim(),
-            display_name: row[iNomCourt]?.trim() || undefined,
-            client_presence: iPres >= 0 ? row[iPres]?.trim() : undefined,
-            sav_type: iSavType >= 0 ? row[iSavType]?.trim() : undefined
-          }, { onConflict: 'external_id' });
+      const cmdData = await fetchSheetData(spreadsheetId, 'Commandes', accessToken);
+      if (cmdData.length > 1) {
+        const h = cmdData[0];
+        const validIds: string[] = [];
+        for (let i = 1; i < cmdData.length; i++) {
+          const row = cmdData[i];
+          const id = row[h.indexOf('UUID')]?.trim() || row[h.indexOf('ID')]?.trim();
+          if (!id || !row[h.indexOf('Nom client')]) continue;
+          const { data, error } = await supabase.from('commandes').upsert({
+            id: row[h.indexOf('UUID')]?.trim() || undefined,
+            external_id: row[h.indexOf('ID')]?.trim(),
+            numero: row[h.indexOf('Numéro')]?.trim(),
+            client: row[h.indexOf('Nom client')]?.trim(),
+            chantier: row[h.indexOf('Chantier')]?.trim(),
+            display_name: row[h.indexOf('Nom court')]?.trim() || undefined,
+            client_presence: h.indexOf('Présence Client') >= 0 ? row[h.indexOf('Présence Client')]?.trim() : undefined,
+            sav_type: h.indexOf('Type SAV') >= 0 ? row[h.indexOf('Type SAV')]?.trim() : undefined
+          }, { onConflict: 'external_id' }).select('id').single();
+          if (data?.id) validIds.push(data.id);
           if (!error) commandesCount++;
         }
+        if (validIds.length > 0) await supabase.from('commandes').delete().not('id', 'in', `(${validIds.join(',')})`);
       }
     } catch (e) { console.error('Commandes sync error:', e); }
 
@@ -366,35 +247,28 @@ serve(async (req) => {
     let savCount = 0;
     try {
       await ensureHeaders(spreadsheetId, 'SAV', SAV_HEADERS, accessToken);
-      const savDataFinal = await fetchSheetData(spreadsheetId, 'SAV', accessToken);
-      if (savDataFinal.length > 1) {
-        const h = savDataFinal[0];
-        const iID = h.indexOf('ID');
-        const iNum = h.indexOf('Numéro');
-        const iClient = h.indexOf('Nom du client');
-        const iAddr = h.indexOf('Adresse');
-        const iTel = h.indexOf('Numéro de téléphone');
-        const iProb = h.indexOf('Problème');
-        const iDate = h.indexOf('Date');
-        const iResolu = h.indexOf('Est résolu');
-
-        for (let i = 1; i < savDataFinal.length; i++) {
-          const row = savDataFinal[i];
-          const extId = row[iID]?.trim();
+      const savData = await fetchSheetData(spreadsheetId, 'SAV', accessToken);
+      if (savData.length > 1) {
+        const h = savData[0];
+        const validIds: string[] = [];
+        for (let i = 1; i < savData.length; i++) {
+          const row = savData[i];
+          const extId = row[h.indexOf('ID')]?.trim();
           if (!extId) continue;
-
-          await supabase.from('sav').upsert({
+          const { data } = await supabase.from('sav').upsert({
             external_id: extId,
-            numero: row[iNum] ? parseInt(row[iNum], 10) : i,
-            nom_client: row[iClient]?.trim(),
-            adresse: row[iAddr]?.trim(),
-            telephone: row[iTel]?.trim(),
-            probleme: row[iProb]?.trim(),
-            date: parseDate(row[iDate]?.trim()),
-            est_resolu: row[iResolu]?.toUpperCase() === 'TRUE',
-          }, { onConflict: 'external_id' });
+            numero: row[h.indexOf('Numéro')] ? parseInt(row[h.indexOf('Numéro')], 10) : i,
+            nom_client: row[h.indexOf('Nom du client')]?.trim(),
+            adresse: row[h.indexOf('Adresse')]?.trim(),
+            telephone: row[h.indexOf('Numéro de téléphone')]?.trim(),
+            probleme: row[h.indexOf('Problème')]?.trim(),
+            date: parseDate(row[h.indexOf('Date')]?.trim()),
+            est_resolu: row[h.indexOf('Est résolu')]?.toUpperCase() === 'TRUE',
+          }, { onConflict: 'external_id' }).select('id').single();
+          if (data?.id) validIds.push(data.id);
           savCount++;
         }
+        if (validIds.length > 0) await supabase.from('sav').delete().not('id', 'in', `(${validIds.join(',')})`);
       }
     } catch (e) { console.error('SAV sync error:', e); }
 
@@ -405,35 +279,27 @@ serve(async (req) => {
       const assignData = await fetchSheetData(spreadsheetId, 'Affectations', accessToken);
       if (assignData.length > 1) {
         const { data: cmds } = await supabase.from('commandes').select('id, client, chantier, display_name');
-
         const h = assignData[0];
-        const iID = h.indexOf('ID');
-        const iTech = h.indexOf('Equipe');
-        const iChan = h.indexOf('Chantier');
-        const iStart = h.indexOf('Date début');
-        const iEnd = h.indexOf('Date fin');
-        const iComm = h.indexOf('Commentaire');
-
+        const validIds: string[] = [];
         for (let i = 1; i < assignData.length; i++) {
           const row = assignData[i];
-          const id = row[iID]?.trim();
-          let assignedTeamId = row[iTech]?.trim() || null;
-          let commandeId = row[iChan]?.trim() || null;
-
+          const id = row[h.indexOf('ID')]?.trim();
+          const commandeId = row[h.indexOf('Chantier')]?.trim() || null;
           const commande = cmds?.find(c => c.id === commandeId);
           const displayName = commande?.display_name || (commande ? `${commande.client} - ${commande.chantier}` : 'Nouvelle affectation');
-
-          await supabase.from('assignments').upsert({
+          const { data } = await supabase.from('assignments').upsert({
             id: id && id.length > 10 ? id : undefined,
-            team_id: assignedTeamId,
+            team_id: row[h.indexOf('Equipe')]?.trim() || null,
             commande_id: commandeId,
             name: displayName,
-            start_date: parseDate(row[iStart]?.trim()),
-            end_date: parseDate(row[iEnd]?.trim()) || parseDate(row[iStart]?.trim()),
-            comment: row[iComm]?.trim(),
-          }, { onConflict: 'id' });
+            start_date: parseDate(row[h.indexOf('Date début')]?.trim()),
+            end_date: parseDate(row[h.indexOf('Date fin')]?.trim()) || parseDate(row[h.indexOf('Date début')]?.trim()),
+            comment: row[h.indexOf('Commentaire')]?.trim(),
+          }, { onConflict: 'id' }).select('id').single();
+          if (data?.id) validIds.push(data.id);
           assignmentCount++;
         }
+        if (validIds.length > 0) await supabase.from('assignments').delete().not('id', 'in', `(${validIds.join(',')})`);
       }
     } catch (e) { console.error('Assignment sync error:', e); }
 
@@ -444,23 +310,22 @@ serve(async (req) => {
       const motifData = await fetchSheetData(spreadsheetId, 'Motifs', accessToken);
       if (motifData.length > 1) {
         const h = motifData[0];
-        const iID = h.indexOf('ID');
-        const iNom = h.indexOf('Nom');
-
+        const validIds: string[] = [];
         for (let i = 1; i < motifData.length; i++) {
           const row = motifData[i];
-          const id = row[iID]?.trim();
-          const name = row[iNom]?.trim();
+          const id = row[h.indexOf('ID')]?.trim();
+          const name = row[h.indexOf('Nom')]?.trim();
           if (!name) continue;
-
-          const isUuid = id && /^[0-9a-f-]{36}$/i.test(id);
-          if (isUuid) {
-            await supabase.from('absence_motives').upsert({ id, name }, { onConflict: 'id' });
+          if (id && /^[0-9a-f-]{36}$/i.test(id)) {
+            const { data } = await supabase.from('absence_motives').upsert({ id, name }, { onConflict: 'id' }).select('id').single();
+            if (data?.id) validIds.push(data.id);
           } else {
-            await supabase.from('absence_motives').upsert({ name }, { onConflict: 'name' });
+            const { data } = await supabase.from('absence_motives').upsert({ name }, { onConflict: 'name' }).select('id').single();
+            if (data?.id) validIds.push(data.id);
           }
           motifCount++;
         }
+        if (validIds.length > 0) await supabase.from('absence_motives').delete().not('id', 'in', `(${validIds.join(',')})`);
       }
     } catch (e) { console.error('Motif sync error:', e); }
 
@@ -471,28 +336,21 @@ serve(async (req) => {
       const absenceData = await fetchSheetData(spreadsheetId, 'Absences', accessToken);
       if (absenceData.length > 1) {
         const h = absenceData[0];
-        const iID = h.indexOf('ID');
-        const iTech = h.indexOf('Technicien');
-        const iStart = h.indexOf('Date début');
-        const iEnd = h.indexOf('Date fin');
-        const iMotif = h.indexOf('Motif');
-
+        const validIds: string[] = [];
         for (let i = 1; i < absenceData.length; i++) {
           const row = absenceData[i];
-          const id = row[iID]?.trim();
-          let assignedTechId = row[iTech]?.trim() || null;
-          let motiveId = row[iMotif]?.trim() || null;
-
-          const { error } = await supabase.from('absences').upsert({
+          const id = row[h.indexOf('ID')]?.trim();
+          const { data, error } = await supabase.from('absences').upsert({
             id: id && id.length > 10 ? id : undefined,
-            technician_id: assignedTechId,
-            start_date: parseDate(row[iStart]?.trim()),
-            end_date: parseDate(row[iEnd]?.trim()) || parseDate(row[iStart]?.trim()),
-            motive_id: motiveId,
-          }, { onConflict: 'id' });
-
+            technician_id: row[h.indexOf('Technicien')]?.trim() || null,
+            start_date: parseDate(row[h.indexOf('Date début')]?.trim()),
+            end_date: parseDate(row[h.indexOf('Date fin')]?.trim()) || parseDate(row[h.indexOf('Date début')]?.trim()),
+            motive_id: row[h.indexOf('Motif')]?.trim() || null,
+          }, { onConflict: 'id' }).select('id').single();
+          if (data?.id) validIds.push(data.id);
           if (!error) absenceCount++;
         }
+        if (validIds.length > 0) await supabase.from('absences').delete().not('id', 'in', `(${validIds.join(',')})`);
       }
     } catch (e) { console.error('Absence sync error:', e); }
 
@@ -503,29 +361,22 @@ serve(async (req) => {
       const noteData = await fetchSheetData(spreadsheetId, 'Notes', accessToken);
       if (noteData.length > 1) {
         const h = noteData[0];
-        const iID = h.indexOf('ID');
-        const iEquipe = h.indexOf('Equipe');
-        const iDate = h.indexOf('Date');
-        const iText = h.indexOf('Texte');
-        const iMeteo = h.indexOf('Météo');
-
+        const validIds: string[] = [];
         for (let i = 1; i < noteData.length; i++) {
           const row = noteData[i];
-          const id = row[iID]?.trim();
-          let teamId = row[iEquipe]?.trim() || null;
-
-          if (!row[iText]?.trim()) continue;
-
-          await supabase.from('notes').upsert({
-            id: id && id.length > 10 ? id : undefined,
-            team_id: teamId,
-            start_date: parseDate(row[iDate]?.trim()),
-            end_date: parseDate(row[iDate]?.trim()),
-            text: row[iText]?.trim(),
-            weather_condition: iMeteo >= 0 ? row[iMeteo]?.trim() : null,
-          }, { onConflict: 'id' });
+          if (!row[h.indexOf('Texte')]?.trim()) continue;
+          const { data } = await supabase.from('notes').upsert({
+            id: row[h.indexOf('ID')]?.trim() && row[h.indexOf('ID')]?.trim().length > 10 ? row[h.indexOf('ID')]?.trim() : undefined,
+            team_id: row[h.indexOf('Equipe')]?.trim() || null,
+            start_date: parseDate(row[h.indexOf('Date')]?.trim()),
+            end_date: parseDate(row[h.indexOf('Date')]?.trim()),
+            text: row[h.indexOf('Texte')]?.trim(),
+            weather_condition: h.indexOf('Météo') >= 0 ? row[h.indexOf('Météo')]?.trim() : null,
+          }, { onConflict: 'id' }).select('id').single();
+          if (data?.id) validIds.push(data.id);
           noteCount++;
         }
+        if (validIds.length > 0) await supabase.from('notes').delete().not('id', 'in', `(${validIds.join(',')})`);
       }
     } catch (e) { console.error('Note sync error:', e); }
 
@@ -536,25 +387,21 @@ serve(async (req) => {
       const vehData = await fetchSheetData(spreadsheetId, 'Véhicules', accessToken);
       if (vehData.length > 1) {
         const h = vehData[0];
-        const iID = h.indexOf('ID');
-        const iNom = h.indexOf('Nom');
-        const iImm = h.indexOf('Immatriculation');
-        const iStatut = h.indexOf('Statut');
-
+        const validIds: string[] = [];
         for (let i = 1; i < vehData.length; i++) {
           const row = vehData[i];
-          const id = row[iID]?.trim();
-          const name = row[iNom]?.trim();
+          const name = row[h.indexOf('Nom')]?.trim();
           if (!name) continue;
-
-          await supabase.from('vehicles').upsert({
-            id: id && id.length > 10 ? id : undefined,
+          const { data } = await supabase.from('vehicles').upsert({
+            id: row[h.indexOf('ID')]?.trim() && row[h.indexOf('ID')]?.trim().length > 10 ? row[h.indexOf('ID')]?.trim() : undefined,
             name,
-            license_plate: row[iImm]?.trim() || null,
-            status: row[iStatut]?.trim() || 'Actif',
-          }, { onConflict: 'id' });
+            license_plate: row[h.indexOf('Immatriculation')]?.trim() || null,
+            status: row[h.indexOf('Statut')]?.trim() || 'Actif',
+          }, { onConflict: 'id' }).select('id').single();
+          if (data?.id) validIds.push(data.id);
           vehiculesCount++;
         }
+        if (validIds.length > 0) await supabase.from('vehicles').delete().not('id', 'in', `(${validIds.join(',')})`);
       }
     } catch (e) { console.error('Vehicules sync error:', e); }
 
@@ -565,29 +412,24 @@ serve(async (req) => {
       const matData = await fetchSheetData(spreadsheetId, 'Matériel', accessToken);
       if (matData.length > 1) {
         const h = matData[0];
-        const iID = h.indexOf('ID');
-        const iNom = h.indexOf('Nom');
-        const iRef = h.indexOf('Référence');
-        const iStatut = h.indexOf('Statut');
-
+        const validIds: string[] = [];
         for (let i = 1; i < matData.length; i++) {
           const row = matData[i];
-          const id = row[iID]?.trim();
-          const name = row[iNom]?.trim();
+          const name = row[h.indexOf('Nom')]?.trim();
           if (!name) continue;
-
-          await supabase.from('equipment').upsert({
-            id: id && id.length > 10 ? id : undefined,
+          const { data } = await supabase.from('equipment').upsert({
+            id: row[h.indexOf('ID')]?.trim() && row[h.indexOf('ID')]?.trim().length > 10 ? row[h.indexOf('ID')]?.trim() : undefined,
             name,
-            reference: row[iRef]?.trim() || null,
-            status: row[iStatut]?.trim() || 'Actif',
-          }, { onConflict: 'id' });
+            reference: row[h.indexOf('Référence')]?.trim() || null,
+            status: row[h.indexOf('Statut')]?.trim() || 'Actif',
+          }, { onConflict: 'id' }).select('id').single();
+          if (data?.id) validIds.push(data.id);
           materielCount++;
         }
+        if (validIds.length > 0) await supabase.from('equipment').delete().not('id', 'in', `(${validIds.join(',')})`);
       }
     } catch (e) { console.error('Materiel sync error:', e); }
 
-    // Mark sync status as success
     const totalCount = techCount + commandesCount + savCount + assignmentCount + absenceCount + noteCount + motifCount + vehiculesCount + materielCount;
     if (syncRecord) {
       await supabaseAdmin.from('sync_status').update({
@@ -600,26 +442,12 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        message: 'Synchronisation bidirectionnelle réussie',
-        counts: {
-          techniciens: techCount,
-          commandes: commandesCount,
-          sav: savCount,
-          affectations: assignmentCount,
-          absences: absenceCount,
-          notes: noteCount,
-          vehicules: vehiculesCount,
-          materiel: materielCount
-        }
+        message: 'Synchronisation complète réussie',
+        counts: { techniciens: techCount, commandes: commandesCount, sav: savCount, affectations: assignmentCount, absences: absenceCount, notes: noteCount, vehicules: vehiculesCount, materiel: materielCount }
       }),
       { status: 200, headers: responseHeaders }
     );
-
   } catch (error: any) {
-    console.error('Error syncing data:', error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 500, headers: responseHeaders }
-    );
+    return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: responseHeaders });
   }
 });

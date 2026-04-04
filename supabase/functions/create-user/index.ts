@@ -22,7 +22,7 @@ serve(async (req) => {
     // 3. Get the data your React app sent
     const { email, password, role, name } = await req.json()
 
-    // 4. Tell Supabase to create the user!
+    // 4. Tell Supabase to create the user in the secure Auth Vault
     const { data, error } = await supabaseClient.auth.admin.createUser({
       email: email,
       password: password,
@@ -33,12 +33,27 @@ serve(async (req) => {
 
     if (error) throw error
 
-    // 5. Send success back to React
+    // 5. NEW: Add the role to the public 'user_roles' table!
+    // This is what the React frontend actually reads to grant admin privileges.
+    if (data?.user?.id) {
+      const { error: roleError } = await supabaseClient
+        .from('user_roles')
+        .insert({
+          user_id: data.user.id,
+          role: role || 'user',
+          is_suspended: false,
+          suspension_reason: null
+        })
+
+      if (roleError) throw roleError
+    }
+
+    // 6. Send success back to React
     return new Response(JSON.stringify(data), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     })
-  } catch (error) {
+  } catch (error: any) {
     // Send the error back if something goes wrong (e.g., email already exists)
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
