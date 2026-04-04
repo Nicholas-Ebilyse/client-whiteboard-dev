@@ -17,17 +17,7 @@ import {
   AlertDialogTitle,
 } from './ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-
-const PREDEFINED_SKILLS = ["N1", "N2", "N3", "CACES", "Amiante", "Hab. Élec", "Soudure", "Gaz"];
-
-const toggleSkill = (currentSkills: string, skill: string) => {
-  const skillsArray = (currentSkills || '').split(',').map(s => s.trim()).filter(Boolean);
-  if (skillsArray.includes(skill)) {
-    return skillsArray.filter(s => s !== skill).join(', ');
-  } else {
-    return [...skillsArray, skill].join(', ');
-  }
-};
+import { TechnicianSkillsMatrix } from './TechnicianSkillsMatrix';
 
 interface Team {
   id: string;
@@ -81,6 +71,8 @@ export const TeamManagementDialog = ({
   const [editIsTemp, setEditIsTemp] = useState(false);
   const [editIsAccompanied, setEditIsAccompanied] = useState(false);
 
+  const [matrixTech, setMatrixTech] = useState<{ id: string, name: string } | null>(null);
+
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [newTechName, setNewTechName] = useState('');
   const [newFirstName, setNewFirstName] = useState('');
@@ -109,8 +101,7 @@ export const TeamManagementDialog = ({
     members: activeTechs.filter((t) => t.team_id === team.id).sort((a, b) => a.position - b.position),
   }));
 
-  // THE FIX: Sort unassigned technicians alphabetically (A to Z). 
-  // (If you strictly wanted Z to A, change it to `b.name.localeCompare(a.name, 'fr')`)
+  // Sort unassigned technicians alphabetically (A to Z). 
   const unassignedTechs = activeTechs
     .filter((t) => !t.team_id)
     .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
@@ -253,28 +244,29 @@ export const TeamManagementDialog = ({
             </label>
           </div>
 
-          <div className="space-y-1.5 pt-1">
-            <Label className="text-xs">Compétences</Label>
-            <div className="flex flex-wrap gap-1 mb-2">
-              {PREDEFINED_SKILLS.map(skill => (
-                <Button
-                  key={skill}
-                  type="button"
-                  variant={(editSkills || '').includes(skill) ? "default" : "outline"}
-                  size="sm"
-                  className="h-5 text-[9px] px-1.5"
-                  onClick={() => setEditSkills(toggleSkill(editSkills, skill))}
-                >
-                  {skill}
-                </Button>
-              ))}
+          <div className="space-y-3 pt-2 border-t mt-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold">Compétences Officielles</Label>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="h-7 text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 border border-blue-200"
+                onClick={() => setMatrixTech({ id: tech.id, name: tech.name })}
+              >
+                Gérer la Matrice
+              </Button>
             </div>
-            <Textarea
-              value={editSkills}
-              onChange={(e) => setEditSkills(e.target.value)}
-              placeholder="Autres compétences ou commentaires..."
-              className="text-xs min-h-[40px] resize-none"
-            />
+
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Notes / Autres compétences libres</Label>
+              <Textarea
+                value={editSkills}
+                onChange={(e) => setEditSkills(e.target.value)}
+                placeholder="Ex: Formation prévue en Septembre..."
+                className="text-xs min-h-[40px] resize-none"
+              />
+            </div>
           </div>
 
           <div className="flex gap-1.5 pt-1">
@@ -510,25 +502,14 @@ export const TeamManagementDialog = ({
               </label>
             </div>
 
-            <div className="space-y-1.5 pt-1">
-              <Label htmlFor="new-tech-skills">Compétences</Label>
-              <div className="flex flex-wrap gap-1.5 mb-2">
-                {PREDEFINED_SKILLS.map(skill => (
-                  <Button
-                    key={skill}
-                    type="button"
-                    variant={(newTechSkills || '').includes(skill) ? "default" : "outline"}
-                    size="sm"
-                    className="h-6 text-[10px] px-2"
-                    onClick={() => setNewTechSkills(toggleSkill(newTechSkills, skill))}
-                  >
-                    {skill}
-                  </Button>
-                ))}
-              </div>
+            <div className="space-y-1.5 pt-2 border-t mt-2">
+              <Label htmlFor="new-tech-skills" className="text-muted-foreground">Notes / Autres compétences libres</Label>
+              <p className="text-[10px] text-muted-foreground pb-1">
+                (Vous pourrez remplir la Matrice de Compétences complète une fois le technicien créé)
+              </p>
               <Textarea
                 id="new-tech-skills"
-                placeholder="Autres compétences ou commentaires..."
+                placeholder="Ex: Formation prévue..."
                 value={newTechSkills}
                 onChange={(e) => setNewTechSkills(e.target.value)}
                 className="min-h-[50px] resize-none text-sm"
@@ -544,6 +525,13 @@ export const TeamManagementDialog = ({
           </div>
         </DialogContent>
       </Dialog>
+
+      <TechnicianSkillsMatrix
+        technicianId={matrixTech?.id || null}
+        technicianName={matrixTech?.name || ''}
+        open={!!matrixTech}
+        onOpenChange={(open) => !open && setMatrixTech(null)}
+      />
     </>
   );
 };
