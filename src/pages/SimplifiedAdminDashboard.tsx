@@ -33,7 +33,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { DatabaseExportButtons } from "@/components/DatabaseExportButtons";
 
 interface UserWithRole {
   id: string;
@@ -162,8 +161,6 @@ export default function SimplifiedAdminDashboard() {
     setActionDialog({ open: true, userId, email, action: 'unsuspend' });
   };
 
-  // --- THE FIX IS HERE --- 
-  // We route all requests to the single 'manage-user' edge function
   const executeAction = async () => {
     const { userId, email, action } = actionDialog;
 
@@ -179,7 +176,6 @@ export default function SimplifiedAdminDashboard() {
         }
       }
 
-      // Call our unified Edge Function!
       const { data, error } = await supabase.functions.invoke('manage-user', {
         body: { userId, action, reason: suspensionReason },
         headers: { Authorization: `Bearer ${session?.access_token}` }
@@ -188,7 +184,6 @@ export default function SimplifiedAdminDashboard() {
       if (error) throw error;
       if (data && data.error) throw new Error(data.error);
 
-      // Show success message
       const messages = {
         grant: `${email} est maintenant administrateur.`,
         revoke: `${email} n'est plus administrateur.`,
@@ -341,8 +336,6 @@ export default function SimplifiedAdminDashboard() {
             </div>
           </CardContent>
         </Card>
-
-        <DatabaseExportButtons />
 
         <div className="flex flex-col gap-4 pt-4 border-t">
           <div className="flex items-center justify-between gap-4">
