@@ -7,6 +7,8 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { TriangleAlert } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface WeeklyGridProps {
   dailyTeamRosters: any[];
@@ -108,6 +110,25 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
   handleTechDayNoteClick,
   handleAddTechDayNote,
 }) => {
+
+  const { data: vehicles = [] } = useQuery({
+    queryKey: ['vehicles'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('vehicles').select('id, name, registration');
+      if (error) throw error;
+      return data;
+    }
+  });
+
+  const { data: equipment = [] } = useQuery({
+    queryKey: ['equipment'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('equipment').select('id, name');
+      if (error) throw error;
+      return data;
+    }
+  });
+
   return (
     <div className="overflow-x-auto pb-0 flex-1 flex flex-col min-h-0 overflow-y-auto">
       <div className="min-w-[1200px] lg:min-w-0 flex-1 flex flex-col">
@@ -191,10 +212,15 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                     (n.end_date || n.start_date) >= day.fullDate
                   );
 
-                  // ── Calculate Skills Required for the ENTIRE cell (for the header tags) ──
+                  const assignedVehicles = new Set<string>();
+                  const assignedEquipment = new Set<string>();
+                  cellNotes.forEach(n => {
+                    if (Array.isArray(n.vehicle_ids)) n.vehicle_ids.forEach(v => assignedVehicles.add(v));
+                    if (Array.isArray(n.equipment_ids)) n.equipment_ids.forEach(e => assignedEquipment.add(e));
+                  });
+
                   const cellRequiredSkills = new Set<string>();
                   cellAssignments.forEach(a => {
-                    // FIXED: Use commandeId to match frontend formatting
                     const commandeId = a.commandeId || a.commande_id;
                     const commande = commandes.find(c => c.id === commandeId);
                     if (commande?.required_skills) {
@@ -203,35 +229,72 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                   });
                   const requiredSkillsArray = Array.from(cellRequiredSkills);
 
-                  // ── Calculate SPECIFIC warnings for EACH assignment block ──
-                  const assignmentWarnings: Record<string, string[]> = {};
+                  // ── NEW: STRUCTURED WARNING COMPUTATION ──
+                  const assignmentWarnings: Record<string, { skills: string[], vehicles: string[], equipment: string[] }> = {};
+                  const cellMissingVehiclesSet = new Set<string>();
+                  const cellMissingEquipmentSet = new Set<string>();
+
                   cellAssignments.forEach(a => {
-                    // FIXED: Use commandeId to match frontend formatting
                     const commandeId = a.commandeId || a.commande_id;
                     const commande = commandes.find(c => c.id === commandeId);
 
-                    if (commande?.required_skills?.length > 0) {
-                      const missingForThisAssignment = new Set<string>();
-                      dayRosters.forEach(roster => {
-                        const tech = activeTechnicians.find(t => t.id === roster.technician?.id);
-                        const isAbsent = absences?.some(abs => abs.technician_id === tech?.id && abs.start_date <= day.fullDate && abs.end_date >= day.fullDate);
+                    if (commande) {
+                      const missingSkills: string[] = [];
+                      const missingVehicles: string[] = [];
+                      const missingEquipment: string[] = [];
 
-                        if (!isAbsent && tech) {
-                          commande.required_skills.forEach((reqSkill: string) => {
-                            if (tech.detailed_skills?.[reqSkill] !== 'Oui') {
-                              // Clean up the string so it's easy to read (e.g. "Arben : Grue")
-                              const shortSkill = reqSkill.includes('-') ? reqSkill.split('-')[1].trim() : reqSkill;
-                              missingForThisAssignment.add(`${tech.name} : ${shortSkill}`);
-                            }
-                          });
-                        }
-                      });
+                      // 1. Skills
+                      if (commande.required_skills?.length > 0) {
+                        dayRosters.forEach(roster => {
+                          const tech = activeTechnicians.find(t => t.id === roster.technician?.id);
+                          const isAbsent = absences?.some(abs => abs.technician_id === tech?.id && abs.start_date <= day.fullDate && abs.end_date >= day.fullDate);
 
-                      if (missingForThisAssignment.size > 0) {
-                        assignmentWarnings[a.id] = Array.from(missingForThisAssignment);
+                          if (!isAbsent && tech) {
+                            commande.required_skills.forEach((reqSkill: string) => {
+                              if (tech.detailed_skills?.[reqSkill] !== 'Oui') {
+                                const shortSkill = reqSkill.includes('-') ? reqSkill.split('-')[1].trim() : reqSkill;
+                                missingSkills.push(`${tech.name} : ${shortSkill}`);
+                              }
+                            });
+                          }
+                        });
+                      }
+
+                      // 2. Vehicles
+                      if (commande.required_vehicles?.length > 0) {
+                        commande.required_vehicles.forEach((reqVehId: string) => {
+                          if (!assignedVehicles.has(reqVehId)) {
+                            const veh = vehicles.find((v: any) => v.id === reqVehId);
+                            const vName = veh ? (veh.name || veh.registration || 'Inconnu') : 'Inconnu';
+                            missingVehicles.push(vName);
+                            cellMissingVehiclesSet.add(vName);
+                          }
+                        });
+                      }
+
+                      // 3. Equipment
+                      if (commande.required_equipment?.length > 0) {
+                        commande.required_equipment.forEach((reqEqId: string) => {
+                          if (!assignedEquipment.has(reqEqId)) {
+                            const eqName = equipment.find((e: any) => e.id === reqEqId)?.name || 'Inconnu';
+                            missingEquipment.push(eqName);
+                            cellMissingEquipmentSet.add(eqName);
+                          }
+                        });
+                      }
+
+                      if (missingSkills.length > 0 || missingVehicles.length > 0 || missingEquipment.length > 0) {
+                        assignmentWarnings[a.id] = {
+                          skills: missingSkills,
+                          vehicles: missingVehicles,
+                          equipment: missingEquipment
+                        };
                       }
                     }
                   });
+
+                  const cellMissingVehicles = Array.from(cellMissingVehiclesSet);
+                  const cellMissingEquipment = Array.from(cellMissingEquipmentSet);
 
                   return (
                     <div
@@ -266,7 +329,6 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                         {dayRosters.length > 0 ? (
                           <TooltipProvider delayDuration={300}>
                             {dayRosters.map(roster => {
-                              // Check if this SPECIFIC technician is absent today
                               const isAbsent = absences?.some(a =>
                                 a.technician_id === roster.technician?.id &&
                                 a.start_date <= day.fullDate &&
@@ -290,7 +352,6 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                                       {roster.is_team_leader && !isAbsent ? '⭐' : ''}
                                       <span className="truncate">{roster.technician?.name}</span>
 
-                                      {/* THE WARNING ICON IN HEADER */}
                                       {missingSkillsForTech.length > 0 && !isAbsent && (
                                         <TriangleAlert className={`w-3 h-3 shrink-0 ${roster.is_team_leader ? 'text-amber-200' : 'text-amber-500'}`} />
                                       )}
@@ -352,7 +413,11 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                           technicians={activeTechnicians.map(t => ({ id: t.id, name: t.name }))}
                           highlightedGroupId={highlightedGroupId}
                           onHighlightGroup={setHighlightedGroupId}
-                          assignmentWarnings={assignmentWarnings} // ── WARNINGS PROP PASSED HERE ──
+
+                          // ── PASSDOWN NEW PROPS ──
+                          assignmentWarnings={assignmentWarnings}
+                          cellMissingVehicles={cellMissingVehicles}
+                          cellMissingEquipment={cellMissingEquipment}
                         />
                       </div>
                     </div>

@@ -84,7 +84,10 @@ interface AssignmentCellProps {
   onHighlightGroup?: (groupId: string | null) => void;
   absentTechNames?: string[];
 
-  assignmentWarnings?: Record<string, string[]>;
+  // ── NEW: Structured Warnings ──
+  assignmentWarnings?: Record<string, { skills: string[]; vehicles: string[]; equipment: string[] }>;
+  cellMissingVehicles?: string[];
+  cellMissingEquipment?: string[];
 }
 
 const formatAddressForDisplay = (address: string): string => {
@@ -153,6 +156,8 @@ export const AssignmentCell = ({
   onHighlightGroup,
   absentTechNames = [],
   assignmentWarnings = {},
+  cellMissingVehicles = [],
+  cellMissingEquipment = [],
 }: AssignmentCellProps) => {
   const hasContent = assignments.length > 0 || notes.length > 0;
   const limitedNotes = notes.slice(0, 3);
@@ -214,6 +219,36 @@ export const AssignmentCell = ({
     return fullNotes.find(n => n.id === noteId);
   };
 
+  const hasMissingResources = cellMissingVehicles.length > 0 || cellMissingEquipment.length > 0;
+
+  // ── ACTION BAR (WITH ANIMATED PING FOR MISSING RESOURCES) ──
+  const ActionBar = () => (
+    <div className="absolute bottom-0 left-0 right-0 h-8 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-t from-background/90 to-transparent z-[60] pb-1 pointer-events-none">
+      <div className="flex gap-1.5 pointer-events-auto">
+        {onAddAssignment && (
+          <button onClick={(e) => { e.stopPropagation(); onAddAssignment(); }} className="p-1 hover:bg-accent rounded shadow-sm border bg-background/95 hover:text-primary transition-colors" title="Ajouter une affectation">
+            <CalendarPlus className="h-4 w-4" />
+          </button>
+        )}
+        {onAddNote && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onAddNote(); }}
+            className="p-1 hover:bg-accent rounded shadow-sm border bg-background/95 hover:text-primary transition-colors relative"
+            title={hasMissingResources ? "Ajouter une note (Ressources manquantes !)" : "Ajouter une note"}
+          >
+            <StickyNote className="h-4 w-4" />
+            {hasMissingResources && (
+              <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 shadow-sm border border-white"></span>
+              </span>
+            )}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
   if (!hasContent) {
     return (
       <div
@@ -231,16 +266,7 @@ export const AssignmentCell = ({
         onDragLeave={onDragLeave}
         onDrop={handleCellDrop}
       >
-        {onAddAssignment && (
-          <button onClick={(e) => { e.stopPropagation(); onAddAssignment(); }} className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-accent rounded" title="Ajouter une affectation">
-            <CalendarPlus className="h-3 w-3" />
-          </button>
-        )}
-        {onAddNote && (
-          <button onClick={(e) => { e.stopPropagation(); onAddNote(); }} className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-accent rounded" title="Ajouter une note">
-            <StickyNote className="h-3 w-3" />
-          </button>
-        )}
+        <ActionBar />
       </div>
     );
   }
@@ -260,18 +286,9 @@ export const AssignmentCell = ({
       onDragLeave={onDragLeave}
       onDrop={handleCellDrop}
     >
-      {onAddAssignment && (
-        <button onClick={(e) => { e.stopPropagation(); onAddAssignment(); }} className="absolute top-1 left-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-accent rounded bg-background" title="Ajouter une affectation">
-          <CalendarPlus className="h-3 w-3" />
-        </button>
-      )}
-      {onAddNote && (
-        <button onClick={(e) => { e.stopPropagation(); onAddNote(); }} className="absolute top-1 right-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-accent rounded bg-background" title="Ajouter une note">
-          <StickyNote className="h-3 w-3" />
-        </button>
-      )}
+      <ActionBar />
 
-      <div className="h-full flex flex-col">
+      <div className="h-full flex flex-col pb-8">
         {/* Notes section */}
         {limitedNotes.length > 0 && (
           <div className="flex-shrink-0">
@@ -299,7 +316,7 @@ export const AssignmentCell = ({
                     onDragEnd={onNoteDragEnd}
                     className={cn(
                       canDragNote && "cursor-grab active:cursor-grabbing",
-                      "relative hover:z-50" // Elevate note on hover
+                      "relative hover:z-50"
                     )}
                   >
                     <div
@@ -342,6 +359,27 @@ export const AssignmentCell = ({
                         <span className="break-words">
                           {note.text}
                         </span>
+
+                        {/* ── THE NOTE WARNING INDICATOR ── */}
+                        {hasMissingResources && (
+                          <TooltipProvider delayDuration={100}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="ml-auto flex items-center gap-0.5 bg-white/50 px-1 py-0.5 rounded-sm border border-red-200/50 shadow-sm" onClick={e => e.stopPropagation()}>
+                                  {cellMissingVehicles.length > 0 && <Car className="h-3 w-3 text-red-600" />}
+                                  {cellMissingEquipment.length > 0 && <Wrench className="h-3 w-3 text-orange-600" />}
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="bg-white border-red-200 text-slate-900 shadow-xl z-[100] p-3 min-w-[200px]">
+                                <p className="font-bold text-xs text-red-600 mb-2 border-b border-red-100 pb-1">Ressources manquantes pour ce jour :</p>
+                                <div className="space-y-1.5">
+                                  {cellMissingVehicles.length > 0 && <p className="text-xs text-slate-700 flex items-start gap-1.5"><Car className="h-3.5 w-3.5 text-red-500 shrink-0" /> <span>{cellMissingVehicles.join(', ')}</span></p>}
+                                  {cellMissingEquipment.length > 0 && <p className="text-xs text-slate-700 flex items-start gap-1.5"><Wrench className="h-3.5 w-3.5 text-orange-500 shrink-0" /> <span>{cellMissingEquipment.join(', ')}</span></p>}
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -381,8 +419,12 @@ export const AssignmentCell = ({
               const linkedTechName = getLinkedTechnicianName(assignment);
               const isHighlighted = highlightedGroupId && assignment.assignment_group_id === highlightedGroupId;
 
+              // ── DESTRUCTURE THE NEW CATEGORIZED WARNINGS ──
               const warnings = assignmentWarnings?.[assignment.id];
-              const hasWarnings = warnings && warnings.length > 0;
+              const hasSkillsWarning = warnings?.skills && warnings.skills.length > 0;
+              const hasVehiclesWarning = warnings?.vehicles && warnings.vehicles.length > 0;
+              const hasEquipmentWarning = warnings?.equipment && warnings.equipment.length > 0;
+              const hasAnyWarning = hasSkillsWarning || hasVehiclesWarning || hasEquipmentWarning;
 
               const handleCopyToClipboard = (a: Assignment) => {
                 const displayName = getAssignmentDisplayName(a, commandes);
@@ -415,7 +457,7 @@ export const AssignmentCell = ({
                 >
                   <div
                     className={cn(
-                      "relative group/assignment transition-all hover:z-50", // THE FIX: Elevate the entire assignment context on hover
+                      "relative group/assignment transition-all hover:z-50",
                       isDragged && "opacity-40 ring-2 ring-dashed ring-primary",
                       isHighlighted && "ring-2 ring-primary ring-offset-1 shadow-lg scale-[1.02]"
                     )}
@@ -507,28 +549,54 @@ export const AssignmentCell = ({
                           </span>
                         )}
 
-                        <div className="flex items-start gap-1.5 px-2">
-                          {hasWarnings && (
+                        <div className="flex items-start gap-1.5 px-2 mt-0.5">
+                          {/* ── THE WORKSITE DISTINCT INLINE ICONS ── */}
+                          {hasAnyWarning && (
                             <TooltipProvider delayDuration={100}>
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <div className="shrink-0 mt-0.5 cursor-help transition-transform hover:scale-110" onClick={e => e.stopPropagation()}>
-                                    <TriangleAlert className="h-4 w-4 text-amber-500 fill-amber-100 drop-shadow-sm" />
+                                  <div className="shrink-0 mt-0.5 cursor-help transition-transform hover:scale-110 flex items-center gap-0.5 bg-white/20 px-1 py-0.5 rounded-sm" onClick={e => e.stopPropagation()}>
+                                    {hasSkillsWarning && <TriangleAlert className="h-3.5 w-3.5 text-amber-400 fill-amber-100 drop-shadow-sm" />}
+                                    {hasVehiclesWarning && <Car className="h-3.5 w-3.5 text-red-500 fill-red-100 drop-shadow-sm" />}
+                                    {hasEquipmentWarning && <Wrench className="h-3.5 w-3.5 text-orange-500 fill-orange-100 drop-shadow-sm" />}
                                   </div>
                                 </TooltipTrigger>
-                                {/* Added z-[100] to ensure it always overrides grid elements */}
-                                <TooltipContent side="top" className="bg-amber-50 border-amber-200 text-amber-900 shadow-md z-[100]">
-                                  <p className="font-bold text-xs mb-1 flex items-center gap-1">
-                                    <TriangleAlert className="w-3 h-3" /> Compétences manquantes :
-                                  </p>
-                                  <ul className="text-xs list-disc pl-4 space-y-0.5">
-                                    {warnings.map((w, i) => <li key={i}>{w}</li>)}
-                                  </ul>
+
+                                <TooltipContent side="top" className="bg-white border-slate-200 text-slate-900 shadow-xl z-[100] min-w-[200px] p-0 overflow-hidden">
+                                  <div className="bg-slate-100 px-3 py-2 border-b">
+                                    <p className="font-bold text-xs text-slate-800 uppercase tracking-wider">Éléments manquants</p>
+                                  </div>
+                                  <div className="p-3 space-y-3">
+                                    {hasSkillsWarning && (
+                                      <div>
+                                        <p className="text-xs font-bold text-amber-600 flex items-center gap-1 mb-1"><TriangleAlert className="h-3 w-3" /> Compétences</p>
+                                        <ul className="text-xs list-disc pl-4 space-y-0.5 text-slate-700">
+                                          {warnings.skills.map((w, i) => <li key={i}>{w}</li>)}
+                                        </ul>
+                                      </div>
+                                    )}
+                                    {hasVehiclesWarning && (
+                                      <div>
+                                        <p className="text-xs font-bold text-red-600 flex items-center gap-1 mb-1"><Car className="h-3 w-3" /> Véhicules</p>
+                                        <ul className="text-xs list-disc pl-4 space-y-0.5 text-slate-700">
+                                          {warnings.vehicles.map((w, i) => <li key={i}>{w}</li>)}
+                                        </ul>
+                                      </div>
+                                    )}
+                                    {hasEquipmentWarning && (
+                                      <div>
+                                        <p className="text-xs font-bold text-orange-600 flex items-center gap-1 mb-1"><Wrench className="h-3 w-3" /> Matériel</p>
+                                        <ul className="text-xs list-disc pl-4 space-y-0.5 text-slate-700">
+                                          {warnings.equipment.map((w, i) => <li key={i}>{w}</li>)}
+                                        </ul>
+                                      </div>
+                                    )}
+                                  </div>
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
                           )}
-                          <span className="whitespace-pre-wrap break-words leading-tight">
+                          <span className="whitespace-pre-wrap break-words leading-tight mt-0.5">
                             {getAssignmentDisplayName(assignment, commandes)}
                           </span>
                         </div>

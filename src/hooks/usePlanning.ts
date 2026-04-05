@@ -207,7 +207,9 @@ export const useUpdateCommande = () => {
       displayName,
       clientPresence,
       savType,
-      required_skills // <--- Added to the list!
+      required_skills,
+      required_vehicles, // <--- NEW
+      required_equipment // <--- NEW
     }: {
       id: string;
       client?: string;
@@ -215,7 +217,9 @@ export const useUpdateCommande = () => {
       displayName?: string;
       clientPresence?: string | null;
       savType?: string | null;
-      required_skills?: string[]; // <--- Added type definition!
+      required_skills?: string[];
+      required_vehicles?: string[]; // <--- NEW
+      required_equipment?: string[]; // <--- NEW
     }) => {
       const updates: any = {};
       if (client !== undefined) updates.client = client;
@@ -223,7 +227,9 @@ export const useUpdateCommande = () => {
       if (displayName !== undefined) updates.display_name = displayName;
       if (clientPresence !== undefined) updates.client_presence = clientPresence;
       if (savType !== undefined) updates.sav_type = savType;
-      if (required_skills !== undefined) updates.required_skills = required_skills; // <--- Pass to DB!
+      if (required_skills !== undefined) updates.required_skills = required_skills;
+      if (required_vehicles !== undefined) updates.required_vehicles = required_vehicles; // <--- Pass to DB
+      if (required_equipment !== undefined) updates.required_equipment = required_equipment; // <--- Pass to DB
 
       const { data, error } = await supabase
         .from('commandes')
@@ -247,12 +253,16 @@ export const useCreateCommande = () => {
       client,
       chantier,
       displayName,
-      required_skills // <--- Added to the list!
+      required_skills,
+      required_vehicles, // <--- NEW
+      required_equipment // <--- NEW
     }: {
       client: string;
       chantier: string;
       displayName?: string;
-      required_skills?: string[]; // <--- Added type definition!
+      required_skills?: string[];
+      required_vehicles?: string[]; // <--- NEW
+      required_equipment?: string[]; // <--- NEW
     }) => {
       const { data, error } = await supabase
         .from('commandes')
@@ -260,7 +270,9 @@ export const useCreateCommande = () => {
           client,
           chantier,
           display_name: displayName,
-          required_skills: required_skills || [] // <--- Pass to DB!
+          required_skills: required_skills || [],
+          required_vehicles: required_vehicles || [], // <--- Pass to DB
+          required_equipment: required_equipment || [] // <--- Pass to DB
         })
         .select()
         .single();

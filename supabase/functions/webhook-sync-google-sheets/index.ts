@@ -1,3 +1,4 @@
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const corsHeaders = {
@@ -55,46 +56,33 @@ async function getAccessToken(credentials: GoogleSheetsCredentials): Promise<str
 
   const response = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion: jwt,
+    }),
   });
 
+  const data = await response.json();
+
   if (!response.ok) {
-    throw new Error(`Failed to get access token: ${await response.text()}`);
+    throw new Error(`Failed to get access token: ${data.error_description || data.error}`);
   }
 
-  const data = await response.json();
   return data.access_token;
 }
 
 function pemToArrayBuffer(pem: string): ArrayBuffer {
-  const b64 = pem
-    .replace(/-----BEGIN PRIVATE KEY-----/, '')
-    .replace(/-----END PRIVATE KEY-----/, '')
-    .replace(/\s/g, '');
-  const binary = atob(b64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
+  const b64Lines = pem.replace(/-----(BEGIN|END) PRIVATE KEY-----/g, '').replace(/\s/g, '');
+  const b64Decoded = atob(b64Lines);
+  const buffer = new ArrayBuffer(b64Decoded.length);
+  const view = new Uint8Array(buffer);
+  for (let i = 0; i < b64Decoded.length; i++) {
+    view[i] = b64Decoded.charCodeAt(i);
   }
-  return bytes.buffer;
-}
-
-async function fetchSheetData(spreadsheetId: string, sheetName: string, accessToken: string): Promise<any[][]> {
-  const range = `${sheetName}!A:Z`;
-  const response = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}`,
-    {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch sheet data: ${await response.text()}`);
-  }
-
-  const data = await response.json();
-  return data.values || [];
+  return buffer;
 }
 
 function parseDate(dateStr: string): string | null {
@@ -104,289 +92,272 @@ function parseDate(dateStr: string): string | null {
   return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
 }
 
-async function sendErrorNotification(errorMessage: string, errorDetails: any, syncType: string) {
-  try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY');
-    
-    if (!supabaseUrl || !supabaseKey) {
-      return;
-    }
-    
-    const webhookApiKey = Deno.env.get('WEBHOOK_API_KEY');
-    const response = await fetch(`${supabaseUrl}/functions/v1/send-sync-error-notification`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseKey}`,
-        'x-internal-key': webhookApiKey || ''
-      },
-      body: JSON.stringify({
-        errorMessage,
-        errorDetails,
-        syncType,
-        timestamp: new Date().toISOString()
-      })
-    });
-  } catch (error) {
-    // Silently fail - don't let notification errors break the main flow
-  }
+// ── ARRAY & TRANSLATION HELPERS ──
+function parseCsvArray(str: string | undefined | null): string[] {
+  if (!str || !str.trim()) return [];
+  return str.split(',').map(s => s.trim()).filter(s => s.length > 0);
 }
 
-// Authenticate request - supports both API key (for AppSheet/cron) and JWT (for UI)
-async function authenticateRequest(req: Request, supabase: any): Promise<{ success: boolean; error?: string; authType?: string; userId?: string }> {
-  // Check for API key authentication (from AppSheet webhooks or cron jobs)
-  // Support both x-webhook-api-key and x-api-key headers
-  const webhookApiKey = req.headers.get('x-webhook-api-key') || req.headers.get('x-api-key');
-  const expectedApiKey = Deno.env.get('WEBHOOK_API_KEY');
-  
-  if (webhookApiKey && expectedApiKey && webhookApiKey === expectedApiKey) {
-    console.log('Authenticated via API key (webhook/cron)');
-    return { success: true, authType: 'api_key' };
-  }
-  
-  // Check for JWT authentication (from UI)
-  const authHeader = req.headers.get('Authorization');
-  if (authHeader) {
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    
-    if (!userError && user) {
-      // Verify admin role for JWT auth
-      const { data: adminCheck } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', user.id)
-        .eq('role', 'admin')
-        .maybeSingle();
-      
-      if (adminCheck) {
-        console.log(`Authenticated via JWT (admin user: ${user.id})`);
-        return { success: true, authType: 'jwt', userId: user.id };
-      }
-    }
-  }
-  
-  return { success: false, error: 'Authentication required. Use API key or admin JWT.' };
+function mapNamesToIds(csvStr: string | null | undefined, map: Record<string, string>): string[] {
+  return parseCsvArray(csvStr).map(name => map[name] || name);
 }
 
-Deno.serve(async (req) => {
+serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-  const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const supabase = createClient(supabaseUrl, supabaseKey);
-  
-  // Create sync status record
-  const { data: syncRecord } = await supabase
-    .from('sync_status')
-    .insert({
-      sync_type: 'google_sheets_webhook',
-      status: 'running'
-    })
-    .select()
-    .single();
+  let syncRecord: any = null;
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    return new Response(
+      JSON.stringify({ error: 'Server configuration error' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  // Define notification helper inside serve to access supabase client
+  const sendErrorNotification = async (message: string, details: any, component: string) => {
+    try {
+      await supabase.from('error_logs').insert({
+        error_message: message,
+        error_details: details,
+        component: component,
+        severity: 'error'
+      });
+    } catch (e) {
+      console.error('Failed to log error:', e);
+    }
+  };
 
   try {
-    // Authenticate request (API key or JWT)
-    const authResult = await authenticateRequest(req, supabase);
-    
-    if (!authResult.success) {
-      await supabase.from('sync_status').update({
-        status: 'error',
-        completed_at: new Date().toISOString(),
-        error_message: authResult.error
-      }).eq('id', syncRecord?.id);
-      
+    // Basic API key authentication
+    const apiKey = req.headers.get('x-api-key') || req.headers.get('x-webhook-api-key');
+    const expectedApiKey = Deno.env.get('WEBHOOK_API_KEY');
+
+    if (!expectedApiKey || apiKey !== expectedApiKey) {
       return new Response(
-        JSON.stringify({ error: authResult.error }),
+        JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Rate limiting: Check for recent sync operations (1 minute minimum interval)
-    const { data: lastSync } = await supabase
+    console.log('Starting automated Google Sheets sync...');
+
+    // Log sync start
+    const { data: record, error: syncError } = await supabase
       .from('sync_status')
-      .select('started_at')
-      .eq('sync_type', 'google_sheets_webhook')
-      .eq('status', 'success')
-      .order('started_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .insert({
+        sync_type: 'google_sheets_webhook',
+        status: 'running',
+        started_at: new Date().toISOString()
+      })
+      .select()
+      .single();
 
-    if (lastSync) {
-      const timeSinceLastSync = Date.now() - new Date(lastSync.started_at).getTime();
-      const minInterval = 60000; // 1 minute
-      
-      if (timeSinceLastSync < minInterval) {
-        const remainingSeconds = Math.ceil((minInterval - timeSinceLastSync) / 1000);
-        const errorMsg = `Rate limit exceeded. Please wait ${remainingSeconds} seconds before syncing again.`;
-        await supabase.from('sync_status').update({
-          status: 'error',
-          completed_at: new Date().toISOString(),
-          error_message: errorMsg
-        }).eq('id', syncRecord?.id);
-        
-        return new Response(
-          JSON.stringify({ error: errorMsg }),
-          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
+    if (syncError) console.error('Failed to log sync start:', syncError);
+    syncRecord = record;
+
+    // Get configuration
+    const { data: setting } = await supabase
+      .from('global_settings')
+      .select('value')
+      .eq('key', 'google_spreadsheet_id')
+      .single();
+
+    const spreadsheetId = setting?.value || '1699-HaYP4W2rSJUscbXCvp7fVW0vR95NRpjl5QpBUeY';
+
+    // Get service account key
+    const googleKeySecret = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_KEY_V2');
+    if (!googleKeySecret) {
+      throw new Error('Google Sheets credentials not configured');
     }
 
-    console.log(`Sync initiated via ${authResult.authType}${authResult.userId ? ` by user: ${authResult.userId}` : ''}`);
+    const credentials = JSON.parse(googleKeySecret);
+    const accessToken = await getAccessToken(credentials);
 
-    const googleCredsJson = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_KEY');
-    if (!googleCredsJson) {
-      throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY not configured');
-    }
+    // ── PRE-FETCH NAME-TO-UUID DICTIONARIES ──
+    const { data: vList } = await supabase.from('vehicles').select('id, name, license_plate, registration');
+    const vNameMap: Record<string, string> = {};
+    vList?.forEach((v: any) => {
+      if (v.name) vNameMap[v.name.trim()] = v.id;
+      if (v.license_plate) vNameMap[v.license_plate.trim()] = v.id;
+      if (v.registration) vNameMap[v.registration.trim()] = v.id;
+    });
 
-    const googleCreds: GoogleSheetsCredentials = JSON.parse(googleCredsJson);
-    const accessToken = await getAccessToken(googleCreds);
+    const { data: eList } = await supabase.from('equipment').select('id, name, reference');
+    const eNameMap: Record<string, string> = {};
+    eList?.forEach((e: any) => {
+      if (e.name) eNameMap[e.name.trim()] = e.id;
+      if (e.reference) eNameMap[e.reference.trim()] = e.id;
+    });
 
-    // Get the spreadsheet ID from the request body or use hardcoded default
-    const body = await req.json().catch(() => ({}));
-    const spreadsheetId = body.spreadsheetId || '1hTdAy4pmhJQC6L7SJtRz_S2eQF_Lff4_7coUwouvDGI';
-    
-    // Sync Commandes
-    const commandesData = await fetchSheetData(spreadsheetId, 'Commandes', accessToken);
     let commandesCount = 0;
-    const commandesErrors: any[] = [];
-
-    if (commandesData.length > 0) {
-      const headers = commandesData[0];
-      const idIndex = headers.findIndex(h => h?.toLowerCase().includes('id'));
-      const numeroIndex = headers.findIndex(h => h?.toLowerCase().includes('numéro') || h?.toLowerCase().includes('numero'));
-      const clientIndex = headers.findIndex(h => h?.toLowerCase().includes('client'));
-      const chantierIndex = headers.findIndex(h => h?.toLowerCase().includes('chantier') || h?.toLowerCase().includes('adresse'));
-
-
-      if (clientIndex !== -1 && chantierIndex !== -1) {
-        for (let i = 1; i < commandesData.length; i++) {
-          const row = commandesData[i];
-          if (!row || row.length === 0) continue;
-
-          const externalId = idIndex >= 0 ? row[idIndex]?.toString().trim() : null;
-          const numero = numeroIndex >= 0 ? row[numeroIndex]?.toString().trim() || null : null;
-          const client = clientIndex >= 0 ? row[clientIndex]?.toString().trim() : null;
-          const chantier = chantierIndex >= 0 ? row[chantierIndex]?.toString().trim() : null;
-
-
-          if (!client || !chantier) {
-            commandesErrors.push({ row: i + 1, reason: 'Missing client or chantier', data: { client, chantier } });
-            continue;
-          }
-
-          const commande = {
-            external_id: externalId,
-            numero: numero,
-            client: client,
-            chantier: chantier
-          };
-
-          const { error } = await supabase
-            .from('commandes')
-            .upsert(commande, { 
-              onConflict: 'external_id',
-              ignoreDuplicates: false 
-            });
-          
-          if (error) {
-            commandesErrors.push({ row: i + 1, reason: error.message, data: commande });
-          } else {
-            commandesCount++;
-          }
-        }
-      }
-    }
-    
-    // Sync SAV
     let savCount = 0;
+    const commandesErrors: any[] = [];
     const savErrors: any[] = [];
-    
+
+    // Process Commandes
     try {
-      const savData = await fetchSheetData(spreadsheetId, 'SAV', accessToken);
-      
-      if (savData.length > 0) {
-        const headers = savData[0];
-        console.log('SAV sheet headers:', headers.join(', '));
-        
-        const idIndex = headers.findIndex(h => h?.toLowerCase().includes('id'));
-        const numeroIndex = headers.findIndex(h => h?.toLowerCase().includes('numéro') || h?.toLowerCase().includes('numero') || h?.toLowerCase() === 'n°');
-        const nomClientIndex = headers.findIndex(h => h?.toLowerCase().includes('nom') || h?.toLowerCase().includes('client'));
-        const adresseIndex = headers.findIndex(h => h?.toLowerCase().includes('adresse'));
-        const telephoneIndex = headers.findIndex(h => h?.toLowerCase().includes('téléphone') || h?.toLowerCase().includes('telephone') || h?.toLowerCase().includes('tel'));
-        const problemeIndex = headers.findIndex(h => h?.toLowerCase().includes('problème') || h?.toLowerCase().includes('probleme') || h?.toLowerCase().includes('description'));
-        const dateIndex = headers.findIndex(h => h?.toLowerCase().includes('date'));
-        const estResoluIndex = headers.findIndex(h => h?.toLowerCase().includes('résolu') || h?.toLowerCase().includes('resolu'));
+      const commandesResponse = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Commandes`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
 
-        console.log(`SAV column indices - ID: ${idIndex}, Numero: ${numeroIndex}, NomClient: ${nomClientIndex}, Adresse: ${adresseIndex}, Telephone: ${telephoneIndex}, Probleme: ${problemeIndex}, Date: ${dateIndex}, EstResolu: ${estResoluIndex}`);
+      if (commandesResponse.ok) {
+        const commandesData = (await commandesResponse.json()).values;
 
-        for (let i = 1; i < savData.length; i++) {
-          const row = savData[i];
-          if (!row || row.length === 0) continue;
+        if (commandesData && commandesData.length > 0) {
+          const headers = commandesData[0];
+          const idIndex = headers.findIndex((h: string) => h?.toLowerCase().includes('id'));
+          const numeroIndex = headers.findIndex((h: string) => h?.toLowerCase().includes('numéro') || h?.toLowerCase().includes('numero'));
+          const clientIndex = headers.findIndex((h: string) => h?.toLowerCase().includes('client'));
+          const chantierIndex = headers.findIndex((h: string) => h?.toLowerCase().includes('chantier') || h?.toLowerCase().includes('adresse'));
 
-          const externalId = idIndex >= 0 ? row[idIndex]?.toString().trim() : null;
-          const numeroStr = numeroIndex >= 0 ? row[numeroIndex]?.toString().trim() : null;
-          const numero = numeroStr ? parseInt(numeroStr) : null;
-          const nomClient = nomClientIndex >= 0 ? row[nomClientIndex]?.toString().trim() : null;
-          const adresse = adresseIndex >= 0 ? row[adresseIndex]?.toString().trim() : null;
-          const telephone = telephoneIndex >= 0 ? row[telephoneIndex]?.toString().trim() || null : null;
-          const probleme = problemeIndex >= 0 ? row[problemeIndex]?.toString().trim() : null;
-          const dateStr = dateIndex >= 0 ? row[dateIndex]?.toString().trim() : null;
-          const date = parseDate(dateStr || '');
-          const estResoluRaw = estResoluIndex >= 0 ? row[estResoluIndex]?.toString().trim().toLowerCase() : null;
-          const estResolu = estResoluRaw === 'true' || estResoluRaw === 'vrai' || estResoluRaw === '1' || estResoluRaw === 'oui';
+          // ── NEW COLUMNS ──
+          const displayIndex = headers.findIndex((h: string) => h?.toLowerCase().includes('nom court'));
+          const presenceIndex = headers.findIndex((h: string) => h?.toLowerCase().includes('présence') || h?.toLowerCase().includes('presence'));
+          const savTypeIndex = headers.findIndex((h: string) => h?.toLowerCase().includes('type sav'));
 
-          if (!nomClient || !adresse || !probleme || numero === null || isNaN(numero)) {
-            savErrors.push({ row: i + 1, reason: 'Missing required fields', data: { numero, nomClient, adresse, probleme } });
-            continue;
-          }
+          // ── ARRAY COLUMNS ──
+          const skillsIndex = headers.findIndex((h: string) => h?.toLowerCase().includes('compétences requises') || h?.toLowerCase().includes('competences requises'));
+          const vehiclesIndex = headers.findIndex((h: string) => h?.toLowerCase().includes('véhicules requis') || h?.toLowerCase().includes('vehicules requis'));
+          const equipmentIndex = headers.findIndex((h: string) => h?.toLowerCase().includes('matériel requis') || h?.toLowerCase().includes('materiel requis'));
 
-          const savRecord = {
-            external_id: externalId,
-            numero: numero,
-            nom_client: nomClient,
-            adresse: adresse,
-            telephone: telephone,
-            probleme: probleme,
-            date: date || new Date().toISOString().split('T')[0],
-            est_resolu: estResolu
-          };
+          if (clientIndex !== -1 && chantierIndex !== -1) {
+            for (let i = 1; i < commandesData.length; i++) {
+              const row = commandesData[i];
+              if (!row || row.length === 0) continue;
 
-          const { error } = await supabase
-            .from('sav')
-            .upsert(savRecord, { 
-              onConflict: 'external_id',
-              ignoreDuplicates: false 
-            });
-          
-          if (error) {
-            savErrors.push({ row: i + 1, reason: error.message, data: savRecord });
-          } else {
-            savCount++;
+              const externalId = idIndex >= 0 ? row[idIndex]?.toString().trim() : null;
+              const numero = numeroIndex >= 0 ? row[numeroIndex]?.toString().trim() || null : null;
+              const client = clientIndex >= 0 ? row[clientIndex]?.toString().trim() : null;
+              const chantier = chantierIndex >= 0 ? row[chantierIndex]?.toString().trim() : null;
+
+              if (!client || !chantier) {
+                commandesErrors.push({ row: i + 1, reason: 'Missing client or chantier', data: { client, chantier } });
+                continue;
+              }
+
+              // ── PARSE WITH TRANSLATION MAPS ──
+              const required_skills = parseCsvArray(skillsIndex >= 0 ? row[skillsIndex]?.toString() : null);
+              const required_vehicles = mapNamesToIds(vehiclesIndex >= 0 ? row[vehiclesIndex]?.toString() : null, vNameMap);
+              const required_equipment = mapNamesToIds(equipmentIndex >= 0 ? row[equipmentIndex]?.toString() : null, eNameMap);
+
+              const commande = {
+                external_id: externalId,
+                numero: numero,
+                client: client,
+                chantier: chantier,
+                display_name: displayIndex >= 0 ? row[displayIndex]?.toString().trim() || null : null,
+                client_presence: presenceIndex >= 0 ? row[presenceIndex]?.toString().trim() || null : null,
+                sav_type: savTypeIndex >= 0 ? row[savTypeIndex]?.toString().trim() || null : null,
+                required_skills,
+                required_vehicles,
+                required_equipment
+              };
+
+              const { error } = await supabase
+                .from('commandes')
+                .upsert(commande, {
+                  onConflict: externalId ? 'external_id' : 'id',
+                  ignoreDuplicates: false
+                });
+
+              if (error) {
+                commandesErrors.push({ row: i + 1, reason: error.message, data: commande });
+              } else {
+                commandesCount++;
+              }
+            }
           }
         }
       }
-    } catch (savError: any) {
-      console.error('Error syncing SAV:', savError.message);
-      savErrors.push({ error: savError.message });
+    } catch (e: any) {
+      console.error('Error processing Commandes:', e);
+      commandesErrors.push({ error: e.message });
     }
-    
+
+    // Process SAV (unchanged)
+    try {
+      const savResponse = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/SAV`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+
+      if (savResponse.ok) {
+        const savData = (await savResponse.json()).values;
+
+        if (savData && savData.length > 0) {
+          const headers = savData[0];
+          const idIndex = headers.findIndex((h: string) => h?.toLowerCase() === 'id' || h?.toLowerCase() === 'external_id');
+          const numeroIndex = headers.findIndex((h: string) => h?.toLowerCase() === 'numéro' || h?.toLowerCase() === 'numero');
+          const clientIndex = headers.findIndex((h: string) => h?.toLowerCase().includes('client'));
+          const adresseIndex = headers.findIndex((h: string) => h?.toLowerCase().includes('adresse'));
+          const telephoneIndex = headers.findIndex((h: string) => h?.toLowerCase().includes('téléphone') || h?.toLowerCase().includes('telephone'));
+          const problemeIndex = headers.findIndex((h: string) => h?.toLowerCase().includes('problème') || h?.toLowerCase().includes('probleme'));
+          const dateIndex = headers.findIndex((h: string) => h?.toLowerCase() === 'date');
+          const resoluIndex = headers.findIndex((h: string) => h?.toLowerCase().includes('résolu') || h?.toLowerCase().includes('resolu'));
+
+          if (idIndex !== -1 && clientIndex !== -1) {
+            for (let i = 1; i < savData.length; i++) {
+              const row = savData[i];
+              if (!row || row.length === 0) continue;
+
+              const externalId = row[idIndex]?.toString().trim();
+              if (!externalId) continue;
+
+              const savRecord = {
+                external_id: externalId,
+                numero: numeroIndex >= 0 ? parseInt(row[numeroIndex]?.toString() || '0') || null : null,
+                nom_client: clientIndex >= 0 ? row[clientIndex]?.toString().trim() : null,
+                adresse: adresseIndex >= 0 ? row[adresseIndex]?.toString().trim() : null,
+                telephone: telephoneIndex >= 0 ? row[telephoneIndex]?.toString().trim() : null,
+                probleme: problemeIndex >= 0 ? row[problemeIndex]?.toString().trim() : null,
+                date: dateIndex >= 0 ? parseDate(row[dateIndex]?.toString().trim()) : null,
+                est_resolu: resoluIndex >= 0 ? row[resoluIndex]?.toString().trim().toUpperCase() === 'TRUE' || row[resoluIndex]?.toString().trim().toUpperCase() === 'VRAI' : false
+              };
+
+              const { error } = await supabase
+                .from('sav')
+                .upsert(savRecord, {
+                  onConflict: 'external_id',
+                  ignoreDuplicates: false
+                });
+
+              if (error) {
+                savErrors.push({ row: i + 1, reason: error.message, data: savRecord });
+              } else {
+                savCount++;
+              }
+            }
+          }
+        }
+      }
+    } catch (e: any) {
+      console.error('Error processing SAV:', e);
+      savErrors.push({ error: e.message });
+    }
+
     const totalSynced = commandesCount + savCount;
     const totalErrors = commandesErrors.length + savErrors.length;
-    
-    // Update sync status with success
-    await supabase.from('sync_status').update({
-      status: 'success',
-      completed_at: new Date().toISOString(),
-      records_synced: totalSynced,
-      error_details: totalErrors > 0 ? { commandesErrors, savErrors } : null
-    }).eq('id', syncRecord?.id);
 
-    // If there were errors syncing some rows, send a notification
+    // Update sync status
+    if (syncRecord) {
+      await supabase.from('sync_status').update({
+        status: totalErrors > 0 ? 'completed_with_errors' : 'success',
+        completed_at: new Date().toISOString(),
+        records_synced: totalSynced,
+        error_details: totalErrors > 0 ? { commandesErrors, savErrors } : null
+      }).eq('id', syncRecord.id);
+    }
+
+    // Send a notification
     if (totalErrors > 0) {
       await sendErrorNotification(
         `Synced ${totalSynced} records but encountered ${totalErrors} errors`,
@@ -398,8 +369,8 @@ Deno.serve(async (req) => {
     console.log(`Sync completed: ${commandesCount} commandes, ${savCount} SAV records`);
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         message: 'Synchronisation automatique réussie',
         counts: {
           commandes: commandesCount,
@@ -407,15 +378,15 @@ Deno.serve(async (req) => {
         },
         warnings: totalErrors > 0 ? `${totalErrors} rows skipped due to errors` : null
       }),
-      { 
-        status: 200, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
 
   } catch (error: any) {
     console.error('Sync error:', error.message);
-    
+
     // Update sync status with error
     await supabase.from('sync_status').update({
       status: 'error',
@@ -423,19 +394,19 @@ Deno.serve(async (req) => {
       error_message: error.message,
       error_details: { stack: error.stack }
     }).eq('id', syncRecord?.id);
-    
+
     // Send error notification
     await sendErrorNotification(
       error.message,
       { stack: error.stack },
       'Google Sheets Webhook'
     );
-    
+
     return new Response(
       JSON.stringify({ error: 'Une erreur est survenue lors de la synchronisation' }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
   }
