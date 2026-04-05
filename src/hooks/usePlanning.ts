@@ -206,7 +206,8 @@ export const useUpdateCommande = () => {
       chantier,
       displayName,
       clientPresence,
-      savType
+      savType,
+      required_skills // <--- Added to the list!
     }: {
       id: string;
       client?: string;
@@ -214,6 +215,7 @@ export const useUpdateCommande = () => {
       displayName?: string;
       clientPresence?: string | null;
       savType?: string | null;
+      required_skills?: string[]; // <--- Added type definition!
     }) => {
       const updates: any = {};
       if (client !== undefined) updates.client = client;
@@ -221,6 +223,7 @@ export const useUpdateCommande = () => {
       if (displayName !== undefined) updates.display_name = displayName;
       if (clientPresence !== undefined) updates.client_presence = clientPresence;
       if (savType !== undefined) updates.sav_type = savType;
+      if (required_skills !== undefined) updates.required_skills = required_skills; // <--- Pass to DB!
 
       const { data, error } = await supabase
         .from('commandes')
@@ -240,10 +243,25 @@ export const useUpdateCommande = () => {
 export const useCreateCommande = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ client, chantier, displayName }: { client: string; chantier: string; displayName?: string }) => {
+    mutationFn: async ({
+      client,
+      chantier,
+      displayName,
+      required_skills // <--- Added to the list!
+    }: {
+      client: string;
+      chantier: string;
+      displayName?: string;
+      required_skills?: string[]; // <--- Added type definition!
+    }) => {
       const { data, error } = await supabase
         .from('commandes')
-        .insert({ client, chantier, display_name: displayName })
+        .insert({
+          client,
+          chantier,
+          display_name: displayName,
+          required_skills: required_skills || [] // <--- Pass to DB!
+        })
         .select()
         .single();
       if (error) throw error;
@@ -254,7 +272,6 @@ export const useCreateCommande = () => {
     },
   });
 };
-
 export const useDeleteCommande = () => {
   const queryClient = useQueryClient();
   return useMutation({

@@ -101,7 +101,6 @@ export const TeamManagementDialog = ({
     members: activeTechs.filter((t) => t.team_id === team.id).sort((a, b) => a.position - b.position),
   }));
 
-  // Sort unassigned technicians alphabetically (A to Z). 
   const unassignedTechs = activeTechs
     .filter((t) => !t.team_id)
     .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
@@ -184,10 +183,6 @@ export const TeamManagementDialog = ({
       {editingId === tech.id ? (
         /* ── Edit mode ── */
         <div className="p-3 space-y-3 w-full">
-          <p className="text-[10px] text-muted-foreground font-mono px-1">
-            ID: {tech.short_id != null ? `#${tech.short_id}` : tech.id.substring(0, 8)}
-          </p>
-
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
               <Label className="text-xs">Prénom</Label>
@@ -291,9 +286,6 @@ export const TeamManagementDialog = ({
             )}
             {tech.is_temp && (
               <span className="text-[9px] font-bold shrink-0 bg-amber-100 text-amber-700 px-1 py-0.5 rounded uppercase">INT</span>
-            )}
-            {tech.short_id != null && (
-              <span className="text-[9px] font-mono shrink-0 text-muted-foreground">#{tech.short_id}</span>
             )}
           </div>
           <div className="flex items-center gap-1 flex-wrap">

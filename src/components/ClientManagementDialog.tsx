@@ -1,11 +1,85 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { Plus, Trash2, MapPin, Building2, Save } from 'lucide-react';
+import { Plus, Trash2, MapPin, Building2, Save, ListChecks } from 'lucide-react';
 import { useCommandes, useCreateCommande, useUpdateCommande, useDeleteCommande } from '@/hooks/usePlanning';
 import { toast } from 'sonner';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+
+// ── NEW SUB-COMPONENT: Optimistic UI & Scroll-Hijack Fix ──
+const SiteSkillsPopover = ({ site, categories, skillDefinitions, onUpdateSkills }: any) => {
+    const initialSkills = Array.isArray(site.required_skills) ? site.required_skills : [];
+    const [localSkills, setLocalSkills] = useState<string[]>(initialSkills);
+
+    useEffect(() => {
+        setLocalSkills(Array.isArray(site.required_skills) ? site.required_skills : []);
+    }, [site.required_skills]);
+
+    const handleToggle = (skillKey: string, checked: boolean) => {
+        const newSkills = checked
+            ? [...localSkills, skillKey]
+            : localSkills.filter(s => s !== skillKey);
+        setLocalSkills(newSkills);
+        onUpdateSkills(site.id, newSkills);
+    };
+
+    return (
+        <Popover modal={true}>
+            {/* modal={true} force l'isolation de cet élément par rapport au Dialog parent */}
+            <PopoverTrigger asChild>
+                <Button
+                    variant={localSkills.length > 0 ? "secondary" : "outline"}
+                    size="sm"
+                    className={`shrink-0 h-9 transition-colors ${localSkills.length > 0 ? "bg-amber-100 text-amber-800 hover:bg-amber-200" : ""}`}
+                >
+                    <ListChecks className="h-4 w-4 mr-2" />
+                    {localSkills.length > 0 ? `${localSkills.length} Requise(s)` : 'Compétences'}
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80 p-0 shadow-xl" align="end" side="bottom" avoidCollisions={true}>
+                <div className="bg-muted/30 p-3 border-b">
+                    <h4 className="font-semibold text-sm">Compétences requises</h4>
+                    <p className="text-xs text-muted-foreground mt-0.5">Cochez les qualifications obligatoires pour ce chantier.</p>
+                </div>
+
+                {/* LE CORRECTIF : 
+                    1. max-h-80 est une classe native Tailwind (320px) qui ne peut pas être ignorée par le compilateur.
+                    2. onWheel / onTouchMove empêchent le Dialog parent de voler les événements de défilement.
+                */}
+                <div
+                    className="p-4 space-y-4 max-h-80 overflow-y-auto overscroll-contain"
+                    onWheel={(e) => e.stopPropagation()}
+                    onTouchMove={(e) => e.stopPropagation()}
+                >
+                    {categories.map((cat: string) => (
+                        <div key={cat} className="space-y-2">
+                            <h5 className="text-xs font-bold text-primary uppercase bg-primary/5 px-2 py-1 rounded">{cat}</h5>
+                            {skillDefinitions.filter((s: any) => s.category === cat).map((skill: any) => {
+                                const skillKey = `${cat} - ${skill.name}`;
+                                const isSelected = localSkills.includes(skillKey);
+                                return (
+                                    <label key={skill.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-accent p-1.5 rounded-md transition-colors ml-1">
+                                        <input
+                                            type="checkbox"
+                                            className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4 shrink-0"
+                                            checked={isSelected}
+                                            onChange={(e) => handleToggle(skillKey, e.target.checked)}
+                                        />
+                                        <span className="leading-tight">{skill.name}</span>
+                                    </label>
+                                );
+                            })}
+                        </div>
+                    ))}
+                </div>
+            </PopoverContent>
+        </Popover>
+    );
+};
 
 interface ClientManagementDialogProps {
     open: boolean;
@@ -27,11 +101,21 @@ export const ClientManagementDialog = ({ open, onOpenChange }: ClientManagementD
     const [isAddingSite, setIsAddingSite] = useState(false);
     const [newSiteAddress, setNewSiteAddress] = useState('');
 
-    // Group all work sites by Client Name safely
+    const { data: skillDefinitions = [] } = useQuery({
+        queryKey: ['skill_definitions'],
+        queryFn: async () => {
+            const { data, error } = await supabase.from('skill_definitions').select('*').order('category').order('name');
+            if (error) throw error;
+            return data;
+        },
+        enabled: open,
+    });
+
+    const categories = Array.from(new Set(skillDefinitions.map(s => s.category)));
+
     const groupedClients = useMemo(() => {
         const groups: Record<string, any[]> = {};
         commandes.forEach(c => {
-            // Ignore empty/null clients
             if (!c.client) return;
             if (!groups[c.client]) groups[c.client] = [];
             groups[c.client].push(c);
@@ -40,8 +124,6 @@ export const ClientManagementDialog = ({ open, onOpenChange }: ClientManagementD
     }, [commandes]);
 
     const clientNames = Object.keys(groupedClients).sort();
-
-    // THE FIX: Add '|| []' so that if the client isn't loaded yet, it defaults to an empty array instead of undefined!
     const selectedClientSites = selectedClientName ? (groupedClients[selectedClientName] || []) : [];
 
     const handleCreateNewClient = (e?: React.MouseEvent | React.KeyboardEvent) => {
@@ -54,7 +136,8 @@ export const ClientManagementDialog = ({ open, onOpenChange }: ClientManagementD
 
         createCommande.mutate({
             client: newClientName.trim(),
-            chantier: newClientSite.trim()
+            chantier: newClientSite.trim(),
+            required_skills: []
         }, {
             onSuccess: () => {
                 toast.success("Nouveau client et chantier créés !");
@@ -78,7 +161,8 @@ export const ClientManagementDialog = ({ open, onOpenChange }: ClientManagementD
 
         createCommande.mutate({
             client: selectedClientName,
-            chantier: newSiteAddress.trim()
+            chantier: newSiteAddress.trim(),
+            required_skills: []
         }, {
             onSuccess: () => {
                 toast.success("Nouveau chantier ajouté au client !");
@@ -106,6 +190,12 @@ export const ClientManagementDialog = ({ open, onOpenChange }: ClientManagementD
     const handleUpdateSite = (id: string, newAddress: string) => {
         updateCommande.mutate({ id, chantier: newAddress }, {
             onSuccess: () => toast.success("Adresse mise à jour !"),
+            onError: (err) => toast.error(`Erreur: ${err.message}`)
+        });
+    };
+
+    const handleUpdateSiteSkills = (id: string, newSkills: string[]) => {
+        updateCommande.mutate({ id, required_skills: newSkills }, {
             onError: (err) => toast.error(`Erreur: ${err.message}`)
         });
     };
@@ -157,7 +247,6 @@ export const ClientManagementDialog = ({ open, onOpenChange }: ClientManagementD
                                 >
                                     {clientName}
                                     <span className="block text-xs opacity-70 mt-0.5 font-normal">
-                                        {/* Safe fallback here too */}
                                         {(groupedClients[clientName] || []).length} chantier(s)
                                     </span>
                                 </button>
@@ -213,7 +302,7 @@ export const ClientManagementDialog = ({ open, onOpenChange }: ClientManagementD
                                 <div className="p-6 border-b flex justify-between items-center bg-muted/5 shrink-0">
                                     <div>
                                         <h3 className="text-2xl font-bold text-primary">{selectedClientName}</h3>
-                                        <p className="text-sm text-muted-foreground mt-1">Gérez les adresses d'intervention de ce client.</p>
+                                        <p className="text-sm text-muted-foreground mt-1">Gérez les adresses et les compétences requises.</p>
                                     </div>
                                     <Button
                                         type="button"
@@ -261,8 +350,8 @@ export const ClientManagementDialog = ({ open, onOpenChange }: ClientManagementD
                                     {/* List of Sites */}
                                     <div className="space-y-3">
                                         {selectedClientSites.map(site => (
-                                            <div key={site.id} className="group flex items-center gap-3 p-3 bg-card border rounded-lg hover:border-primary/50 transition-colors shadow-sm">
-                                                <MapPin className="h-5 w-5 text-muted-foreground shrink-0" />
+                                            <div key={site.id} className="group flex items-center gap-2 p-2 bg-card border rounded-lg hover:border-primary/50 transition-colors shadow-sm">
+                                                <MapPin className="h-5 w-5 text-muted-foreground shrink-0 ml-1" />
                                                 <Input
                                                     defaultValue={site.chantier}
                                                     onBlur={(e) => {
@@ -279,11 +368,19 @@ export const ClientManagementDialog = ({ open, onOpenChange }: ClientManagementD
                                                     }}
                                                     className="flex-1 border-transparent hover:border-input focus:border-input bg-transparent"
                                                 />
+
+                                                <SiteSkillsPopover
+                                                    site={site}
+                                                    categories={categories}
+                                                    skillDefinitions={skillDefinitions}
+                                                    onUpdateSkills={handleUpdateSiteSkills}
+                                                />
+
                                                 <Button
                                                     type="button"
                                                     variant="ghost"
                                                     size="icon"
-                                                    className="opacity-0 group-hover:opacity-100 text-destructive hover:bg-destructive/10 transition-opacity shrink-0"
+                                                    className="opacity-0 group-hover:opacity-100 text-destructive hover:bg-destructive/10 transition-opacity shrink-0 h-9 w-9"
                                                     onClick={(e) => {
                                                         e.preventDefault();
                                                         e.stopPropagation();

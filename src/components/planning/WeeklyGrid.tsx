@@ -6,6 +6,7 @@ import { AssignmentCell } from '@/components/AssignmentCell';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { TriangleAlert } from 'lucide-react';
 
 export interface WeeklyGridProps {
   dailyTeamRosters: any[];
@@ -70,7 +71,6 @@ const getPastelColor = (hex: string | undefined) => {
   return `rgba(${r}, ${g}, ${b}, 0.15)`;
 };
 
-// THIS IS THE CRUCIAL LINE: export const WeeklyGrid
 export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
   dailyTeamRosters,
   onManageDailyTeam,
@@ -191,6 +191,48 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                     (n.end_date || n.start_date) >= day.fullDate
                   );
 
+                  // ── Calculate Skills Required for the ENTIRE cell (for the header tags) ──
+                  const cellRequiredSkills = new Set<string>();
+                  cellAssignments.forEach(a => {
+                    // FIXED: Use commandeId to match frontend formatting
+                    const commandeId = a.commandeId || a.commande_id;
+                    const commande = commandes.find(c => c.id === commandeId);
+                    if (commande?.required_skills) {
+                      commande.required_skills.forEach((s: string) => cellRequiredSkills.add(s));
+                    }
+                  });
+                  const requiredSkillsArray = Array.from(cellRequiredSkills);
+
+                  // ── Calculate SPECIFIC warnings for EACH assignment block ──
+                  const assignmentWarnings: Record<string, string[]> = {};
+                  cellAssignments.forEach(a => {
+                    // FIXED: Use commandeId to match frontend formatting
+                    const commandeId = a.commandeId || a.commande_id;
+                    const commande = commandes.find(c => c.id === commandeId);
+
+                    if (commande?.required_skills?.length > 0) {
+                      const missingForThisAssignment = new Set<string>();
+                      dayRosters.forEach(roster => {
+                        const tech = activeTechnicians.find(t => t.id === roster.technician?.id);
+                        const isAbsent = absences?.some(abs => abs.technician_id === tech?.id && abs.start_date <= day.fullDate && abs.end_date >= day.fullDate);
+
+                        if (!isAbsent && tech) {
+                          commande.required_skills.forEach((reqSkill: string) => {
+                            if (tech.detailed_skills?.[reqSkill] !== 'Oui') {
+                              // Clean up the string so it's easy to read (e.g. "Arben : Grue")
+                              const shortSkill = reqSkill.includes('-') ? reqSkill.split('-')[1].trim() : reqSkill;
+                              missingForThisAssignment.add(`${tech.name} : ${shortSkill}`);
+                            }
+                          });
+                        }
+                      });
+
+                      if (missingForThisAssignment.size > 0) {
+                        assignmentWarnings[a.id] = Array.from(missingForThisAssignment);
+                      }
+                    }
+                  });
+
                   return (
                     <div
                       key={day.fullDate}
@@ -231,25 +273,44 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                                 a.end_date >= day.fullDate
                               );
 
+                              const tech = activeTechnicians.find(t => t.id === roster.technician?.id);
+                              const missingSkillsForTech = requiredSkillsArray.filter(reqSkill => tech?.detailed_skills?.[reqSkill] !== 'Oui');
+
                               return (
                                 <Tooltip key={roster.id}>
                                   <TooltipTrigger asChild>
                                     <span className={`
-                                      text-[10px] rounded px-1.5 py-0.5 font-medium truncate max-w-[90px] cursor-help shadow-sm 
+                                      flex items-center gap-1 text-[10px] rounded px-1.5 py-0.5 font-medium max-w-[100px] cursor-help shadow-sm 
                                       ${isAbsent
                                         ? 'bg-red-600 text-white line-through decoration-black/50 decoration-2'
                                         : roster.is_team_leader
                                           ? 'bg-primary text-primary-foreground'
                                           : 'bg-black/30 text-black'}
                                     `}>
-                                      {roster.is_team_leader && !isAbsent ? '⭐ ' : ''}
-                                      {roster.technician?.name}
+                                      {roster.is_team_leader && !isAbsent ? '⭐' : ''}
+                                      <span className="truncate">{roster.technician?.name}</span>
+
+                                      {/* THE WARNING ICON IN HEADER */}
+                                      {missingSkillsForTech.length > 0 && !isAbsent && (
+                                        <TriangleAlert className={`w-3 h-3 shrink-0 ${roster.is_team_leader ? 'text-amber-200' : 'text-amber-500'}`} />
+                                      )}
                                     </span>
                                   </TooltipTrigger>
-                                  <TooltipContent className="text-xs">
+                                  <TooltipContent className="text-xs border-amber-200">
                                     <p className="font-semibold">{roster.technician?.name}</p>
                                     {isAbsent && <p className="text-red-500 font-bold mt-1">ABSENT</p>}
                                     {roster.is_team_leader && !isAbsent && <p className="text-primary mt-1">Chef d'équipe</p>}
+
+                                    {missingSkillsForTech.length > 0 && !isAbsent && (
+                                      <div className="mt-2 pt-2 border-t border-border/50">
+                                        <p className="text-amber-500 font-bold mb-1 flex items-center gap-1">
+                                          <TriangleAlert className="w-3 h-3" /> Compétences manquantes:
+                                        </p>
+                                        <ul className="list-disc pl-4 text-muted-foreground space-y-0.5">
+                                          {missingSkillsForTech.map(s => <li key={s}>{s}</li>)}
+                                        </ul>
+                                      </div>
+                                    )}
                                   </TooltipContent>
                                 </Tooltip>
                               );
@@ -291,6 +352,7 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                           technicians={activeTechnicians.map(t => ({ id: t.id, name: t.name }))}
                           highlightedGroupId={highlightedGroupId}
                           onHighlightGroup={setHighlightedGroupId}
+                          assignmentWarnings={assignmentWarnings} // ── WARNINGS PROP PASSED HERE ──
                         />
                       </div>
                     </div>

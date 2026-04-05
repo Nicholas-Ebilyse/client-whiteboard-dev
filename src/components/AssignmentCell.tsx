@@ -1,6 +1,6 @@
 import { Assignment } from '@/types/planning';
 import { cn } from '@/lib/utils';
-import { StickyNote, CalendarPlus, Link2, MapPin, GripVertical, Lock, Check, Receipt, ArrowDown, ArrowUp, ChevronsDown, ChevronsUp, Car, Wrench } from 'lucide-react';
+import { StickyNote, CalendarPlus, Link2, MapPin, GripVertical, Lock, Check, Receipt, ArrowDown, ArrowUp, ChevronsDown, ChevronsUp, Car, Wrench, TriangleAlert } from 'lucide-react';
 import { AssignmentContextMenu } from './AssignmentContextMenu';
 import { NoteContextMenu } from './NoteContextMenu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
@@ -83,6 +83,8 @@ interface AssignmentCellProps {
   highlightedGroupId?: string | null;
   onHighlightGroup?: (groupId: string | null) => void;
   absentTechNames?: string[];
+
+  assignmentWarnings?: Record<string, string[]>;
 }
 
 const formatAddressForDisplay = (address: string): string => {
@@ -103,7 +105,6 @@ const getWeatherEmoji = (condition?: string) => {
 const getAssignmentDisplayName = (assignment: Assignment, commandes: Commande[]): string => {
   const commande = commandes.find(c => c.id === assignment.commandeId);
   if (!commande) return "Nouvelle affectation";
-  // Use the normalized display_name from the commande, or generate one if missing
   return commande.display_name || `${commande.client} - ${commande.chantier || ''}`;
 };
 
@@ -151,6 +152,7 @@ export const AssignmentCell = ({
   highlightedGroupId,
   onHighlightGroup,
   absentTechNames = [],
+  assignmentWarnings = {},
 }: AssignmentCellProps) => {
   const hasContent = assignments.length > 0 || notes.length > 0;
   const limitedNotes = notes.slice(0, 3);
@@ -295,7 +297,10 @@ export const AssignmentCell = ({
                       }
                     }}
                     onDragEnd={onNoteDragEnd}
-                    className={cn(canDragNote && "cursor-grab active:cursor-grabbing")}
+                    className={cn(
+                      canDragNote && "cursor-grab active:cursor-grabbing",
+                      "relative hover:z-50" // Elevate note on hover
+                    )}
                   >
                     <div
                       onClick={(e) => {
@@ -309,9 +314,7 @@ export const AssignmentCell = ({
                     >
                       <GripVertical className={cn("h-3 w-3 flex-shrink-0 mt-0.5 opacity-30", canDragNote && "group-hover:opacity-60")} />
 
-                      {/* Flex container to wrap the badges smoothly */}
                       <div className="flex flex-wrap items-center flex-1 gap-1.5 leading-tight">
-                        {/* Display StickyNote only if there is text, or if no other icon exists */}
                         {(note.text || (!note.weather_condition && !note.vehicle_ids?.length && !note.equipment_ids?.length)) && (
                           <StickyNote className="h-3 w-3 flex-shrink-0 inline-block align-middle" />
                         )}
@@ -350,7 +353,7 @@ export const AssignmentCell = ({
 
         {/* Assignments section */}
         {limitedAssignments.length > 0 && (
-          <div className="flex-1 flex flex-col justify-stretch gap-0.5">
+          <div className="flex-1 flex flex-col justify-stretch gap-0.5 mt-0.5">
             {isAdmin && maxAssignmentsPerPeriod > 0 && limitedAssignments.length > 1 && (
               <div className="flex justify-end mb-0.5">
                 <span
@@ -377,6 +380,9 @@ export const AssignmentCell = ({
               const canMoveDown = index < limitedAssignments.length - 1;
               const linkedTechName = getLinkedTechnicianName(assignment);
               const isHighlighted = highlightedGroupId && assignment.assignment_group_id === highlightedGroupId;
+
+              const warnings = assignmentWarnings?.[assignment.id];
+              const hasWarnings = warnings && warnings.length > 0;
 
               const handleCopyToClipboard = (a: Assignment) => {
                 const displayName = getAssignmentDisplayName(a, commandes);
@@ -409,7 +415,7 @@ export const AssignmentCell = ({
                 >
                   <div
                     className={cn(
-                      "relative group/assignment transition-all",
+                      "relative group/assignment transition-all hover:z-50", // THE FIX: Elevate the entire assignment context on hover
                       isDragged && "opacity-40 ring-2 ring-dashed ring-primary",
                       isHighlighted && "ring-2 ring-primary ring-offset-1 shadow-lg scale-[1.02]"
                     )}
@@ -452,6 +458,7 @@ export const AssignmentCell = ({
                           />
                         </span>
                       )}
+
                       {linkedTechName && (
                         <TooltipProvider delayDuration={300}>
                           <Tooltip>
@@ -461,7 +468,7 @@ export const AssignmentCell = ({
                                 <span className="text-[9px] font-semibold max-w-[50px] truncate">{linkedTechName}</span>
                               </span>
                             </TooltipTrigger>
-                            <TooltipContent side="top" className="text-xs">
+                            <TooltipContent side="top" className="text-xs z-[100]">
                               Lié avec : {linkedTechName}
                             </TooltipContent>
                           </Tooltip>
@@ -484,7 +491,7 @@ export const AssignmentCell = ({
                                 )}
                               </span>
                             </TooltipTrigger>
-                            <TooltipContent side="top" className="text-xs">
+                            <TooltipContent side="top" className="text-xs z-[100]">
                               {assignment.isConfirmed
                                 ? (commande?.client_presence === 'P+RDV' ? "Présent + RDV" : "Prévenu")
                                 : "Verrouillé"}
@@ -492,17 +499,42 @@ export const AssignmentCell = ({
                           </Tooltip>
                         </TooltipProvider>
                       )}
-                      <div className="flex flex-col text-left justify-center flex-1 py-1">
+
+                      <div className="flex flex-col text-left justify-center flex-1 py-1 px-1">
                         {absentTechNames.length > 0 && (
-                          <span className="text-red-600 font-bold text-[10px] leading-tight mb-0.5 bg-white/70 px-1 rounded w-fit">
+                          <span className="text-red-600 font-bold text-[10px] leading-tight mb-0.5 bg-white/70 px-1 rounded w-fit ml-2">
                             Absence {absentTechNames.join(', ')}
                           </span>
                         )}
-                        <span className="whitespace-pre-wrap break-words leading-tight">
-                          {getAssignmentDisplayName(assignment, commandes)}
-                        </span>
+
+                        <div className="flex items-start gap-1.5 px-2">
+                          {hasWarnings && (
+                            <TooltipProvider delayDuration={100}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="shrink-0 mt-0.5 cursor-help transition-transform hover:scale-110" onClick={e => e.stopPropagation()}>
+                                    <TriangleAlert className="h-4 w-4 text-amber-500 fill-amber-100 drop-shadow-sm" />
+                                  </div>
+                                </TooltipTrigger>
+                                {/* Added z-[100] to ensure it always overrides grid elements */}
+                                <TooltipContent side="top" className="bg-amber-50 border-amber-200 text-amber-900 shadow-md z-[100]">
+                                  <p className="font-bold text-xs mb-1 flex items-center gap-1">
+                                    <TriangleAlert className="w-3 h-3" /> Compétences manquantes :
+                                  </p>
+                                  <ul className="text-xs list-disc pl-4 space-y-0.5">
+                                    {warnings.map((w, i) => <li key={i}>{w}</li>)}
+                                  </ul>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                          <span className="whitespace-pre-wrap break-words leading-tight">
+                            {getAssignmentDisplayName(assignment, commandes)}
+                          </span>
+                        </div>
+
                         {assignment.comment && (
-                          <span className="text-[10px] italic opacity-80 mt-0.5 leading-tight whitespace-pre-wrap break-words">
+                          <span className="text-[10px] italic opacity-80 mt-0.5 leading-tight whitespace-pre-wrap break-words px-2">
                             {assignment.comment}
                           </span>
                         )}
@@ -510,7 +542,7 @@ export const AssignmentCell = ({
                     </button>
                     {hasAddress && (
                       <a
-                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(hasAddress)}`}
+                        href={`http://googleusercontent.com/maps.google.com/?q=${encodeURIComponent(hasAddress)}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
