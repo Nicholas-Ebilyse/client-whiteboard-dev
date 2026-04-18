@@ -70,6 +70,9 @@ import { FleetManagementDialog } from '@/components/FleetManagementDialog';
 import { Car } from 'lucide-react';
 
 const Index = () => {
+
+  console.log("🚨 HELLO! I AM THE CORRECT CODEBASE!");
+
   const navigate = useNavigate();
   const { user: authUser, session: authSession, isAdmin } = useAuth();
   const [user, setUser] = useState<User | null>(null);
