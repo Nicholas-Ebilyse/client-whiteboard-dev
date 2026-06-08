@@ -329,11 +329,13 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                         {dayRosters.length > 0 ? (
                           <TooltipProvider delayDuration={300}>
                             {dayRosters.map(roster => {
-                              const isAbsent = absences?.some(a =>
+                              const matchingAbsence = absences?.find(a =>
                                 a.technician_id === roster.technician?.id &&
                                 a.start_date <= day.fullDate &&
                                 a.end_date >= day.fullDate
                               );
+                              const isAbsent = !!matchingAbsence;
+                              const absenceMotive = matchingAbsence?.absence_motives?.name;
 
                               const tech = activeTechnicians.find(t => t.id === roster.technician?.id);
                               const missingSkillsForTech = requiredSkillsArray.filter(reqSkill => tech?.detailed_skills?.[reqSkill] !== 'Oui');
@@ -359,7 +361,11 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                                   </TooltipTrigger>
                                   <TooltipContent className="text-xs border-amber-200">
                                     <p className="font-semibold">{roster.technician?.name}</p>
-                                    {isAbsent && <p className="text-red-500 font-bold mt-1">ABSENT</p>}
+                                    {isAbsent && (
+                                      <p className="text-red-500 font-bold mt-1">
+                                        ABSENT{absenceMotive ? ` : ${absenceMotive}` : ''}
+                                      </p>
+                                    )}
                                     {roster.is_team_leader && !isAbsent && <p className="text-primary mt-1">Chef d'équipe</p>}
 
                                     {missingSkillsForTech.length > 0 && !isAbsent && (
