@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar, Trash2, Plus, ChevronDown, ChevronUp, Pencil, Check, X } from 'lucide-react';
+import { Calendar, Trash2, Plus, ChevronDown, ChevronUp, Pencil, Check, X, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -53,6 +53,52 @@ export const AbsenceManagementDialog: React.FC<AbsenceManagementDialogProps> = (
   const [editingMotiveName, setEditingMotiveName] = useState('');
 
   const activeTechnicians = technicians.filter(t => !t.is_archived);
+
+  // ── EXPORT TO CSV FUNCTION FOR EXCEL ──
+  const handleExportCSV = () => {
+    if (!absences || absences.length === 0) {
+      toast.error("Aucune absence à exporter.");
+      return;
+    }
+
+    // 1. Define the CSV headers
+    const headers = ["Nom du Technicien", "Date Début", "Date Fin", "Motif", "Commentaire"];
+
+    // 2. Map the rows, safely resolving technician names and motive names
+    const csvRows = absences.map(abs => {
+      const tech = technicians.find(t => t.id === abs.technician_id);
+      const techName = tech ? tech.name : "Inconnu";
+      const motiveName = (abs as any).absence_motives?.name || "Non spécifié";
+      const comment = abs.commentaire || "";
+
+      // Escape quotes and wrap values in quotes to handle potential commas in comments
+      return [
+        `"${techName.replace(/"/g, '""')}"`,
+        `"${abs.start_date}"`,
+        `"${abs.end_date}"`,
+        `"${motiveName.replace(/"/g, '""')}"`,
+        `"${comment.replace(/"/g, '""')}"`
+      ].join(",");
+    });
+
+    // 3. Combine headers and rows with a newline delimiter
+    const csvContent = [headers.join(","), ...csvRows].join("\n");
+
+    // 4. Prepend UTF-8 BOM (\uFEFF) so Excel opens accents correctly
+    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    
+    // 5. Create a hidden link and trigger the download automatic trigger
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `export_absences_${format(new Date(), 'yyyy-MM-dd')}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast.success("Export CSV réussi !");
+  };
 
   // Initialize defaults every time the dialog opens
   useEffect(() => {
@@ -320,9 +366,22 @@ export const AbsenceManagementDialog: React.FC<AbsenceManagementDialogProps> = (
 
         {/* ── Existing absences list ── */}
         <div className="space-y-3 mt-2">
-          <h3 className="font-semibold text-sm">
-            Absences enregistrées {selectedTechName ? `(${selectedTechName})` : ''}
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-sm">
+              Absences enregistrées {selectedTechName ? `(${selectedTechName})` : ''}
+            </h3>
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              onClick={handleExportCSV}
+              className="h-8 text-xs flex items-center gap-1.5"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Exporter en CSV
+            </Button>
+          </div>
+          
           {displayedAbsences.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">Aucune absence enregistrée pour cette sélection.</p>
           ) : (
