@@ -68,11 +68,13 @@ import { useDragAndDropNote } from '@/hooks/useDragAndDropNote';
 import { useMaxAssignmentsPerPeriod } from '@/hooks/useAppSettings';
 import { FleetManagementDialog } from '@/components/FleetManagementDialog';
 import { Car } from 'lucide-react';
+import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 
 const Index = () => {
 
   console.log("🚨 HELLO! I AM THE CORRECT CODEBASE!");
-
+// Activate background realtime synchronization
+  useRealtimeSync();
   const navigate = useNavigate();
   const { user: authUser, session: authSession, isAdmin } = useAuth();
   const [user, setUser] = useState<User | null>(null);
