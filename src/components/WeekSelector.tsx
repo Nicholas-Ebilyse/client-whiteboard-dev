@@ -44,6 +44,14 @@ export const WeekSelector = ({
     setDialogOpen(true);
   };
 
+  // ── NEW: TODAY BUTTON FUNCTION ──
+  const handleTodayClick = () => {
+    const today = new Date();
+    const currentWeek = getWeek(today, { weekStartsOn: 1 });
+    const currentYear = getYear(today);
+    onWeekChange(currentWeek, currentYear);
+  };
+
   const handleDragOver = (e: React.DragEvent, direction: 'prev' | 'next') => {
     e.preventDefault();
     onDragOver?.(e, direction);
@@ -76,6 +84,7 @@ export const WeekSelector = ({
             </TooltipContent>
           )}
         </Tooltip>
+        
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -87,9 +96,10 @@ export const WeekSelector = ({
             </Button>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Cliquer pour changer de semaine</p>
+            <p>Cliquer pour choisir une semaine spécifique</p>
           </TooltipContent>
         </Tooltip>
+
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -109,6 +119,25 @@ export const WeekSelector = ({
             </TooltipContent>
           )}
         </Tooltip>
+
+        {/* ── NEW: TODAY BUTTON IN TOOLBAR ── */}
+        <div className="w-px h-5 bg-border mx-1" />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="icon"
+              variant="outline"
+              onClick={handleTodayClick}
+              className="h-8 w-8 text-primary hover:bg-primary/10"
+            >
+              <CalendarClock className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Revenir à la semaine actuelle</p>
+          </TooltipContent>
+        </Tooltip>
+
       </div>
 
       <WeekNavigationDialog

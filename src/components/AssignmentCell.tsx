@@ -12,6 +12,8 @@ interface Note {
   weather_condition?: string;
   vehicle_ids?: string[];
   equipment_ids?: string[];
+  _vehicles?: any[]; 
+  _equipment?: any[];
 }
 
 interface DraggableNote {
@@ -84,7 +86,6 @@ interface AssignmentCellProps {
   onHighlightGroup?: (groupId: string | null) => void;
   absentTechNames?: string[];
 
-  // ── NEW: Structured Warnings ──
   assignmentWarnings?: Record<string, { skills: string[]; vehicles: string[]; equipment: string[] }>;
   cellMissingVehicles?: string[];
   cellMissingEquipment?: string[];
@@ -221,7 +222,6 @@ export const AssignmentCell = ({
 
   const hasMissingResources = cellMissingVehicles.length > 0 || cellMissingEquipment.length > 0;
 
-  // ── ACTION BAR (WITH ANIMATED PING FOR MISSING RESOURCES) ──
   const ActionBar = () => (
     <div className="absolute bottom-0 left-0 right-0 h-8 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-t from-background/90 to-transparent z-[60] pb-1 pointer-events-none">
       <div className="flex gap-1.5 pointer-events-auto">
@@ -342,25 +342,60 @@ export const AssignmentCell = ({
                           </span>
                         )}
 
-                        {note.vehicle_ids && note.vehicle_ids.length > 0 && (
-                          <span title={`${note.vehicle_ids.length} véhicule(s)`} className="flex items-center text-blue-700 dark:text-blue-400">
-                            <Car className="h-3.5 w-3.5 inline-block" />
-                            {note.vehicle_ids.length > 1 && <span className="text-[10px] ml-0.5">{note.vehicle_ids.length}</span>}
-                          </span>
+                        {/* ── NEW: VEHICLE TOOLTIPS ── */}
+                        {note._vehicles && note._vehicles.length > 0 && (
+                          <TooltipProvider delayDuration={200}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="flex items-center text-blue-700 dark:text-blue-400 cursor-help">
+                                  <Car className="h-3.5 w-3.5 inline-block" />
+                                  {note._vehicles.length > 1 && <span className="text-[10px] ml-0.5">{note._vehicles.length}</span>}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="text-xs bg-white text-slate-800 border-blue-200 p-2 z-[100]">
+                                <p className="font-bold text-blue-700 mb-1 border-b border-blue-100 pb-1">Véhicules assignés :</p>
+                                <ul className="space-y-1">
+                                  {note._vehicles.map(v => (
+                                    <li key={v.id} className="flex flex-col">
+                                      <span className="font-semibold">{v.name}</span>
+                                      {v.license_plate && <span className="text-[10px] text-muted-foreground uppercase">{v.license_plate}</span>}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         )}
 
-                        {note.equipment_ids && note.equipment_ids.length > 0 && (
-                          <span title={`${note.equipment_ids.length} matériel(s)`} className="flex items-center text-orange-700 dark:text-orange-400">
-                            <Wrench className="h-3.5 w-3.5 inline-block" />
-                            {note.equipment_ids.length > 1 && <span className="text-[10px] ml-0.5">{note.equipment_ids.length}</span>}
-                          </span>
+                        {/* ── NEW: EQUIPMENT TOOLTIPS ── */}
+                        {note._equipment && note._equipment.length > 0 && (
+                          <TooltipProvider delayDuration={200}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="flex items-center text-orange-700 dark:text-orange-400 cursor-help">
+                                  <Wrench className="h-3.5 w-3.5 inline-block" />
+                                  {note._equipment.length > 1 && <span className="text-[10px] ml-0.5">{note._equipment.length}</span>}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="text-xs bg-white text-slate-800 border-orange-200 p-2 z-[100]">
+                                <p className="font-bold text-orange-700 mb-1 border-b border-orange-100 pb-1">Matériel assigné :</p>
+                                <ul className="space-y-1">
+                                  {note._equipment.map(e => (
+                                    <li key={e.id} className="flex flex-col">
+                                      <span className="font-semibold">{e.name}</span>
+                                      {e.reference && <span className="text-[10px] text-muted-foreground">Réf: {e.reference}</span>}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         )}
 
                         <span className="break-words">
                           {note.text}
                         </span>
 
-                        {/* ── THE NOTE WARNING INDICATOR ── */}
                         {hasMissingResources && (
                           <TooltipProvider delayDuration={100}>
                             <Tooltip>
@@ -419,7 +454,6 @@ export const AssignmentCell = ({
               const linkedTechName = getLinkedTechnicianName(assignment);
               const isHighlighted = highlightedGroupId && assignment.assignment_group_id === highlightedGroupId;
 
-              // ── DESTRUCTURE THE NEW CATEGORIZED WARNINGS ──
               const warnings = assignmentWarnings?.[assignment.id];
               const hasSkillsWarning = warnings?.skills && warnings.skills.length > 0;
               const hasVehiclesWarning = warnings?.vehicles && warnings.vehicles.length > 0;
@@ -550,7 +584,6 @@ export const AssignmentCell = ({
                         )}
 
                         <div className="flex items-start gap-1.5 px-2 mt-0.5">
-                          {/* ── THE WORKSITE DISTINCT INLINE ICONS ── */}
                           {hasAnyWarning && (
                             <TooltipProvider delayDuration={100}>
                               <Tooltip>

@@ -93,7 +93,7 @@ export const useCreateTechnician = () => {
       const { data, error } = await supabase
         .from('technicians')
         .insert({
-          name, // This acts as the usual_name
+          name, 
           first_name,
           last_name,
           position: maxPosition + 1,
@@ -119,7 +119,7 @@ export const useUpdateTechnician = () => {
   return useMutation({
     mutationFn: async ({ id, name, first_name, last_name, is_temp, team_id, skills, isAccompanied }: { id: string; name?: string; first_name?: string; last_name?: string; is_temp?: boolean; team_id?: string | null; skills?: string; isAccompanied?: boolean }) => {
       const updates: any = {};
-      if (name !== undefined) updates.name = name; // This acts as the usual_name
+      if (name !== undefined) updates.name = name;
       if (first_name !== undefined) updates.first_name = first_name;
       if (last_name !== undefined) updates.last_name = last_name;
       if (is_temp !== undefined) updates.is_temp = is_temp;
@@ -207,8 +207,8 @@ export const useUpdateCommande = () => {
       clientPresence,
       savType,
       required_skills,
-      required_vehicles, // <--- NEW
-      required_equipment // <--- NEW
+      required_vehicles, 
+      required_equipment 
     }: {
       id: string;
       client?: string;
@@ -217,8 +217,8 @@ export const useUpdateCommande = () => {
       clientPresence?: string | null;
       savType?: string | null;
       required_skills?: string[];
-      required_vehicles?: string[]; // <--- NEW
-      required_equipment?: string[]; // <--- NEW
+      required_vehicles?: string[]; 
+      required_equipment?: string[]; 
     }) => {
       const updates: any = {};
       if (client !== undefined) updates.client = client;
@@ -227,8 +227,8 @@ export const useUpdateCommande = () => {
       if (clientPresence !== undefined) updates.client_presence = clientPresence;
       if (savType !== undefined) updates.sav_type = savType;
       if (required_skills !== undefined) updates.required_skills = required_skills;
-      if (required_vehicles !== undefined) updates.required_vehicles = required_vehicles; // <--- Pass to DB
-      if (required_equipment !== undefined) updates.required_equipment = required_equipment; // <--- Pass to DB
+      if (required_vehicles !== undefined) updates.required_vehicles = required_vehicles; 
+      if (required_equipment !== undefined) updates.required_equipment = required_equipment; 
 
       const { data, error } = await supabase
         .from('commandes')
@@ -253,15 +253,15 @@ export const useCreateCommande = () => {
       chantier,
       displayName,
       required_skills,
-      required_vehicles, // <--- NEW
-      required_equipment // <--- NEW
+      required_vehicles, 
+      required_equipment 
     }: {
       client: string;
       chantier: string;
       displayName?: string;
       required_skills?: string[];
-      required_vehicles?: string[]; // <--- NEW
-      required_equipment?: string[]; // <--- NEW
+      required_vehicles?: string[]; 
+      required_equipment?: string[]; 
     }) => {
       const { data, error } = await supabase
         .from('commandes')
@@ -270,8 +270,8 @@ export const useCreateCommande = () => {
           chantier,
           display_name: displayName,
           required_skills: required_skills || [],
-          required_vehicles: required_vehicles || [], // <--- Pass to DB
-          required_equipment: required_equipment || [] // <--- Pass to DB
+          required_vehicles: required_vehicles || [], 
+          required_equipment: required_equipment || [] 
         })
         .select()
         .single();
@@ -316,17 +316,27 @@ export const useAssignments = (weekStart: string, weekEnd: string) => {
   });
 };
 
+// ── NEW: We added fetching logic for the vehicles and equipment databases to attach to notes! ──
 export const useNotes = (weekStart: string, weekEnd: string) => {
   return useQuery({
     queryKey: ['notes', weekStart, weekEnd],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data: rawNotes, error: notesError } = await supabase
         .from('notes')
         .select('*')
         .or(`and(start_date.lte.${weekEnd},end_date.gte.${weekStart})`);
 
-      if (error) throw error;
-      return data;
+      if (notesError) throw notesError;
+
+      // Now grab the fleet so we can map names/plates down to the client!
+      const { data: vData } = await supabase.from('vehicles').select('id, name, license_plate');
+      const { data: eData } = await supabase.from('equipment').select('id, name, reference');
+
+      return rawNotes.map((note: any) => ({
+        ...note,
+        _vehicles: note.vehicle_ids?.map((id: string) => vData?.find(v => v.id === id) || { id }),
+        _equipment: note.equipment_ids?.map((id: string) => eData?.find(e => e.id === id) || { id })
+      }));
     },
     enabled: !!weekStart && !!weekEnd,
   });
@@ -373,7 +383,6 @@ export const useSaveAssignment = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['assignments'] });
-      scheduleDebouncedCalendarSync();
     },
   });
 };
@@ -392,7 +401,6 @@ export const useDeleteAssignment = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['assignments'] });
-      scheduleDebouncedCalendarSync();
     },
   });
 };
@@ -407,8 +415,8 @@ export const useSaveNote = () => {
         end_date: note.end_date || note.start_date,
         team_id: note.team_id || null,
         weather_condition: note.weather_condition || null,
-        vehicle_ids: note.vehicle_ids || [],      // <--- NEW: Grab vehicles
-        equipment_ids: note.equipment_ids || [],  // <--- NEW: Grab equipment
+        vehicle_ids: note.vehicle_ids || [],      
+        equipment_ids: note.equipment_ids || [],  
       };
 
       if (note.id) {
@@ -448,7 +456,6 @@ export const useDeleteNote = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notes'] });
-      scheduleDebouncedCalendarSync();
     },
   });
 };

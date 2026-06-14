@@ -88,42 +88,50 @@ export const DailyTeamManagementDialog: React.FC<DailyTeamManagementDialogProps>
     // ── AVAILABILITY SCANNER: Hide technicians busy on other teams today ──
     useEffect(() => {
         let isMounted = true;
+
         const fetchBusyTechnicians = async () => {
             if (!isOpen || !date) return;
             try {
-                let teamId = baseTeamId;
-                if (!teamId) {
-                    const { data: teamData } = await supabase.from('teams').select('id').eq('name', teamName).single();
-                    teamId = teamData?.id;
-                }
-
-                // UPDATED: Now queries the correct 'daily_team_rosters' table
-                // and maps 'team_name' back to a Team ID comparison.
+                // 1. Check who is on another team today
                 const { data: allRosters } = await supabase
-                    .from('daily_team_rosters')
+                    .from('daily_team_rosters') 
                     .select('technician_id, team_name')
                     .eq('date', date);
 
-                if (allRosters) {
+                // 2. NEW: Check who is officially absent today
+                const { data: allAbsences } = await supabase
+                    .from('absences')
+                    .select('technician_id')
+                    .lte('start_date', date)
+                    .gte('end_date', date);
+
+                if (allRosters || allAbsences) {
                     const busy = new Set<string>();
-                    allRosters.forEach(roster => {
-                        // If the technician is on a DIFFERENT team today, mark them as busy
-                        if (roster.team_name !== teamName) {
-                            if (roster.technician_id) {
-                                busy.add(roster.technician_id);
-                            }
+                    
+                    // Hide if on another team
+                    allRosters?.forEach(roster => {
+                        if (roster.team_name !== teamName && roster.technician_id) {
+                            busy.add(roster.technician_id);
                         }
                     });
+                    
+                    // Hide if absent
+                    allAbsences?.forEach(abs => {
+                        if (abs.technician_id) {
+                            busy.add(abs.technician_id);
+                        }
+                    });
+                    
                     if (isMounted) setBusyTechIds(busy);
                 }
             } catch (error) {
                 console.error("Erreur lors de la vérification des disponibilités", error);
             }
         };
-
+        
         fetchBusyTechnicians();
         return () => { isMounted = false; };
-    }, [isOpen, date, baseTeamId, teamName]);
+    }, [isOpen, date, teamName]);
 
     useEffect(() => {
         if (isOpen) {
@@ -183,15 +191,19 @@ export const DailyTeamManagementDialog: React.FC<DailyTeamManagementDialogProps>
 
     const formattedDate = format(new Date(date), 'EEEE d MMMM yyyy', { locale: fr });
 
-    // Filter out busy technicians before sorting
+    // ── FIXED SORTING LOGIC: Safely handles unassigned technicians (null team_id) ──
     const sortedTechnicians = [...activeTechnicians]
         .filter(tech => !busyTechIds.has(tech.id))
         .sort((a, b) => {
-            const aIsBase = a.team_id === baseTeamId;
-            const bIsBase = b.team_id === baseTeamId;
+            const aIsBase = baseTeamId && a.team_id === baseTeamId;
+            const bIsBase = baseTeamId && b.team_id === baseTeamId;
+            
+            // Base team members always go to the top
             if (aIsBase && !bIsBase) return -1;
             if (!aIsBase && bIsBase) return 1;
-            return a.name.localeCompare(b.name);
+            
+            // Then sort alphabetically
+            return (a.name || '').localeCompare(b.name || '');
         });
 
     return (
@@ -206,7 +218,7 @@ export const DailyTeamManagementDialog: React.FC<DailyTeamManagementDialogProps>
                     {sortedTechnicians.map(tech => {
                         const isSelected = selectedTechs.some(t => t.id === tech.id);
                         const isLeader = selectedTechs.find(t => t.id === tech.id)?.isLeader;
-                        const isBaseTeamMember = tech.team_id === baseTeamId;
+                        const isBaseTeamMember = baseTeamId && tech.team_id === baseTeamId;
 
                         const missingSkills = requiredSkills.filter(reqSkill => {
                             return tech.detailed_skills?.[reqSkill] !== 'Oui';
@@ -244,9 +256,13 @@ export const DailyTeamManagementDialog: React.FC<DailyTeamManagementDialogProps>
                                                 </TooltipProvider>
                                             )}
                                         </div>
-                                        {isBaseTeamMember && (
+                                        {isBaseTeamMember ? (
                                             <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
                                                 Équipe de base
+                                            </span>
+                                        ) : !tech.team_id && (
+                                            <span className="text-[10px] text-slate-400 italic">
+                                                Non affecté
                                             </span>
                                         )}
                                     </div>

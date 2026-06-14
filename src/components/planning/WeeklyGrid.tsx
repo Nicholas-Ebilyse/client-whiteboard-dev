@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { TechnicianHeaderCell } from '@/components/TechnicianHeaderCell';
 import { DayHeaderCell } from '@/components/DayHeaderCell';
@@ -6,7 +6,7 @@ import { AssignmentCell } from '@/components/AssignmentCell';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { TriangleAlert } from 'lucide-react';
+import { TriangleAlert, Eye, EyeOff, CalendarX2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -110,6 +110,7 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
   handleTechDayNoteClick,
   handleAddTechDayNote,
 }) => {
+  const [showAbsencesRow, setShowAbsencesRow] = useState(false);
 
   const { data: vehicles = [] } = useQuery({
     queryKey: ['vehicles'],
@@ -137,7 +138,17 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
           className="grid border-b-2 border-border bg-muted/50 shrink-0"
           style={{ gridTemplateColumns: `220px repeat(${weekDates.length}, minmax(200px, 1fr))` }}
         >
-          <div className="p-2 sm:p-4 border-r border-border bg-primary/5" />
+          {/* ── TOP-LEFT CELL: ABSENCES TOGGLE ── */}
+          <div className="p-1 border-r border-border bg-primary/5 flex items-center justify-center">
+             <button 
+               onClick={() => setShowAbsencesRow(!showAbsencesRow)}
+               className="w-full h-full flex items-center justify-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-200/50 rounded-md transition-colors px-2"
+               title={showAbsencesRow ? "Masquer les absences" : "Afficher les absences"}
+             >
+               {showAbsencesRow ? <EyeOff className="h-3.5 w-3.5 shrink-0" /> : <Eye className="h-3.5 w-3.5 shrink-0" />}
+               <span>Techniciens absents</span>
+             </button>
+          </div>
 
           {weekDates.map((day) => {
             const generalNotesForDay = getGeneralNotesForDate(day.fullDate);
@@ -175,6 +186,60 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
             );
           })}
         </div>
+
+        {/* ── TOGGLED ABSENCES SUMMARY ROW ── */}
+        {showAbsencesRow && (
+          <div
+            className="grid border-b-2 border-red-200 bg-red-50/50 shrink-0 shadow-sm"
+            style={{ gridTemplateColumns: `220px repeat(${weekDates.length}, minmax(200px, 1fr))` }}
+          >
+            <div className="p-2 sm:p-3 border-r border-red-200 bg-red-100/50 flex items-center justify-center gap-2">
+              <CalendarX2 className="h-4 w-4 text-red-500 shrink-0" />
+              <span className="font-semibold text-xs text-red-700 text-center">Absences du jour</span>
+            </div>
+
+            {weekDates.map((day) => {
+              const dayAbsences = absences?.filter(abs => 
+                abs.start_date <= day.fullDate && abs.end_date >= day.fullDate
+              ) || [];
+
+              return (
+                <div key={`abs-${day.fullDate}`} className="border-r border-red-200 p-2 flex flex-wrap gap-1.5 items-start content-start min-h-[60px]">
+                  {dayAbsences.length === 0 ? (
+                    <span className="text-xs text-muted-foreground/60 italic w-full text-center mt-2">Aucun absent</span>
+                  ) : (
+                    <TooltipProvider delayDuration={200}>
+                      {dayAbsences.map(abs => {
+                        const tech = activeTechnicians.find(t => t.id === abs.technician_id);
+                        if (!tech) return null;
+                        const motive = abs.absence_motives?.name || 'Motif non précisé';
+                        
+                        return (
+                          <Tooltip key={`${abs.id}-${day.fullDate}`}>
+                            <TooltipTrigger asChild>
+                              <span className="px-2 py-1 bg-white border border-red-200 rounded text-xs font-medium text-red-700 shadow-sm cursor-help hover:bg-red-50 transition-colors">
+                                {tech.name}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent className="border-red-200 text-red-900 bg-white">
+                              <p className="font-bold border-b border-red-100 pb-1 mb-1">{tech.name}</p>
+                              <p className="text-xs flex flex-col gap-0.5">
+                                <span><span className="font-semibold">Raison :</span> {motive}</span>
+                                {abs.start_date !== abs.end_date && (
+                                  <span className="text-muted-foreground">Du {format(new Date(abs.start_date), 'dd/MM/yyyy')} au {format(new Date(abs.end_date), 'dd/MM/yyyy')}</span>
+                                )}
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        );
+                      })}
+                    </TooltipProvider>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* ── Team Rows ── */}
         <div className="flex-1 flex flex-col min-h-[600px]">
@@ -229,7 +294,6 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                   });
                   const requiredSkillsArray = Array.from(cellRequiredSkills);
 
-                  // ── NEW: STRUCTURED WARNING COMPUTATION ──
                   const assignmentWarnings: Record<string, { skills: string[], vehicles: string[], equipment: string[] }> = {};
                   const cellMissingVehiclesSet = new Set<string>();
                   const cellMissingEquipmentSet = new Set<string>();
@@ -243,7 +307,6 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                       const missingVehicles: string[] = [];
                       const missingEquipment: string[] = [];
 
-                      // 1. Skills
                       if (commande.required_skills?.length > 0) {
                         dayRosters.forEach(roster => {
                           const tech = activeTechnicians.find(t => t.id === roster.technician?.id);
@@ -260,7 +323,6 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                         });
                       }
 
-                      // 2. Vehicles
                       if (commande.required_vehicles?.length > 0) {
                         commande.required_vehicles.forEach((reqVehId: string) => {
                           if (!assignedVehicles.has(reqVehId)) {
@@ -272,7 +334,6 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                         });
                       }
 
-                      // 3. Equipment
                       if (commande.required_equipment?.length > 0) {
                         commande.required_equipment.forEach((reqEqId: string) => {
                           if (!assignedEquipment.has(reqEqId)) {
@@ -315,7 +376,6 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                       onClick={isAdmin ? () => handleCellClick(team.id, day.fullDate) : undefined}
                     >
 
-                      {/* Display today's assigned technicians */}
                       <div
                         className="flex flex-wrap gap-1 p-1 min-h-[28px] bg-black/5 border-b border-black/5 cursor-pointer hover:bg-black/10 transition-colors relative z-20"
                         onClick={(e) => {
@@ -420,7 +480,6 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                           highlightedGroupId={highlightedGroupId}
                           onHighlightGroup={setHighlightedGroupId}
 
-                          // ── PASSDOWN NEW PROPS ──
                           assignmentWarnings={assignmentWarnings}
                           cellMissingVehicles={cellMissingVehicles}
                           cellMissingEquipment={cellMissingEquipment}
