@@ -182,12 +182,11 @@ serve(async (req) => {
     const accessToken = await getAccessToken(credentials);
 
     // ── PRE-FETCH NAME-TO-UUID DICTIONARIES ──
-    const { data: vList } = await supabase.from('vehicles').select('id, name, license_plate, registration');
+    const { data: vList } = await supabase.from('vehicles').select('id, name, license_plate');
     const vNameMap: Record<string, string> = {};
     vList?.forEach((v: any) => {
       if (v.name) vNameMap[v.name.trim()] = v.id;
       if (v.license_plate) vNameMap[v.license_plate.trim()] = v.id;
-      if (v.registration) vNameMap[v.registration.trim()] = v.id;
     });
 
     const { data: eList } = await supabase.from('equipment').select('id, name, reference');

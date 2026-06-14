@@ -114,7 +114,7 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
   const { data: vehicles = [] } = useQuery({
     queryKey: ['vehicles'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('vehicles').select('id, name, registration');
+      const { data, error } = await supabase.from('vehicles').select('id, name, license_plate');
       if (error) throw error;
       return data;
     }
@@ -265,7 +265,7 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                         commande.required_vehicles.forEach((reqVehId: string) => {
                           if (!assignedVehicles.has(reqVehId)) {
                             const veh = vehicles.find((v: any) => v.id === reqVehId);
-                            const vName = veh ? (veh.name || veh.registration || 'Inconnu') : 'Inconnu';
+                            const vName = veh ? (veh.name || veh.license_plate || 'Inconnu') : 'Inconnu';
                             missingVehicles.push(vName);
                             cellMissingVehiclesSet.add(vName);
                           }

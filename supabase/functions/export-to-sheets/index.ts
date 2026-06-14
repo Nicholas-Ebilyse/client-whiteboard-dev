@@ -157,7 +157,7 @@ serve(async (req) => {
     // ── Pre-fetch Maps for Name Translation ──
     const { data: vList } = await supabase.from("vehicles").select("*");
     const vMap: Record<string, string> = {};
-    (vList || []).forEach((v: any) => { if (v.id) vMap[v.id] = v.name || v.license_plate || v.registration || v.id; });
+    (vList || []).forEach((v: any) => { if (v.id) vMap[v.id] = v.name || v.license_plate || v.id; });
 
     const { data: eList } = await supabase.from("equipment").select("*");
     const eMap: Record<string, string> = {};

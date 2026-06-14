@@ -92,7 +92,7 @@ const SiteVehiclesPopover = ({ site, vehicles, onUpdateVehicles }: any) => {
                     {vehicles.map((v: any) => {
                         const isSelected = localVehicles.includes(v.id);
                         // Safely fall back through properties if naming conventions differ
-                        const displayName = v.name || v.registration || v.id;
+                        const displayName = v.name || v.license_plate || v.id;
                         return (
                             <label key={v.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-accent p-1.5 rounded-md transition-colors ml-1">
                                 <input type="checkbox" className="rounded border-gray-300 text-blue-600 focus:ring-blue-600 h-4 w-4 shrink-0" checked={isSelected} onChange={(e) => handleToggle(v.id, e.target.checked)} />
