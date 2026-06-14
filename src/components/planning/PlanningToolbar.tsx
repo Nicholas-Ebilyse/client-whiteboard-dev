@@ -12,8 +12,8 @@ import { KeyboardShortcutsHelp } from '@/components/KeyboardShortcutsHelp';
 import { Input } from '@/components/ui/input';
 import {
   Palette, Copy, Undo2, Mail, Wrench, LogOut, Lock, Link2,
-  Users, CalendarX2, Presentation, Calendar, FileSpreadsheet,
-  Search, ChevronLeft, ChevronRight, UserMinus, Car, Building2 // Added Building2!
+  Users, CalendarX2, Presentation, Search, ChevronLeft, 
+  ChevronRight, UserMinus, Car, Building2
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -23,7 +23,6 @@ interface PlanningToolbarProps {
   handleWeekNavDragOver: (e: React.DragEvent, direction: 'prev' | 'next') => void;
   handleWeekNavDrop: (e: React.DragEvent, direction: 'prev' | 'next') => void;
   isDragging: boolean;
-
   isAdmin: boolean;
   copyModeEnabled: boolean;
   toggleCopyMode: () => void;
@@ -32,15 +31,12 @@ interface PlanningToolbarProps {
   handleUndo: () => void;
   handleNoteUndo: () => void;
   setSendScheduleOpen: (open: boolean) => void;
-  savRecordsLength: number;
-  savVisible: boolean;
-  setSavVisible: React.Dispatch<React.SetStateAction<boolean>>;
   handleSignOut: () => void;
   onOpenSearchModal?: () => void;
   setFleetDialogOpen: (open: boolean) => void;
   setManageTechsDialogOpen?: (open: boolean) => void;
   setAbsenceManagementOpen?: (open: boolean) => void;
-  setClientManagementOpen?: (open: boolean) => void; // Added our new prop!
+  setClientManagementOpen?: (open: boolean) => void; 
 }
 
 export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
@@ -49,7 +45,6 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
   handleWeekNavDragOver,
   handleWeekNavDrop,
   isDragging,
-
   isAdmin,
   copyModeEnabled,
   toggleCopyMode,
@@ -58,15 +53,12 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
   handleUndo,
   handleNoteUndo,
   setSendScheduleOpen,
-  savRecordsLength,
-  savVisible,
-  setSavVisible,
   handleSignOut,
   onOpenSearchModal,
   setFleetDialogOpen,
   setManageTechsDialogOpen,
   setAbsenceManagementOpen,
-  setClientManagementOpen, // Destructure the new prop
+  setClientManagementOpen, 
 }) => {
   const [presentationTimeout, setPresentationTimeout] = React.useState(30);
 
@@ -216,24 +208,6 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
             </Popover>
           )}
 
-          {isAdmin && (
-            <TooltipProvider delayDuration={200}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => window.open(`https://calendar.google.com/calendar/u/0/r?cid=c_8ca18ced58f50f7a5d670b6bee03ca40017d805860177daba7efcd7a6a53b8b2@group.calendar.google.com`, '_blank')}
-                    className="h-8 w-8 hover:bg-slate-200 dark:hover:bg-slate-800 text-blue-600"
-                  >
-                    <Calendar className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Ouvrir Google Calendar</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-
           {isAdmin && setFleetDialogOpen && (
             <TooltipProvider delayDuration={200}>
               <Tooltip>
@@ -252,25 +226,6 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
             </TooltipProvider>
           )}
 
-          {isAdmin && (
-            <TooltipProvider delayDuration={200}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => window.open(`https://docs.google.com/spreadsheets/d/1699-HaYP4W2rSJUscbXCvp7fVW0vR95NRpjl5QpBUeY/edit`, '_blank')}
-                    className="h-8 w-8 hover:bg-slate-200 dark:hover:bg-slate-800 text-emerald-600"
-                  >
-                    <FileSpreadsheet className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Ouvrir Google Sheets</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-
-          {/* NEW BUTTON: Client Management */}
           {isAdmin && setClientManagementOpen && (
             <TooltipProvider delayDuration={200}>
               <Tooltip>

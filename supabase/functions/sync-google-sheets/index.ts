@@ -238,35 +238,6 @@ serve(async (req) => {
       }
     } catch (e) { console.error('Commandes sync error:', e); }
 
-    // ── 3. SAV ──
-    let savCount = 0;
-    try {
-      await ensureHeaders(spreadsheetId, 'SAV', SAV_HEADERS, accessToken);
-      const savData = await fetchSheetData(spreadsheetId, 'SAV', accessToken);
-      if (savData.length > 1) {
-        const h = savData[0];
-        const validIds: string[] = [];
-        for (let i = 1; i < savData.length; i++) {
-          const row = savData[i];
-          const extId = row[h.indexOf('ID')]?.trim();
-          if (!extId) continue;
-          const { data } = await supabase.from('sav').upsert({
-            external_id: extId,
-            numero: row[h.indexOf('Numéro')] ? parseInt(row[h.indexOf('Numéro')], 10) : i,
-            nom_client: row[h.indexOf('Nom du client')]?.trim(),
-            adresse: row[h.indexOf('Adresse')]?.trim(),
-            telephone: row[h.indexOf('Numéro de téléphone')]?.trim(),
-            probleme: row[h.indexOf('Problème')]?.trim(),
-            date: parseDate(row[h.indexOf('Date')]?.trim()),
-            est_resolu: row[h.indexOf('Est résolu')]?.toUpperCase() === 'TRUE',
-          }, { onConflict: 'external_id' }).select('id').single();
-          if (data?.id) validIds.push(data.id);
-          savCount++;
-        }
-        if (validIds.length > 0) await supabase.from('sav').delete().not('id', 'in', `(${validIds.join(',')})`);
-      }
-    } catch (e) { console.error('SAV sync error:', e); }
-
     // ── 4. Affectations ──
     let assignmentCount = 0;
     try {

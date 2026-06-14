@@ -8,11 +8,9 @@ import { TeamManagementDialog } from '@/components/TeamManagementDialog';
 import { DailyTeamManagementDialog } from '@/components/DailyTeamManagementDialog';
 import { SendScheduleDialog } from '@/components/SendScheduleDialog';
 import { DragIndicator } from '@/components/DragIndicator';
-import { SAVTable } from '@/components/SAVTable';
 import { PlanningToolbar } from '@/components/planning/PlanningToolbar';
 import { WeeklyGrid } from '@/components/planning/WeeklyGrid';
 import { SessionExpiryWarning } from '@/components/SessionExpiryWarning';
-import { useSAV } from '@/hooks/useSAV';
 import { useSessionManager } from '@/hooks/useSessionManager';
 import { ClientManagementDialog } from '@/components/ClientManagementDialog';
 
@@ -71,9 +69,8 @@ import { Car } from 'lucide-react';
 import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 
 const Index = () => {
-
   console.log("🚨 HELLO! I AM THE CORRECT CODEBASE!");
-// Activate background realtime synchronization
+  // Activate background realtime synchronization
   useRealtimeSync();
   const navigate = useNavigate();
   const { user: authUser, session: authSession, isAdmin } = useAuth();
@@ -93,7 +90,6 @@ const Index = () => {
   const [absenceManagementOpen, setAbsenceManagementOpen] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [sendScheduleOpen, setSendScheduleOpen] = useState(false);
-  const [savVisible, setSavVisible] = useState(false);
   const [groupEditAlert, setGroupEditAlert] = useState<{
     open: boolean;
     assignment: Assignment | null;
@@ -166,7 +162,6 @@ const Index = () => {
   const { data: assignments = [] } = useAssignments(weekStart, weekEnd);
   const { data: notes = [] } = useNotes(weekStart, weekEnd);
   const { data: absences = [] } = useAbsences(weekStart, weekEnd);
-  const { data: savRecords = [] } = useSAV(weekStart, weekEnd);
   const { data: dailyTeamRosters = [] } = useDailyTeamRosters(weekStart || '', weekEnd || '');
   const { maxAssignments } = useMaxAssignmentsPerPeriod();
 
@@ -779,7 +774,6 @@ const Index = () => {
                 handleWeekNavDragOver={handleWeekNavDragOver}
                 handleWeekNavDrop={handleWeekNavDrop}
                 isDragging={isDragging}
-
                 isAdmin={isAdmin}
                 copyModeEnabled={copyModeEnabled}
                 toggleCopyMode={toggleCopyMode}
@@ -788,9 +782,6 @@ const Index = () => {
                 handleUndo={handleUndo}
                 handleNoteUndo={handleNoteUndo}
                 setSendScheduleOpen={setSendScheduleOpen}
-                savRecordsLength={savRecords.length}
-                savVisible={savVisible}
-                setSavVisible={setSavVisible}
                 handleSignOut={handleSignOut}
                 setManageTechsDialogOpen={setManageTechsDialogOpen}
                 setAbsenceManagementOpen={setAbsenceManagementOpen}
@@ -811,7 +802,6 @@ const Index = () => {
                   notes={notes}
                   absences={absences}
                   commandes={commandes}
-
                   isAdmin={isAdmin}
                   maxAssignments={maxAssignments}
                   allAssignmentsFormatted={allAssignmentsFormatted}
@@ -848,7 +838,6 @@ const Index = () => {
             open={assignmentDialogOpen}
             onOpenChange={setAssignmentDialogOpen}
             assignment={selectedAssignment}
-
             commandes={commandes}
             teams={teams}
             assignments={allAssignmentsFormatted}
@@ -889,7 +878,6 @@ const Index = () => {
             open={manageTechsDialogOpen}
             onOpenChange={setManageTechsDialogOpen}
             teams={teams}
-            // MAPPING THE NEW FIELDS HERE!
             technicians={technicians.map((t) => ({
               id: t.id,
               name: t.name,
@@ -902,9 +890,7 @@ const Index = () => {
               skills: t.skills
             }))}
             onArchive={handleArchiveTechnician}
-            // PASSING THE NEW FIELDS TO THE DATABASE HOOK HERE!
             onNameChange={(id, name, firstName, lastName, isTemp, skills, isAccompanied) => updateTechnician.mutate({ id, name, first_name: firstName, last_name: lastName, is_temp: isTemp, skills, isAccompanied })}
-            // AND HERE!
             onAdd={(name, firstName, lastName, isTemp, skills, isAccompanied) => createTechnician.mutate({ name, first_name: firstName, last_name: lastName, isTemp, skills, isAccompanied })}
             onAssignTeam={(id, team_id) => {
               updateTechnician.mutate(
@@ -961,9 +947,7 @@ const Index = () => {
             notes={notes}
             absences={absences}
             weekDates={weekDates}
-
             commandes={commandes}
-            savRecords={savRecords}
           />
 
           <DailyTeamManagementDialog

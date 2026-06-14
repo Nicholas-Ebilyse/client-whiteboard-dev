@@ -7,8 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Shield, UserPlus, Settings } from "lucide-react";
-import { SyncGoogleSheetsButton } from "@/components/SyncGoogleSheetsButton";
-import { SyncGoogleCalendarButton } from "@/components/SyncGoogleCalendarButton";
 import { SyncStatusDisplay } from "@/components/SyncStatusDisplay";
 import { CreateUserDialog } from "@/components/CreateUserDialog";
 import { useMaxAssignmentsPerPeriod, useUpdateAppSetting } from "@/hooks/useAppSettings";
@@ -336,14 +334,6 @@ export default function SimplifiedAdminDashboard() {
             </div>
           </CardContent>
         </Card>
-
-        <div className="flex flex-col gap-4 pt-4 border-t">
-          <div className="flex items-center justify-between gap-4">
-            <SyncGoogleSheetsButton />
-            <SyncGoogleCalendarButton />
-          </div>
-          <SyncStatusDisplay />
-        </div>
 
         <AlertDialog open={actionDialog.open} onOpenChange={(open) => !open && setActionDialog({ open: false, userId: '', email: '', action: 'grant' })}>
           <AlertDialogContent>

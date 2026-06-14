@@ -1,7 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { getWeek, getYear, startOfWeek, addDays, format } from 'date-fns';
-import { scheduleDebouncedCalendarSync } from '@/hooks/useGoogleCalendarSync';
 import { fr } from 'date-fns/locale';
 
 export const useWeekConfig = () => {
