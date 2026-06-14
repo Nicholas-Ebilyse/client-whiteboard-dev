@@ -12,8 +12,8 @@ import { KeyboardShortcutsHelp } from '@/components/KeyboardShortcutsHelp';
 import { Input } from '@/components/ui/input';
 import {
   Palette, Copy, Undo2, Mail, Wrench, LogOut, Lock, Link2,
-  Users, CalendarX2, Presentation, Search, ChevronLeft, 
-  ChevronRight, UserMinus, Car, Building2
+  Users, CalendarX2, Presentation, Search, ChevronLeft,
+  ChevronRight, UserMinus, Car, Building2, Trash2
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -36,7 +36,8 @@ interface PlanningToolbarProps {
   setFleetDialogOpen: (open: boolean) => void;
   setManageTechsDialogOpen?: (open: boolean) => void;
   setAbsenceManagementOpen?: (open: boolean) => void;
-  setClientManagementOpen?: (open: boolean) => void; 
+  setClientManagementOpen?: (open: boolean) => void;
+  setTrashDialogOpen?: (open: boolean) => void;
 }
 
 export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
@@ -58,7 +59,7 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
   setFleetDialogOpen,
   setManageTechsDialogOpen,
   setAbsenceManagementOpen,
-  setClientManagementOpen, 
+  setClientManagementOpen,
 }) => {
   const [presentationTimeout, setPresentationTimeout] = React.useState(30);
 
@@ -344,6 +345,24 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Administration</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+
+          {isAdmin && setTrashDialogOpen && (
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setTrashDialogOpen(true)}
+                    className="h-8 w-8 hover:bg-slate-200 dark:hover:bg-slate-800 text-red-600"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Corbeille des affectations</TooltipContent>
               </Tooltip>
             </TooltipProvider>
           )}

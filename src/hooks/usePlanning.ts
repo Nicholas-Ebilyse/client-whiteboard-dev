@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { getWeek, getYear, startOfWeek, addDays, format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { setLastDeletedAssignmentId } from './useUndo';
 
 export const useWeekConfig = () => {
   return useQuery({
@@ -307,7 +308,8 @@ export const useAssignments = (weekStart: string, weekEnd: string) => {
         .from('assignments')
         .select('*, commandes(display_name)')
         .lte('start_date', weekEnd)
-        .gte('end_date', weekStart);
+        .gte('end_date', weekStart)
+        .neq('is_deleted', true);
 
       if (error) throw error;
       return data;
@@ -389,19 +391,54 @@ export const useSaveAssignment = () => {
 
 export const useDeleteAssignment = () => {
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('assignments')
-        .delete()
-        .eq('id', id);
+      // Soft Delete: Update instead of Delete
+      const { error } = await supabase.from('assignments').update({ is_deleted: true }).eq('id', id);
+      if (error) throw error;
+      
+      // Save ID to memory for Ctrl+Z
+      setLastDeletedAssignmentId(id);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['assignments'] }),
+  });
+};
 
+// ── NEW TRASH MANAGEMENT HOOKS ──
+export const useDeletedAssignments = () => {
+  return useQuery({
+    queryKey: ['deleted_assignments'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('assignments')
+        .select('*, commandes(client, chantier), teams(name)')
+        .eq('is_deleted', true)
+        .order('start_date', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+};
+
+export const useRestoreAssignment = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('assignments').update({ is_deleted: false }).eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['assignments'] });
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['assignments'] }),
+  });
+};
+
+export const useHardDeleteAssignment = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('assignments').delete().eq('id', id);
+      if (error) throw error;
     },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['deleted_assignments'] }),
   });
 };
 

@@ -11,8 +11,8 @@ import { DragIndicator } from '@/components/DragIndicator';
 import { PlanningToolbar } from '@/components/planning/PlanningToolbar';
 import { WeeklyGrid } from '@/components/planning/WeeklyGrid';
 import { SessionExpiryWarning } from '@/components/SessionExpiryWarning';
-import { useSessionManager } from '@/hooks/useSessionManager';
 import { ClientManagementDialog } from '@/components/ClientManagementDialog';
+import { TrashDialog } from '@/components/TrashDialog'; // 👈 NEW IMPORT
 
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -30,7 +30,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Assignment } from '@/types/planning';
@@ -67,17 +66,22 @@ import { useMaxAssignmentsPerPeriod } from '@/hooks/useAppSettings';
 import { FleetManagementDialog } from '@/components/FleetManagementDialog';
 import { Car } from 'lucide-react';
 import { useRealtimeSync } from '@/hooks/useRealtimeSync';
+import { useUndo } from '@/hooks/useUndo'; // 👈 NEW IMPORT
 
 const Index = () => {
-  console.log("🚨 HELLO! I AM THE CORRECT CODEBASE!");
   // Activate background realtime synchronization
   useRealtimeSync();
+  // Activate Ctrl+Z Soft-Delete recovery
+  useUndo();
+
   const navigate = useNavigate();
   const { user: authUser, session: authSession, isAdmin } = useAuth();
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [isRefreshingSession, setIsRefreshingSession] = useState(false);
+  
+  // ── DIALOG STATES ──
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
   const [assignmentDialogOpen, setAssignmentDialogOpen] = useState(false);
   const [selectedNote, setSelectedNote] = useState<any>(null);
@@ -90,6 +94,10 @@ const Index = () => {
   const [absenceManagementOpen, setAbsenceManagementOpen] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [sendScheduleOpen, setSendScheduleOpen] = useState(false);
+  const [isFleetOpen, setIsFleetOpen] = useState(false);
+  const [clientManagementOpen, setClientManagementOpen] = useState(false);
+  const [trashDialogOpen, setTrashDialogOpen] = useState(false); // 👈 NEW STATE
+
   const [groupEditAlert, setGroupEditAlert] = useState<{
     open: boolean;
     assignment: Assignment | null;
@@ -102,10 +110,9 @@ const Index = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isDailyTeamDialogOpen, setIsDailyTeamDialogOpen] = useState(false);
   const [dailyTeamDialogInfo, setDailyTeamDialogInfo] = useState({ teamName: '', date: '' });
+  
   const updateDailyRosters = useUpdateDailyTeamRosters();
   const queryClient = useQueryClient();
-  const [isFleetOpen, setIsFleetOpen] = useState(false);
-  const [clientManagementOpen, setClientManagementOpen] = useState(false);
 
   // Session management - automatic refresh and expiry warning
   const { sessionExpiringSoon, timeUntilExpiry, refreshSession } = useSessionManager(session);
@@ -250,7 +257,6 @@ const Index = () => {
     });
   };
 
-  // Kept for programmatic logic elsewhere
   const handleAddTechnician = (name: string, first_name?: string, last_name?: string, isTemp?: boolean, skills?: string) => {
     createTechnician.mutate({ name, first_name, last_name, isTemp, skills }, {
       onSuccess: () => {
@@ -288,7 +294,6 @@ const Index = () => {
     const newAssignment: Assignment = {
       id: `new-${Date.now()}`,
       teamId,
-
       commandeId: commandes[0]?.id || null,
       startDate: date,
       endDate: date,
@@ -303,7 +308,6 @@ const Index = () => {
     const newAssignment: Assignment = {
       id: `new-${Date.now()}`,
       teamId,
-
       commandeId: commandes[0]?.id || null,
       startDate: date,
       endDate: date,
@@ -315,19 +319,16 @@ const Index = () => {
   };
 
   const handleAssignmentClick = (assignment: Assignment) => {
-    // Check if this assignment is part of a group with multiple members
     if (assignment.assignment_group_id) {
       const groupMembers = assignments.filter(
         a => a.assignment_group_id === assignment.assignment_group_id
       );
-      // Only show group edit dialog if there are actually multiple members in the group
       if (groupMembers.length > 1) {
         setGroupEditAlert({
           open: true,
           assignment,
         });
       } else {
-        // Orphaned group with only one member - treat as single assignment
         setSelectedAssignment(assignment);
         setAssignmentDialogOpen(true);
       }
@@ -367,7 +368,6 @@ const Index = () => {
           {
             groupId: originalAssignment.assignment_group_id,
             updates: {
-
               commande_id: updatedAssignment.commandeId,
               is_fixed: updatedAssignment.isFixed,
               comment: updatedAssignment.comment,
@@ -415,7 +415,6 @@ const Index = () => {
       return;
     }
 
-    // New assignment — single full-day or multi-day block
     const startDate = new Date(updatedAssignment.startDate);
     const endDate = new Date(updatedAssignment.endDate);
     const isMultiDay = startDate < endDate;
@@ -454,7 +453,7 @@ const Index = () => {
     if (id && !id.startsWith('new-')) {
       deleteAssignment.mutate(id, {
         onSuccess: () => {
-          toast.success('Affectation supprimée');
+          toast.success('Affectation placée dans la corbeille');
           setAssignmentDialogOpen(false);
         },
         onError: () => {
@@ -515,14 +514,6 @@ const Index = () => {
         toast.error('Erreur lors de la suppression de la note');
       },
     });
-  };
-
-  const handleToggleNoteDisplayBelow = (_noteId: string, _displayBelow: boolean) => {
-    // display_below removed
-  };
-
-  const handleBulkToggleNotesDisplayBelow = (_noteIds: string[], _displayBelow: boolean) => {
-    // display_below removed
   };
 
   const handleAssignmentSwap = (assignment1: Assignment, assignment2: Assignment) => {
@@ -654,14 +645,6 @@ const Index = () => {
     });
   };
 
-  const getDayNotesForTechnician = (teamId: string, date: string) => {
-    return notes.filter((n) => {
-      if (n.team_id !== teamId) return false;
-      const noteEndDate = n.end_date || n.start_date;
-      return n.start_date === date && noteEndDate === date;
-    });
-  };
-
   const allAssignmentsFormatted: Assignment[] = assignments.map(dbAssignment => {
     const a = dbAssignment as any;
     return {
@@ -697,30 +680,6 @@ const Index = () => {
       (a) => a.teamId === teamId && date >= a.startDate && date <= a.endDate
     );
   };
-
-  const getNotesForCell = (teamId: string, date: string) => {
-    return notes.filter((n) => {
-      if (n.team_id !== teamId) return false;
-      const noteStartDate = n.start_date;
-      const noteEndDate = n.end_date || n.start_date;
-      return date >= noteStartDate && date <= noteEndDate;
-    });
-  };
-
-  const visibleCommandeIds = new Set(
-    assignments
-      .filter((a: any) => {
-        const start = a.start_date || a.startDate;
-        const end = a.end_date || a.endDate;
-
-        return weekDates.some((d) => {
-          const dayDate = d.fullDate;
-          return dayDate >= start && dayDate <= end;
-        });
-      })
-      .map((a: any) => a.commande_id || a.commandeId)
-      .filter(Boolean)
-  );
 
   const displayTeams = teams;
 
@@ -788,6 +747,7 @@ const Index = () => {
                 onOpenSearchModal={() => setSearchModalOpen(true)}
                 setFleetDialogOpen={setIsFleetOpen}
                 setClientManagementOpen={setClientManagementOpen}
+                setTrashDialogOpen={setTrashDialogOpen} // 👈 PASSED TO TOOLBAR
               />
               <CardContent className="p-0 h-[calc(100vh-12rem)] flex flex-col relative overflow-hidden">
                 <WeeklyGrid
@@ -912,6 +872,11 @@ const Index = () => {
             open={clientManagementOpen}
             onOpenChange={setClientManagementOpen}
           />
+
+          <TrashDialog 
+            open={trashDialogOpen} 
+            onOpenChange={setTrashDialogOpen} 
+          /> {/* 👈 NEW RENDER */}
 
           <SearchFilterModal
             open={searchModalOpen}

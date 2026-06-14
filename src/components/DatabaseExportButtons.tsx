@@ -4,6 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Download, Loader2 } from "lucide-react";
+import * as XLSX from "xlsx";
+import { format } from "date-fns";
 
 const TABLES = [
   "technicians",
@@ -20,29 +22,6 @@ const TABLES = [
 
 type TableName = typeof TABLES[number];
 
-function toCsvString(data: Record<string, unknown>[]): string {
-  if (data.length === 0) return "";
-  const headers = Object.keys(data[0]);
-  const rows = data.map((row) =>
-    headers.map((h) => {
-      const val = row[h];
-      const str = val === null || val === undefined ? "" : String(val);
-      return `"${str.replace(/"/g, '""')}"`;
-    }).join(",")
-  );
-  return [headers.join(","), ...rows].join("\n");
-}
-
-function downloadCsv(filename: string, content: string) {
-  const blob = new Blob(["\uFEFF" + content], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
 export function DatabaseExportButtons() {
   const { toast } = useToast();
   const [loading, setLoading] = useState<TableName | "all" | null>(null);
@@ -52,14 +31,24 @@ export function DatabaseExportButtons() {
     try {
       const { data, error } = await supabase.from(table as any).select("*");
       if (error) throw error;
+      
       if (!data || data.length === 0) {
         toast({ title: "Info", description: `La table ${table} est vide.` });
         setLoading(null);
         return;
       }
-      const csv = toCsvString(data as any as Record<string, unknown>[]);
-      downloadCsv(`${table}.csv`, csv);
-      toast({ title: "Succès", description: `${table}.csv téléchargé (${data.length} lignes)` });
+
+      // 1. Create a worksheet from the JSON data
+      const worksheet = XLSX.utils.json_to_sheet(data);
+      
+      // 2. Create a new workbook and append the worksheet
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, table.substring(0, 31)); // Max 31 chars for Excel tabs
+
+      // 3. Trigger the file download
+      XLSX.writeFile(workbook, `Export_${table}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+      
+      toast({ title: "Succès", description: `Fichier Excel téléchargé (${data.length} lignes)` });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erreur", description: e.message });
     }
@@ -68,18 +57,31 @@ export function DatabaseExportButtons() {
 
   const exportAll = async () => {
     setLoading("all");
+    const workbook = XLSX.utils.book_new();
+    let hasData = false;
+
     for (const table of TABLES) {
       try {
         const { data, error } = await supabase.from(table as any).select("*");
         if (error) throw error;
+        
         if (data && data.length > 0) {
-          downloadCsv(`${table}.csv`, toCsvString(data as any as Record<string, unknown>[]));
+          const worksheet = XLSX.utils.json_to_sheet(data);
+          XLSX.utils.book_append_sheet(workbook, worksheet, table.substring(0, 31));
+          hasData = true;
         }
       } catch {
         // skip tables with access errors
       }
     }
-    toast({ title: "Succès", description: "Export terminé" });
+
+    if (hasData) {
+      XLSX.writeFile(workbook, `Export_Complet_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+      toast({ title: "Succès", description: "Export complet terminé" });
+    } else {
+      toast({ title: "Info", description: "Aucune donnée à exporter." });
+    }
+    
     setLoading(null);
   };
 
@@ -89,7 +91,7 @@ export function DatabaseExportButtons() {
         <CardTitle className="flex items-center justify-between">
           <span className="flex items-center gap-2">
             <Download className="h-5 w-5" />
-            Export CSV des tables
+            Export Excel des tables
           </span>
           <Button onClick={exportAll} disabled={!!loading}>
             {loading === "all" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Download className="h-4 w-4 mr-2" />}
