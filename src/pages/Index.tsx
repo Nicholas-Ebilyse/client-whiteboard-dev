@@ -67,6 +67,7 @@ import { FleetManagementDialog } from '@/components/FleetManagementDialog';
 import { Car } from 'lucide-react';
 import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 import { useUndo } from '@/hooks/useUndo'; // 👈 NEW IMPORT
+import { useSessionManager } from '@/hooks/useSessionManager';
 
 const Index = () => {
   // Activate background realtime synchronization
