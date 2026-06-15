@@ -359,7 +359,8 @@ export const useSaveAssignment = () => {
         is_fixed: isFixed ?? assignment.is_fixed,
         comment: comment ?? assignment.comment,
         is_confirmed: isConfirmed ?? assignment.is_confirmed ?? false,
-        assignment_group_id: assignment_group_id
+        assignment_group_id: assignment_group_id,
+        attachments: attachments ?? assignment.attachments
       };
 
       if (id && !id.startsWith('new-')) {

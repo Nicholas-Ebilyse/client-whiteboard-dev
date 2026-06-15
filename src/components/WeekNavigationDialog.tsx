@@ -23,7 +23,6 @@ export const WeekNavigationDialog = ({
 }: WeekNavigationDialogProps) => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
-  // Sync internal calendar state when dialog opens
   useEffect(() => {
     if (open) {
       const date = new Date(currentYear, 0, 4);
@@ -36,7 +35,6 @@ export const WeekNavigationDialog = ({
     if (date) {
       setSelectedDate(date);
       const newWeek = getWeek(date, { weekStartsOn: 1 });
-      // Edge case for week 52/53 rolling over years
       const newYear = date.getMonth() === 11 && newWeek === 1 ? date.getFullYear() + 1 : date.getFullYear();
       
       onWeekChange(newWeek, newYear);
@@ -46,9 +44,7 @@ export const WeekNavigationDialog = ({
 
   const handleToday = () => {
     const today = new Date();
-    const todayWeek = getWeek(today, { weekStartsOn: 1 });
-    const todayYear = getYear(today);
-    onWeekChange(todayWeek, todayYear);
+    onWeekChange(getWeek(today, { weekStartsOn: 1 }), getYear(today));
     onOpenChange(false);
   };
 
@@ -56,10 +52,10 @@ export const WeekNavigationDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md w-fit">
         <DialogHeader>
-          <DialogTitle>Sélectionner une date</DialogTitle>
-          {/* This fixes the console warning without cluttering the UI */}
+          <DialogTitle>Sélectionner une semaine</DialogTitle>
+          {/* This completely resolves the missing DialogDescription console warning! */}
           <DialogDescription className="sr-only">
-            Choisissez n'importe quel jour pour naviguer vers sa semaine correspondante.
+            Utilisez le calendrier pour sélectionner une semaine.
           </DialogDescription>
         </DialogHeader>
         
@@ -70,14 +66,11 @@ export const WeekNavigationDialog = ({
             onSelect={handleDateSelect}
             locale={fr}
             showOutsideDays
+            showWeekNumber /* 👈 This turns on the highlighted week column! */
             className="border rounded-md bg-background shadow-sm"
           />
 
-          <Button
-            variant="outline"
-            onClick={handleToday}
-            className="w-full"
-          >
+          <Button variant="outline" onClick={handleToday} className="w-full">
             <CalendarClock className="h-4 w-4 mr-2" />
             Revenir à la semaine actuelle
           </Button>

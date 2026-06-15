@@ -1,5 +1,5 @@
 import React from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Trash2, RotateCcw, AlertTriangle } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
@@ -44,6 +44,10 @@ export const TrashDialog: React.FC<TrashDialogProps> = ({ open, onOpenChange }) 
             <Trash2 className="w-5 h-5" />
             Corbeille des affectations
           </DialogTitle>
+          {/* This fixes the console warning quietly! */}
+          <DialogDescription className="sr-only">
+            Liste des éléments supprimés et options de restauration.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto py-4 space-y-3">

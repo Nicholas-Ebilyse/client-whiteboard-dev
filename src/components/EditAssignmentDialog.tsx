@@ -56,6 +56,7 @@ export const EditAssignmentDialog = ({
   const queryClient = useQueryClient();
   const updateCommande = useUpdateCommande();
   const today = new Date();
+  
   const [selectedTeam, setSelectedTeam] = useState(assignment?.teamId || '');
   const [selectedClient, setSelectedClient] = useState('');
   const [selectedCommande, setSelectedCommande] = useState(assignment?.commandeId || '');
@@ -67,7 +68,6 @@ export const EditAssignmentDialog = ({
   );
   const [comment, setComment] = useState(assignment?.comment || '');
 
-  // New State variables for Phase 4 UI
   const [clientPresence, setClientPresence] = useState('none');
   const [savType, setSavType] = useState('none');
 
@@ -80,6 +80,9 @@ export const EditAssignmentDialog = ({
   const [chantierDisplayName, setChantierDisplayName] = useState(initialName);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  
+  // ── FIX: Attachments state now belongs to the ASSIGNMENT, not the Commande! ──
+  const [localAttachments, setLocalAttachments] = useState<string[]>([]);
 
   useEffect(() => {
     if (assignment) {
@@ -94,9 +97,13 @@ export const EditAssignmentDialog = ({
       const officialName = initialCommande?.display_name || (initialCommande ? `${initialCommande.client} - ${getShortChantierName(initialCommande.chantier || '')}` : '');
       setChantierDisplayName(officialName);
 
-      // Load Phase 4 values
       setClientPresence(initialCommande?.client_presence || 'none');
       setSavType(initialCommande?.sav_type || 'none');
+      
+      // Load attachments directly from the specific assignment record
+      setLocalAttachments((assignment as any).attachments || []);
+    } else {
+      setLocalAttachments([]);
     }
   }, [assignment, commandes]);
 
@@ -147,11 +154,13 @@ export const EditAssignmentDialog = ({
         commandeId: selectedCommande,
         startDate: startDateStr,
         endDate: endDateStr,
-        isConfirmed: clientPresence === 'P' || clientPresence === 'P+RDV', // Driven by dropdown!
+        isConfirmed: clientPresence === 'P' || clientPresence === 'P+RDV',
         comment,
       };
 
-      // Always update the Commande to save the Presence and SAV status
+      // Ensure the attachments are passed down to be saved
+      (updatedAssignment as any).attachments = localAttachments;
+
       if (selectedCommande) {
         updateCommande.mutate({
           id: selectedCommande,
@@ -295,7 +304,6 @@ export const EditAssignmentDialog = ({
                 </div>
               )}
 
-              {/* The Re-added UI Buttons for Phase 4 */}
               {selectedCommande && (
                 <div className="grid grid-cols-2 gap-4 bg-muted/20 p-4 rounded-md border border-border mt-4">
                   <div className="space-y-2">
@@ -364,130 +372,129 @@ export const EditAssignmentDialog = ({
                 </div>
               )}
 
-              {/* Attachments Section */}
-              {selectedCommande && (() => {
-                const selectedComm = commandes.find((c: any) => c.id === selectedCommande);
-                if (!selectedComm) return null;
-                const attachments = selectedComm.attachments || [];
-
-                return (
-                  <div className="space-y-3 bg-muted/20 p-4 rounded-md border border-border">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-sm font-semibold">Fichiers ({attachments.length}/3)</Label>
-                    </div>
-
-                    {attachments.length > 0 && (
-                      <div className="grid grid-cols-1 gap-2">
-                        {attachments.map((url: string, index: number) => {
-                          const fileName = url.split('/').pop()?.split('?')[0] || `Fichier ${index + 1}`;
-                          return (
-                            <div key={url} className="flex items-center justify-between p-2 bg-background border rounded-md group">
-                              <a
-                                href={url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 text-sm text-primary hover:underline truncate"
-                              >
-                                <FileIcon className="h-4 w-4 flex-shrink-0" />
-                                <span className="truncate">{fileName}</span>
-                              </a>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
-                                onClick={async () => {
-                                  if (!window.confirm('Supprimer ce fichier ?')) return;
-
-                                  const filePathMatch = url.match(/commandes_files\/(.+)$/);
-                                  if (filePathMatch) {
-                                    const filePath = filePathMatch[1];
-                                    await supabase.storage.from('commandes_files').remove([filePath]);
-                                  }
-
-                                  const newUrls = attachments.filter((u: string) => u !== url);
-                                  await supabase.from('commandes').update({ attachments: newUrls }).eq('id', selectedCommande);
-
-                                  queryClient.invalidateQueries({ queryKey: ['commandes'] });
-                                  toast({ title: 'Fichier supprimé' });
-                                }}
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {attachments.length < 3 && (
-                      <div>
-                        <Input
-                          type="file"
-                          id="commande-file-upload"
-                          className="hidden"
-                          accept=".pdf,image/*"
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (!file) return;
-
-                            if (file.size > 5 * 1024 * 1024) {
-                              toast({ title: 'Fichier trop volumineux', description: 'Le fichier dépasse la limite de 5Mo.', variant: 'destructive' });
-                              return;
-                            }
-
-                            setIsUploading(true);
-                            try {
-                              const fileExt = file.name.split('.').pop();
-                              const fileName = `${selectedCommande}/${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
-
-                              const { error: uploadError } = await supabase.storage
-                                .from('commandes_files')
-                                .upload(fileName, file);
-
-                              if (uploadError) throw uploadError;
-
-                              const { data } = supabase.storage
-                                .from('commandes_files')
-                                .getPublicUrl(fileName);
-
-                              const newUrls = [...attachments, data.publicUrl];
-
-                              const { error: dbError } = await supabase
-                                .from('commandes')
-                                .update({ attachments: newUrls })
-                                .eq('id', selectedCommande);
-
-                              if (dbError) throw dbError;
-
-                              queryClient.invalidateQueries({ queryKey: ['commandes'] });
-                              toast({ title: 'Fichier ajouté avec succès' });
-                            } catch (error) {
-                              console.error('Upload error:', error);
-                              toast({ title: "Erreur d'envoi", description: 'Veuillez réessayer.', variant: 'destructive' });
-                            } finally {
-                              setIsUploading(false);
-                              if (e.target) e.target.value = '';
-                            }
-                          }}
-                        />
-                        <Label
-                          htmlFor="commande-file-upload"
-                          className={`flex items-center justify-center gap-2 w-full p-3 border-2 border-dashed rounded-md cursor-pointer transition-colors text-sm font-medium
-                            ${isUploading ? 'opacity-50 pointer-events-none bg-muted' : 'text-muted-foreground hover:border-primary hover:text-primary'}`}
-                        >
-                          {isUploading ? (
-                            <><Loader2 className="h-4 w-4 animate-spin" /> Envoi en cours...</>
-                          ) : (
-                            <><Upload className="h-4 w-4" /> Ajouter un fichier (PDF, Image)</>
-                          )}
-                        </Label>
-                      </div>
-                    )}
+              {/* ── FIXED ATTACHMENTS LOGIC: Bound to Assignment ID, not Commande ID ── */}
+              {assignment?.id && !assignment.id.startsWith('new-') && (
+                <div className="space-y-3 bg-muted/20 p-4 rounded-md border border-border">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-semibold">Fichiers ({localAttachments.length}/3)</Label>
                   </div>
-                );
-              })()}
 
+                  {localAttachments.length > 0 && (
+                    <div className="grid grid-cols-1 gap-2">
+                      {localAttachments.map((url: string, index: number) => {
+                        const fileName = url.split('/').pop()?.split('?')[0] || `Fichier ${index + 1}`;
+                        return (
+                          <div key={url} className="flex items-center justify-between p-2 bg-background border rounded-md group">
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 text-sm text-primary hover:underline truncate"
+                            >
+                              <FileIcon className="h-4 w-4 flex-shrink-0" />
+                              <span className="truncate">{fileName}</span>
+                            </a>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={async () => {
+                                if (!window.confirm('Supprimer ce fichier ?')) return;
+
+                                const filePathMatch = url.match(/attachments\/(.+)$/);
+                                if (filePathMatch) {
+                                  const filePath = filePathMatch[1];
+                                  await supabase.storage.from('attachments').remove([filePath]);
+                                }
+
+                                const newUrls = localAttachments.filter((u: string) => u !== url);
+                                setLocalAttachments(newUrls);
+                                
+                                // Immediately save the deletion to the database
+                                await supabase.from('assignments').update({ attachments: newUrls }).eq('id', assignment.id);
+                                queryClient.invalidateQueries({ queryKey: ['assignments'] });
+                                
+                                toast({ title: 'Fichier supprimé' });
+                              }}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {localAttachments.length < 3 && (
+                    <div>
+                      <Input
+                        type="file"
+                        id="assignment-file-upload"
+                        className="hidden"
+                        accept=".pdf,image/*"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+
+                          if (file.size > 5 * 1024 * 1024) {
+                            toast({ title: 'Fichier trop volumineux', description: 'Le fichier dépasse la limite de 5Mo.', variant: 'destructive' });
+                            return;
+                          }
+
+                          setIsUploading(true);
+                          try {
+                            const fileExt = file.name.split('.').pop();
+                            // Save to a specific folder for THIS assignment
+                            const fileName = `${assignment.id}/${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+
+                            const { error: uploadError } = await supabase.storage
+                              .from('attachments')
+                              .upload(fileName, file);
+
+                            if (uploadError) throw uploadError;
+
+                            const { data } = supabase.storage
+                              .from('attachments')
+                              .getPublicUrl(fileName);
+
+                            const newUrls = [...localAttachments, data.publicUrl];
+                            setLocalAttachments(newUrls);
+
+                            // Immediately save the addition to the database
+                            const { error: dbError } = await supabase
+                              .from('assignments')
+                              .update({ attachments: newUrls })
+                              .eq('id', assignment.id);
+
+                            if (dbError) throw dbError;
+
+                            queryClient.invalidateQueries({ queryKey: ['assignments'] });
+                            toast({ title: 'Fichier ajouté avec succès' });
+                          } catch (error) {
+                            console.error('Upload error:', error);
+                            toast({ title: "Erreur d'envoi", description: 'Veuillez réessayer.', variant: 'destructive' });
+                          } finally {
+                            setIsUploading(false);
+                            if (e.target) e.target.value = '';
+                          }
+                        }}
+                      />
+                      <Label
+                        htmlFor="assignment-file-upload"
+                        className={`flex items-center justify-center gap-2 w-full p-3 border-2 border-dashed rounded-md cursor-pointer transition-colors text-sm font-medium
+                          ${isUploading ? 'opacity-50 pointer-events-none bg-muted' : 'text-muted-foreground hover:border-primary hover:text-primary'}`}
+                      >
+                        {isUploading ? (
+                          <><Loader2 className="h-4 w-4 animate-spin" /> Envoi en cours...</>
+                        ) : (
+                          <><Upload className="h-4 w-4" /> Ajouter un fichier (PDF, Image)</>
+                        )}
+                      </Label>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {selectedCommande && (() => {

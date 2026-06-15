@@ -72,15 +72,14 @@ const Index = () => {
   // Activate background realtime synchronization
   useRealtimeSync();
   // Activate Ctrl+Z Soft-Delete recovery
-  useUndo();
-
+  const { canUndoDelete, triggerUndoDelete } = useUndo();
   const navigate = useNavigate();
   const { user: authUser, session: authSession, isAdmin } = useAuth();
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [isRefreshingSession, setIsRefreshingSession] = useState(false);
-  
+
   // ── DIALOG STATES ──
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
   const [assignmentDialogOpen, setAssignmentDialogOpen] = useState(false);
@@ -110,7 +109,7 @@ const Index = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isDailyTeamDialogOpen, setIsDailyTeamDialogOpen] = useState(false);
   const [dailyTeamDialogInfo, setDailyTeamDialogInfo] = useState({ teamName: '', date: '' });
-  
+
   const updateDailyRosters = useUpdateDailyTeamRosters();
   const queryClient = useQueryClient();
 
@@ -747,7 +746,9 @@ const Index = () => {
                 onOpenSearchModal={() => setSearchModalOpen(true)}
                 setFleetDialogOpen={setIsFleetOpen}
                 setClientManagementOpen={setClientManagementOpen}
-                setTrashDialogOpen={setTrashDialogOpen} // 👈 PASSED TO TOOLBAR
+                setTrashDialogOpen={setTrashDialogOpen}
+                canUndoDelete={canUndoDelete}
+                triggerUndoDelete={triggerUndoDelete}
               />
               <CardContent className="p-0 h-[calc(100vh-12rem)] flex flex-col relative overflow-hidden">
                 <WeeklyGrid
@@ -873,9 +874,9 @@ const Index = () => {
             onOpenChange={setClientManagementOpen}
           />
 
-          <TrashDialog 
-            open={trashDialogOpen} 
-            onOpenChange={setTrashDialogOpen} 
+          <TrashDialog
+            open={trashDialogOpen}
+            onOpenChange={setTrashDialogOpen}
           /> {/* 👈 NEW RENDER */}
 
           <SearchFilterModal

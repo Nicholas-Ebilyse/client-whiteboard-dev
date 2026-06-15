@@ -1,3 +1,4 @@
+import * as XLSX from 'xlsx';
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -54,50 +55,30 @@ export const AbsenceManagementDialog: React.FC<AbsenceManagementDialogProps> = (
 
   const activeTechnicians = technicians.filter(t => !t.is_archived);
 
-  // ── EXPORT TO CSV FUNCTION FOR EXCEL ──
-  const handleExportCSV = () => {
+  // ── EXPORT TO EXCEL FUNCTION ──
+  const handleExportExcel = () => {
     if (!absences || absences.length === 0) {
       toast.error("Aucune absence à exporter.");
       return;
     }
 
-    // 1. Define the CSV headers
-    const headers = ["Nom du Technicien", "Date Début", "Date Fin", "Motif", "Commentaire"];
-
-    // 2. Map the rows, safely resolving technician names and motive names
-    const csvRows = absences.map(abs => {
+    const dataToExport = absences.map(abs => {
       const tech = technicians.find(t => t.id === abs.technician_id);
-      const techName = tech ? tech.name : "Inconnu";
-      const motiveName = (abs as any).absence_motives?.name || "Non spécifié";
-      const comment = abs.commentaire || "";
-
-      // Escape quotes and wrap values in quotes to handle potential commas in comments
-      return [
-        `"${techName.replace(/"/g, '""')}"`,
-        `"${abs.start_date}"`,
-        `"${abs.end_date}"`,
-        `"${motiveName.replace(/"/g, '""')}"`,
-        `"${comment.replace(/"/g, '""')}"`
-      ].join(",");
+      return {
+        "Nom du Technicien": tech ? tech.name : "Inconnu",
+        "Date Début": abs.start_date,
+        "Date Fin": abs.end_date,
+        "Motif": (abs as any).absence_motives?.name || "Non spécifié",
+        "Commentaire": abs.commentaire || ""
+      };
     });
 
-    // 3. Combine headers and rows with a newline delimiter
-    const csvContent = [headers.join(","), ...csvRows].join("\n");
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Absences");
 
-    // 4. Prepend UTF-8 BOM (\uFEFF) so Excel opens accents correctly
-    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    
-    // 5. Create a hidden link and trigger the download automatic trigger
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `export_absences_${format(new Date(), 'yyyy-MM-dd')}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    toast.success("Export CSV réussi !");
+    XLSX.writeFile(workbook, `Export_Absences_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+    toast.success("Export Excel réussi !");
   };
 
   // Initialize defaults every time the dialog opens
@@ -108,11 +89,11 @@ export const AbsenceManagementDialog: React.FC<AbsenceManagementDialogProps> = (
       const today = format(new Date(), 'yyyy-MM-dd');
       setStartDate(today);
       setEndDate(today);
-      
+
       // Auto-select "Congés Payés" if it exists
       if (motives.length > 0) {
-        const cpMotive = motives.find(m => 
-          m.name.toLowerCase().includes('congés payés') || 
+        const cpMotive = motives.find(m =>
+          m.name.toLowerCase().includes('congés payés') ||
           m.name.toLowerCase().includes('conges payes')
         );
         if (cpMotive) {
@@ -153,15 +134,15 @@ export const AbsenceManagementDialog: React.FC<AbsenceManagementDialogProps> = (
       return;
     }
     try {
-      await saveAbsence.mutateAsync({ 
-        technician_id: technicianId, 
-        start_date: startDate, 
-        end_date: endDate, 
-        motive_id: motiveId 
+      await saveAbsence.mutateAsync({
+        technician_id: technicianId,
+        start_date: startDate,
+        end_date: endDate,
+        motive_id: motiveId
       });
-      
-      queryClient.invalidateQueries({ queryKey: ['absences'] }); 
-      
+
+      queryClient.invalidateQueries({ queryKey: ['absences'] });
+
       toast.success('Absence enregistrée');
       // We don't clear the technicianId anymore so they can see it in the filtered list below!
     } catch {
@@ -172,7 +153,7 @@ export const AbsenceManagementDialog: React.FC<AbsenceManagementDialogProps> = (
   const handleDelete = async (id: string) => {
     try {
       await deleteAbsence.mutateAsync(id);
-      queryClient.invalidateQueries({ queryKey: ['absences'] }); 
+      queryClient.invalidateQueries({ queryKey: ['absences'] });
       toast.success('Absence supprimée');
     } catch {
       toast.error('Erreur lors de la suppression');
@@ -241,7 +222,7 @@ export const AbsenceManagementDialog: React.FC<AbsenceManagementDialogProps> = (
         {/* ── Add form ── */}
         <div className="border rounded-lg p-4 space-y-4 bg-muted/30">
           <h3 className="font-semibold text-sm">Ajouter une absence</h3>
-          
+
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2 flex flex-col gap-1.5">
               <Label htmlFor="abs-tech">Technicien *</Label>
@@ -266,17 +247,17 @@ export const AbsenceManagementDialog: React.FC<AbsenceManagementDialogProps> = (
                 )}
               </div>
             </div>
-            
+
             <div>
               <Label htmlFor="abs-start">Date de début *</Label>
               <Input id="abs-start" type="date" value={startDate} onChange={handleStartDateChange} />
             </div>
-            
+
             <div>
               <Label htmlFor="abs-end">Date de fin *</Label>
               <Input id="abs-end" type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
             </div>
-            
+
             <div className="col-span-2">
               <Label>Motif *</Label>
               <div className="flex flex-wrap gap-2 mt-2">
@@ -307,7 +288,7 @@ export const AbsenceManagementDialog: React.FC<AbsenceManagementDialogProps> = (
               <span className="truncate">Gérer les motifs</span>
               {showMotiveManager ? <ChevronUp className="w-4 h-4 shrink-0" /> : <ChevronDown className="w-4 h-4 shrink-0" />}
             </Button>
-            
+
             <Button onClick={handleAdd} disabled={saveAbsence.isPending} className="w-2/3 gap-2">
               <Plus className="w-4 h-4" />
               Enregistrer l'absence
@@ -374,14 +355,14 @@ export const AbsenceManagementDialog: React.FC<AbsenceManagementDialogProps> = (
               variant="outline"
               size="sm"
               type="button"
-              onClick={handleExportCSV}
+              onClick={handleExportExcel}
               className="h-8 text-xs flex items-center gap-1.5"
             >
               <Download className="w-3.5 h-3.5" />
-              Exporter en CSV
+              Exporter en Excel
             </Button>
           </div>
-          
+
           {displayedAbsences.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">Aucune absence enregistrée pour cette sélection.</p>
           ) : (
