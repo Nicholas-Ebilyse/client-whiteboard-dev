@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -204,6 +204,9 @@ export const SearchFilterModal = ({
             <Search className="h-5 w-5" />
             Recherche &amp; Filtres
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Rechercher des affectations, clients, chantiers, équipes ou notes dans l'ensemble du planning.
+          </DialogDescription>
         </DialogHeader>
 
         {/* Search controls */}

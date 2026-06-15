@@ -13,9 +13,15 @@ interface TrashDialogProps {
 }
 
 export const TrashDialog: React.FC<TrashDialogProps> = ({ open, onOpenChange }) => {
-  const { data: deletedItems = [], isLoading } = useDeletedAssignments();
+  const { data: deletedItems = [], isLoading, refetch } = useDeletedAssignments();
   const restoreMutation = useRestoreAssignment();
   const hardDeleteMutation = useHardDeleteAssignment();
+
+  React.useEffect(() => {
+    if (open) {
+      refetch();
+    }
+  }, [open, refetch]);
 
   const handleRestore = async (id: string) => {
     try {

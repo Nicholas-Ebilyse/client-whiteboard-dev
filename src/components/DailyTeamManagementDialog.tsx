@@ -4,6 +4,7 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
+    DialogDescription,
     DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -211,7 +212,7 @@ export const DailyTeamManagementDialog: React.FC<DailyTeamManagementDialogProps>
             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
                     <DialogTitle>Composition de {teamName}</DialogTitle>
-                    <p className="text-sm text-muted-foreground capitalize">{formattedDate}</p>
+                    <DialogDescription className="text-sm text-muted-foreground capitalize">{formattedDate}</DialogDescription>
                 </DialogHeader>
 
                 <div className="py-4 space-y-3 max-h-[60vh] overflow-y-auto pr-2">

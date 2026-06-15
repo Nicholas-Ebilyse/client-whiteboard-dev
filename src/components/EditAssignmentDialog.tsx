@@ -7,6 +7,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -237,6 +238,9 @@ export const EditAssignmentDialog = ({
         <DialogContent className="sm:max-w-[600px] bg-card max-h-[90vh]">
           <DialogHeader>
             <DialogTitle className="text-xl font-semibold">Éditer l'affectation</DialogTitle>
+            <DialogDescription className="sr-only">
+              Modifier ou supprimer les détails de l'affectation sélectionnée.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-6 py-4 max-h-[calc(90vh-140px)] overflow-y-auto">

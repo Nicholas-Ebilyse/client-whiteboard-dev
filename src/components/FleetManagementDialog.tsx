@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -97,6 +97,9 @@ export const FleetManagementDialog = ({ open, onOpenChange }: { open: boolean, o
             {activeTab === 'vehicles' ? <Car className="h-5 w-5" /> : <Wrench className="h-5 w-5" />}
             Gestion de la Flotte & Matériel
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Gérer les véhicules et le matériel de la flotte, ajouter de nouveaux éléments et modifier leur statut.
+          </DialogDescription>
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="flex-1 flex flex-col overflow-hidden">

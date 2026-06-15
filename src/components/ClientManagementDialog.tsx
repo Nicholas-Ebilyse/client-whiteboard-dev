@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -299,6 +299,9 @@ export const ClientManagementDialog = ({ open, onOpenChange }: ClientManagementD
                         <Building2 className="h-6 w-6 text-primary" />
                         Gestion des Clients & Chantiers
                     </DialogTitle>
+                    <DialogDescription className="sr-only">
+                        Gérer les clients, ajouter des chantiers et définir leurs compétences, véhicules et matériels requis.
+                    </DialogDescription>
                 </DialogHeader>
 
                 <div className="flex flex-1 overflow-hidden">

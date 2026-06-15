@@ -349,7 +349,7 @@ export const useSaveAssignment = () => {
 
   return useMutation({
     mutationFn: async (assignment: any) => {
-      const { id, teamId, commandeId, startDate, endDate, isFixed, comment, isConfirmed, assignment_group_id, ...rest } = assignment;
+      const { id, teamId, commandeId, startDate, endDate, isFixed, comment, isConfirmed, assignment_group_id, attachments, ...rest } = assignment;
 
       const dbAssignment = {
         team_id: teamId ?? assignment.team_id,
@@ -360,7 +360,7 @@ export const useSaveAssignment = () => {
         comment: comment ?? assignment.comment,
         is_confirmed: isConfirmed ?? assignment.is_confirmed ?? false,
         assignment_group_id: assignment_group_id,
-        attachments: attachments ?? assignment.attachments
+        attachments: attachments ?? assignment.attachments ?? null
       };
 
       if (id && !id.startsWith('new-')) {
@@ -401,7 +401,10 @@ export const useDeleteAssignment = () => {
       // Save ID to memory for Ctrl+Z
       setLastDeletedAssignmentId(id);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['assignments'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['deleted_assignments'] });
+    },
   });
 };
 
@@ -428,7 +431,10 @@ export const useRestoreAssignment = () => {
       const { error } = await supabase.from('assignments').update({ is_deleted: false }).eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['assignments'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['deleted_assignments'] });
+    },
   });
 };
 
