@@ -104,6 +104,206 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
             </TooltipProvider>
           )}
 
+          {isAdmin && (
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setSendScheduleOpen(true)}
+                    className="h-8 w-8 hover:bg-slate-200 dark:hover:bg-slate-800 text-sky-600"
+                  >
+                    <Mail className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Envoyer par email</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+
+          {isAdmin && (
+            <Popover>
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                      >
+                        <Presentation className="h-4 w-4" />
+                      </Button>
+                    </PopoverTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Mode présentation
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <PopoverContent className="w-64 p-4">
+                <div className="space-y-4">
+                  <h4 className="font-semibold text-sm">Mode présentation</h4>
+                  <div className="space-y-2">
+                    <Label htmlFor="timeout">Délai avant retour (en minutes)</Label>
+                    <Input
+                      id="timeout"
+                      type="number"
+                      min="1"
+                      value={presentationTimeout}
+                      onChange={e => setPresentationTimeout(parseInt(e.target.value) || 30)}
+                    />
+                  </div>
+                  <Button
+                    className="w-full"
+                    onClick={async () => {
+                      try {
+                        const { data, error } = await supabase
+                          .from('presentation_tokens')
+                          .insert([{}])
+                          .select('token')
+                          .single();
+
+                        if (error) throw error;
+
+                        const weekStart = startOfWeek(new Date(weekConfig.year, 0, 1 + (weekConfig.week_number - 1) * 7), { weekStartsOn: 1 });
+                        const dateStr = format(weekStart, 'yyyy-MM-dd');
+                        const url = `${window.location.origin}/presentation?timeout=${presentationTimeout}&token=${data.token}&date=${dateStr}`;
+
+                        if (navigator.clipboard && window.isSecureContext) {
+                          await navigator.clipboard.writeText(url);
+                          toast.success('Lien sécurisé copié dans le presse-papiers !');
+                        } else {
+                          prompt("Votre navigateur bloque la copie automatique. Copiez le lien ci-dessous :", url);
+                          toast.success('Lien généré avec succès !');
+                        }
+                      } catch (err) {
+                        console.error(err);
+                        toast.error('Erreur lors de la génération du lien');
+                      }
+                    }}
+                  >
+                    Copier lien Présentation
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    className="w-full"
+                    onClick={() => {
+                      supabase.channel('presentation_controls').send({
+                        type: 'broadcast',
+                        event: 'stop_timer',
+                        payload: { action: 'stop' }
+                      });
+                      toast.success('Signal d\'arrêt envoyé à la présentation');
+                    }}
+                  >
+                    Arrêter le minuteur distant
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
+
+          {isAdmin && setFleetDialogOpen && (
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setFleetDialogOpen(true)}
+                    className="h-8 w-8 hover:bg-slate-200 dark:hover:bg-slate-800 text-violet-600"
+                  >
+                    <Car className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Flotte & Matériel</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+
+          {isAdmin && setClientManagementOpen && (
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setClientManagementOpen(true)}
+                    className="h-8 w-8 hover:bg-slate-200 dark:hover:bg-slate-800 text-teal-600"
+                  >
+                    <Building2 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Gérer les clients et chantiers</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+
+          {isAdmin && setManageTechsDialogOpen && (
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setManageTechsDialogOpen(true)}
+                    className="h-8 w-8 hover:bg-slate-200 dark:hover:bg-slate-800 text-indigo-600"
+                  >
+                    <Users className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Gérer les équipes</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+
+          {isAdmin && setAbsenceManagementOpen && (
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setAbsenceManagementOpen(true)}
+                    className="h-8 w-8 hover:bg-slate-200 dark:hover:bg-slate-800 text-orange-500"
+                  >
+                    <CalendarX2 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Gérer les absences</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+
+          {isAdmin && (
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={toggleCopyMode}
+                    className={cn(
+                      "h-8 w-8",
+                      copyModeEnabled
+                        ? "bg-green-500 hover:bg-green-600 text-white"
+                        : "hover:bg-slate-200 dark:hover:bg-slate-800 text-emerald-700 dark:text-emerald-300"
+                    )}
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {copyModeEnabled
+                    ? "Mode copie actif — Cliquez pour désactiver"
+                    : "Activer le mode copie"}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+
           {isAdmin && setTrashDialogOpen && (
             <TooltipProvider delayDuration={200}>
               <Tooltip>
@@ -141,9 +341,24 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
             </TooltipProvider>
           )}
 
-          {/* ... (Other existing buttons: Presentation, Fleet, Client, Techs, Absences, Admin) ... */}
-          {/* TO KEEP THIS SNIPPET SHORT, assume all other standard buttons remain here exactly as before */}
-          
+          {isAdmin && (
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => window.location.href = '/admin'}
+                    className="h-8 w-8 hover:bg-slate-200 dark:hover:bg-slate-800 text-emerald-600"
+                  >
+                    <Wrench className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Administration</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+
           <div className="w-px h-6 bg-border mx-1" />
           <TooltipProvider delayDuration={200}>
             <Tooltip>
