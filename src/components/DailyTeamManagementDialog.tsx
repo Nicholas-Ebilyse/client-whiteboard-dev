@@ -144,7 +144,9 @@ export const DailyTeamManagementDialog: React.FC<DailyTeamManagementDialogProps>
                     }))
                 );
             } else if (baseTeamId) {
-                const baseMembers = activeTechnicians.filter(t => t.team_id === baseTeamId);
+                const baseMembers = activeTechnicians.filter(
+                    t => t.team_id === baseTeamId && !busyTechIds.has(t.id)
+                );
                 setSelectedTechs(
                     baseMembers.map((t, index) => ({
                         id: t.id,
@@ -155,7 +157,7 @@ export const DailyTeamManagementDialog: React.FC<DailyTeamManagementDialogProps>
                 setSelectedTechs([]);
             }
         }
-    }, [isOpen, currentRosters, activeTechnicians, baseTeamId]);
+    }, [isOpen, currentRosters, activeTechnicians, baseTeamId, busyTechIds]);
 
     const handleToggleTech = (techId: string) => {
         setSelectedTechs(prev => {
@@ -179,8 +181,9 @@ export const DailyTeamManagementDialog: React.FC<DailyTeamManagementDialogProps>
     };
 
     const handleSave = () => {
+        const validSelectedTechs = selectedTechs.filter(t => !busyTechIds.has(t.id));
         onSave(
-            selectedTechs.map(t => ({
+            validSelectedTechs.map(t => ({
                 technician_id: t.id,
                 is_team_leader: t.isLeader,
             }))
