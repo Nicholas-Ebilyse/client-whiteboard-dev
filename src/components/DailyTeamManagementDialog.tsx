@@ -86,12 +86,12 @@ export const DailyTeamManagementDialog: React.FC<DailyTeamManagementDialogProps>
         return () => { isMounted = false; };
     }, [isOpen, teamName, date, baseTeamId]);
 
-    // ── AVAILABILITY SCANNER: Hide technicians busy on other teams today ──
+    // ── AVAILABILITY SCANNER & INITIALIZATION: Single atomic flow ──
     useEffect(() => {
         let isMounted = true;
+        if (!isOpen || !date) return;
 
-        const fetchBusyTechnicians = async () => {
-            if (!isOpen || !date) return;
+        const initDialog = async () => {
             try {
                 // 1. Check who is on another team today
                 const { data: allRosters } = await supabase
@@ -99,65 +99,57 @@ export const DailyTeamManagementDialog: React.FC<DailyTeamManagementDialogProps>
                     .select('technician_id, team_name')
                     .eq('date', date);
 
-                // 2. NEW: Check who is officially absent today
+                // 2. Check who is officially absent today
                 const { data: allAbsences } = await supabase
                     .from('absences')
                     .select('technician_id')
                     .lte('start_date', date)
                     .gte('end_date', date);
 
-                if (allRosters || allAbsences) {
-                    const busy = new Set<string>();
-                    
-                    // Hide if on another team
-                    allRosters?.forEach(roster => {
-                        if (roster.team_name !== teamName && roster.technician_id) {
-                            busy.add(roster.technician_id);
-                        }
-                    });
-                    
-                    // Hide if absent
-                    allAbsences?.forEach(abs => {
-                        if (abs.technician_id) {
-                            busy.add(abs.technician_id);
-                        }
-                    });
-                    
-                    if (isMounted) setBusyTechIds(busy);
+                const busy = new Set<string>();
+                allRosters?.forEach(roster => {
+                    if (roster.team_name !== teamName && roster.technician_id) {
+                        busy.add(roster.technician_id);
+                    }
+                });
+                allAbsences?.forEach(abs => {
+                    if (abs.technician_id) {
+                        busy.add(abs.technician_id);
+                    }
+                });
+
+                if (!isMounted) return;
+                setBusyTechIds(busy);
+
+                // 3. Initialize selectedTechs ONLY AFTER busy set is computed
+                if (currentRosters.length > 0) {
+                    setSelectedTechs(
+                        currentRosters.map(r => ({
+                            id: r.technician_id,
+                            isLeader: r.is_team_leader || false,
+                        }))
+                    );
+                } else if (baseTeamId) {
+                    const baseMembers = activeTechnicians.filter(
+                        t => t.team_id === baseTeamId && !busy.has(t.id)
+                    );
+                    setSelectedTechs(
+                        baseMembers.map((t, index) => ({
+                            id: t.id,
+                            isLeader: index === 0,
+                        }))
+                    );
+                } else {
+                    setSelectedTechs([]);
                 }
             } catch (error) {
                 console.error("Erreur lors de la vérification des disponibilités", error);
             }
         };
         
-        fetchBusyTechnicians();
+        initDialog();
         return () => { isMounted = false; };
-    }, [isOpen, date, teamName]);
-
-    useEffect(() => {
-        if (isOpen) {
-            if (currentRosters.length > 0) {
-                setSelectedTechs(
-                    currentRosters.map(r => ({
-                        id: r.technician_id,
-                        isLeader: r.is_team_leader || false,
-                    }))
-                );
-            } else if (baseTeamId) {
-                const baseMembers = activeTechnicians.filter(
-                    t => t.team_id === baseTeamId && !busyTechIds.has(t.id)
-                );
-                setSelectedTechs(
-                    baseMembers.map((t, index) => ({
-                        id: t.id,
-                        isLeader: index === 0,
-                    }))
-                );
-            } else {
-                setSelectedTechs([]);
-            }
-        }
-    }, [isOpen, currentRosters, activeTechnicians, baseTeamId, busyTechIds]);
+    }, [isOpen, date, teamName, baseTeamId, currentRosters, activeTechnicians]);
 
     const handleToggleTech = (techId: string) => {
         setSelectedTechs(prev => {
