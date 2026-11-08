@@ -6,7 +6,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
-import { Edit, Copy, Trash2, CopyPlus, MapPin } from 'lucide-react';
+import { Edit, Copy, Trash2, CopyPlus, MapPin, Clock, Receipt } from 'lucide-react';
 
 interface Commande {
   id: string;
@@ -22,6 +22,8 @@ interface AssignmentContextMenuProps {
   onDuplicate?: (assignment: Assignment) => void;
   onCopyToClipboard?: (assignment: Assignment) => void;
   onDelete?: (assignment: Assignment) => void;
+  onTogglePostponed?: (assignment: Assignment) => void;
+  onToggleInvoiced?: (assignment: Assignment) => void;
   disabled?: boolean;
 }
 
@@ -33,6 +35,8 @@ export const AssignmentContextMenu = ({
   onDuplicate,
   onCopyToClipboard,
   onDelete,
+  onTogglePostponed,
+  onToggleInvoiced,
   disabled = false,
 }: AssignmentContextMenuProps) => {
   if (disabled) {
@@ -64,6 +68,18 @@ export const AssignmentContextMenu = ({
           <ContextMenuItem onClick={() => onDuplicate(assignment)} className="gap-2">
             <CopyPlus className="h-4 w-4" />
             Dupliquer
+          </ContextMenuItem>
+        )}
+        {onTogglePostponed && (
+          <ContextMenuItem onClick={() => onTogglePostponed(assignment)} className="gap-2">
+            <Clock className="h-4 w-4 text-red-500" />
+            {assignment.isPostponed ? 'Retirer statut Reporté' : 'Marquer comme Reporté'}
+          </ContextMenuItem>
+        )}
+        {onToggleInvoiced && (
+          <ContextMenuItem onClick={() => onToggleInvoiced(assignment)} className="gap-2">
+            <Receipt className="h-4 w-4 text-emerald-500" />
+            {assignment.isInvoiced ? 'Retirer statut Facturé' : 'Marquer comme Facturé (F)'}
           </ContextMenuItem>
         )}
         {onCopyToClipboard && (

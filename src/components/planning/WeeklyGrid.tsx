@@ -37,6 +37,8 @@ export interface WeeklyGridProps {
   handleAssignmentClick: (assignment: any) => void;
   handleDuplicateAssignment: (id: string) => void;
   handleDeleteAssignment: (id: string) => void;
+  handleTogglePostponed?: (assignment: Assignment) => void;
+  handleToggleInvoiced?: (assignment: Assignment) => void;
 
   isDraggable: (assignment: any) => boolean;
   handleDragStart: (e: React.DragEvent, assignment: any, date: string, teamId: string) => void;
@@ -95,6 +97,8 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
   handleAssignmentClick,
   handleDuplicateAssignment,
   handleDeleteAssignment,
+  handleTogglePostponed,
+  handleToggleInvoiced,
   isDraggable,
   handleDragStart,
   handleDragOver,
@@ -450,6 +454,8 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
                           onAssignmentClick={isAdmin ? handleAssignmentClick : undefined}
                           onAssignmentDuplicate={isAdmin ? (a) => handleDuplicateAssignment(a.id) : undefined}
                           onAssignmentDelete={isAdmin ? (a) => handleDeleteAssignment(a.id) : undefined}
+                          onAssignmentTogglePostponed={isAdmin && handleTogglePostponed ? handleTogglePostponed : undefined}
+                          onAssignmentToggleInvoiced={isAdmin && handleToggleInvoiced ? handleToggleInvoiced : undefined}
                           commandes={commandes}
                           isAdmin={isAdmin}
                           maxAssignmentsPerPeriod={maxAssignments}

@@ -59,6 +59,8 @@ interface ResultRow {
   startDate: string;
   endDate: string;
   comment?: string | null;
+  isPostponed?: boolean;
+  isInvoiced?: boolean;
 }
 
 const normalizeSearch = (str: string | null | undefined) => {
@@ -90,7 +92,7 @@ export const SearchFilterModal = ({
       Promise.all([
         supabase
           .from('assignments')
-          .select('id, start_date, end_date, team_id, commande_id, comment, is_confirmed, is_deleted')
+          .select('id, start_date, end_date, team_id, commande_id, comment, is_confirmed, is_deleted, is_postponed, is_invoiced')
           .neq('is_deleted', true)
           .order('start_date', { ascending: false })
           .limit(2000),
@@ -101,7 +103,7 @@ export const SearchFilterModal = ({
           .limit(1000),
         supabase
           .from('commandes')
-          .select('id, client, chantier, display_name')
+          .select('id, client, chantier, display_name, is_postponed, is_invoiced')
           .limit(1000)
       ]).then(([{ data: aData }, { data: nData }, { data: cData }]) => {
         if (aData) setGlobalAssignments(aData);
@@ -149,6 +151,8 @@ export const SearchFilterModal = ({
       .map((a) => {
         const commande = activeCommandes.find((c) => c.id === a.commande_id);
         const team = teams.find((t) => t.id === a.team_id);
+        const isPostponed = !!(a.is_postponed || a.isPostponed || (commande as any)?.is_postponed);
+        const isInvoiced = !!(a.is_invoiced || a.isInvoiced || (commande as any)?.is_invoiced);
         return {
           id: a.id,
           type: 'assignment',
@@ -158,6 +162,8 @@ export const SearchFilterModal = ({
           startDate: a.start_date || a.startDate,
           endDate: a.end_date || a.endDate || a.start_date || a.startDate,
           comment: a.comment,
+          isPostponed,
+          isInvoiced,
         };
       });
 
@@ -292,19 +298,48 @@ export const SearchFilterModal = ({
                   <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">Client</th>
                   <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">Chantier</th>
                   <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">Équipe</th>
-                  <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">Période</th>
+                  <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">Date / Période</th>
+                  <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">Statut</th>
                   <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">Détail / Commentaire</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {results.map((r) => (
-                  <tr key={`${r.type}-${r.id}`} className={`hover:bg-muted/30 transition-colors ${r.type === 'note' ? 'bg-amber-50/50 dark:bg-amber-950/20' : ''}`}>
-                    <td className="px-3 py-2 font-medium truncate max-w-[120px]">{r.client}</td>
+                  <tr 
+                    key={`${r.type}-${r.id}`} 
+                    className={`hover:bg-muted/30 transition-colors ${
+                      r.isPostponed 
+                        ? 'bg-red-50/60 dark:bg-red-950/20' 
+                        : (r.type === 'note' ? 'bg-amber-50/50 dark:bg-amber-950/20' : '')
+                    }`}
+                  >
+                    <td className="px-3 py-2 font-medium">
+                      <div className="flex items-center gap-1.5">
+                        <span className="truncate max-w-[140px]">{r.client}</span>
+                      </div>
+                    </td>
                     <td className="px-3 py-2 text-muted-foreground truncate max-w-[150px]">{r.chantier.split(',')[0]}</td>
                     <td className="px-3 py-2">{r.teamName}</td>
-                    <td className="px-3 py-2 whitespace-nowrap text-xs text-muted-foreground">
+                    <td className="px-3 py-2 whitespace-nowrap text-xs font-medium text-foreground">
                       {formatDate(r.startDate)}
                       {r.endDate !== r.startDate && ` → ${formatDate(r.endDate)}`}
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        {r.isPostponed && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold uppercase bg-red-100 text-red-700 dark:bg-red-950/70 dark:text-red-300 border border-red-300 shadow-sm">
+                            Reporté
+                          </span>
+                        )}
+                        {r.isInvoiced && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-extrabold uppercase bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-300 shadow-sm" title="Facturé">
+                            Facturé (F)
+                          </span>
+                        )}
+                        {!r.isPostponed && !r.isInvoiced && (
+                          <span className="text-xs text-muted-foreground/60">—</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-3 py-2 text-xs italic text-muted-foreground truncate max-w-[200px]">
                       {r.comment ?? ''}

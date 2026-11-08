@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { Assignment } from '@/types/planning';
 import { cn } from '@/lib/utils';
-import { StickyNote, CalendarPlus, Link2, MapPin, GripVertical, Lock, Check, Receipt, ArrowDown, ArrowUp, ChevronsDown, ChevronsUp, Car, Wrench, TriangleAlert } from 'lucide-react';
+import { StickyNote, CalendarPlus, Link2, MapPin, GripVertical, Lock, Check, Receipt, ArrowDown, ArrowUp, ChevronsDown, ChevronsUp, Car, Wrench, TriangleAlert, Paperclip } from 'lucide-react';
 import { AssignmentContextMenu } from './AssignmentContextMenu';
 import { NoteContextMenu } from './NoteContextMenu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
@@ -56,6 +56,8 @@ interface AssignmentCellProps {
   onAssignmentClick?: (assignment: Assignment) => void;
   onAssignmentDuplicate?: (assignment: Assignment) => void;
   onAssignmentDelete?: (assignment: Assignment) => void;
+  onAssignmentTogglePostponed?: (assignment: Assignment) => void;
+  onAssignmentToggleInvoiced?: (assignment: Assignment) => void;
   onAssignmentMoveUp?: (assignment: Assignment) => void;
   onAssignmentMoveDown?: (assignment: Assignment) => void;
   commandes: Commande[];
@@ -127,6 +129,8 @@ const AssignmentCellComponent = ({
   onAssignmentClick,
   onAssignmentDuplicate,
   onAssignmentDelete,
+  onAssignmentTogglePostponed,
+  onAssignmentToggleInvoiced,
   onAssignmentMoveUp,
   onAssignmentMoveDown,
   commandes,
@@ -488,6 +492,8 @@ const AssignmentCellComponent = ({
                   onDuplicate={onAssignmentDuplicate}
                   onCopyToClipboard={handleCopyToClipboard}
                   onDelete={onAssignmentDelete}
+                  onTogglePostponed={onAssignmentTogglePostponed}
+                  onToggleInvoiced={onAssignmentToggleInvoiced}
                   disabled={!isAdmin}
                 >
                   <div
@@ -516,11 +522,12 @@ const AssignmentCellComponent = ({
                         "flex items-center justify-center text-center relative",
                         draggable && "cursor-grab active:cursor-grabbing",
                         getAssignmentClasses(assignment),
-                        absentTechNames.length > 0 && "bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,rgba(255,0,0,0.1)_10px,rgba(255,0,0,0.1)_20px)]"
+                        absentTechNames.length > 0 && "bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,rgba(255,0,0,0.1)_10px,rgba(255,0,0,0.1)_20px)]",
+                        assignment.isPostponed && "border-2 border-red-700 ring-2 ring-red-400/60 shadow-red-500/30"
                       )}
                       style={{
                         minHeight: '36px',
-                        backgroundColor: (teamColor) ? teamColor : undefined
+                        backgroundColor: assignment.isPostponed ? '#dc2626' : ((teamColor) ? teamColor : undefined)
                       }}
                     >
                       {isAdmin && (
@@ -575,6 +582,46 @@ const AssignmentCellComponent = ({
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
+                      )}
+
+                      {/* Status Pills: Reporté & Facturé (F) & Pièces jointes */}
+                      {(assignment.isPostponed || assignment.isInvoiced || (assignment.attachments && assignment.attachments.length > 0)) && (
+                        <div className="absolute top-1 right-1 flex items-center gap-1 z-10 pointer-events-none">
+                          {assignment.attachments && assignment.attachments.length > 0 && (
+                            <TooltipProvider delayDuration={200}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold bg-white/90 text-slate-700 shadow-sm border border-slate-200">
+                                    <Paperclip className="h-2.5 w-2.5" />
+                                    <span>{assignment.attachments.length}</span>
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="text-xs">
+                                  {assignment.attachments.length} pièce{assignment.attachments.length > 1 ? 's' : ''} jointe{assignment.attachments.length > 1 ? 's' : ''}
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                          {assignment.isPostponed && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-white text-red-700 shadow-sm border border-red-300">
+                              Reporté
+                            </span>
+                          )}
+                          {assignment.isInvoiced && (
+                            <TooltipProvider delayDuration={200}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="inline-flex items-center justify-center w-4 h-4 rounded text-[10px] font-black uppercase bg-emerald-500 text-white shadow-sm border border-emerald-300">
+                                    F
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="text-xs">
+                                  Chantier Facturé
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                        </div>
                       )}
 
                       <div className="flex flex-col text-left justify-center flex-1 py-1 px-1">

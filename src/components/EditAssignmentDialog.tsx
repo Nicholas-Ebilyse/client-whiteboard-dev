@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Copy, MapPin, ExternalLink, Upload, X, FileIcon, Loader2 } from 'lucide-react';
+import { CalendarIcon, Copy, MapPin, ExternalLink, Upload, X, FileIcon, Loader2, Camera, Image as ImageIcon, Link as LinkIcon, Check, Clock, Receipt } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn, getShortChantierName } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
@@ -81,6 +81,10 @@ export const EditAssignmentDialog = ({
   const [chantierDisplayName, setChantierDisplayName] = useState(initialName);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isPostponed, setIsPostponed] = useState(false);
+  const [isInvoiced, setIsInvoiced] = useState(false);
+  const [showDriveInput, setShowDriveInput] = useState(false);
+  const [googleDriveUrl, setGoogleDriveUrl] = useState('');
   
   // ── FIX: Attachments state now belongs to the ASSIGNMENT, not the Commande! ──
   const [localAttachments, setLocalAttachments] = useState<string[]>([]);
@@ -100,10 +104,14 @@ export const EditAssignmentDialog = ({
 
       setClientPresence(initialCommande?.client_presence || 'none');
       setSavType(initialCommande?.sav_type || 'none');
+      setIsPostponed(!!(assignment.isPostponed || (assignment as any).is_postponed));
+      setIsInvoiced(!!(assignment.isInvoiced || (assignment as any).is_invoiced));
       
       // Load attachments directly from the specific assignment record
       setLocalAttachments((assignment as any).attachments || []);
     } else {
+      setIsPostponed(false);
+      setIsInvoiced(false);
       setLocalAttachments([]);
     }
   }, [assignment, commandes]);
@@ -120,6 +128,96 @@ export const EditAssignmentDialog = ({
       const aEndStr = format(new Date(a.endDate), 'yyyy-MM-dd');
       return !(endStr < aStartStr || startStr > aEndStr);
     }).length;
+  };
+
+  const handleFileUpload = async (file: File) => {
+    if (!assignment?.id) return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast({
+        title: 'Fichier trop volumineux',
+        description: 'La taille maximale par fichier est de 10 Mo.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop() || 'jpg';
+      const cleanExt = fileExt.toLowerCase();
+      const fileName = `${assignment.id}/${Math.random().toString(36).substring(2)}_${Date.now()}.${cleanExt}`;
+
+      // Try uploading to 'attachments' bucket first, fallback to 'commandes_files' if bucket is missing
+      let targetBucket = 'attachments';
+      let uploadRes = await supabase.storage.from(targetBucket).upload(fileName, file);
+
+      if (
+        uploadRes.error &&
+        (uploadRes.error.message?.includes('not found') ||
+          (uploadRes.error as any).statusCode === '404' ||
+          (uploadRes.error as any).statusCode === 400 ||
+          (uploadRes.error as any).status === 400)
+      ) {
+        console.warn('attachments bucket not found or failed, falling back to commandes_files');
+        targetBucket = 'commandes_files';
+        uploadRes = await supabase.storage.from(targetBucket).upload(fileName, file);
+      }
+
+      if (uploadRes.error) {
+        throw uploadRes.error;
+      }
+
+      const { data: publicData } = supabase.storage.from(targetBucket).getPublicUrl(fileName);
+      const newUrls = [...localAttachments, publicData.publicUrl];
+      setLocalAttachments(newUrls);
+
+      // Persist to assignment record in Supabase
+      if (!assignment.id.startsWith('new-')) {
+        const { error: dbError } = await supabase
+          .from('assignments')
+          .update({ attachments: newUrls })
+          .eq('id', assignment.id);
+
+        if (dbError) throw dbError;
+        queryClient.invalidateQueries({ queryKey: ['assignments'] });
+      }
+
+      toast({ title: 'Image ajoutée avec succès' });
+    } catch (err: any) {
+      console.error('Upload error:', err);
+      toast({
+        title: "Erreur d'envoi",
+        description: err?.message || 'Impossible de téléverser le fichier. Veuillez réessayer.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleAddDriveLink = async () => {
+    const trimmed = googleDriveUrl.trim();
+    if (!trimmed) return;
+    if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+      toast({
+        title: 'Lien invalide',
+        description: 'Veuillez saisir une URL valide (ex: https://drive.google.com/...)',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const newUrls = [...localAttachments, trimmed];
+    setLocalAttachments(newUrls);
+    setGoogleDriveUrl('');
+    setShowDriveInput(false);
+
+    if (assignment?.id && !assignment.id.startsWith('new-')) {
+      await supabase.from('assignments').update({ attachments: newUrls }).eq('id', assignment.id);
+      queryClient.invalidateQueries({ queryKey: ['assignments'] });
+    }
+
+    toast({ title: 'Lien Google Drive ajouté' });
   };
 
   const handleSave = async () => {
@@ -156,11 +254,15 @@ export const EditAssignmentDialog = ({
         startDate: startDateStr,
         endDate: endDateStr,
         isConfirmed: clientPresence === 'P' || clientPresence === 'P+RDV',
+        isPostponed,
+        isInvoiced,
         comment,
       };
 
-      // Ensure the attachments are passed down to be saved
+      // Ensure the attachments, postponed, and invoiced flags are passed down to be saved
       (updatedAssignment as any).attachments = localAttachments;
+      (updatedAssignment as any).is_postponed = isPostponed;
+      (updatedAssignment as any).is_invoiced = isInvoiced;
 
       if (selectedCommande) {
         updateCommande.mutate({
@@ -376,125 +478,262 @@ export const EditAssignmentDialog = ({
                 </div>
               )}
 
-              {/* ── FIXED ATTACHMENTS LOGIC: Bound to Assignment ID, not Commande ID ── */}
-              {assignment?.id && !assignment.id.startsWith('new-') && (
+              {/* ── STATUT DE L'INTERVENTION (Reporté & Facturé) ── */}
+              <div className="space-y-2 bg-muted/20 p-3 rounded-md border border-border">
+                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Statut de l'intervention
+                </Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    variant={isPostponed ? 'default' : 'outline'}
+                    onClick={() => setIsPostponed(!isPostponed)}
+                    className={cn(
+                      'h-9 text-xs font-medium transition-all flex items-center justify-center gap-1.5',
+                      isPostponed
+                        ? 'bg-red-600 hover:bg-red-700 text-white shadow-sm border-transparent'
+                        : 'border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30'
+                    )}
+                  >
+                    <Clock className="h-3.5 w-3.5" />
+                    <span>{isPostponed ? 'Chantier Reporté' : 'Marquer Reporté'}</span>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant={isInvoiced ? 'default' : 'outline'}
+                    onClick={() => setIsInvoiced(!isInvoiced)}
+                    className={cn(
+                      'h-9 text-xs font-medium transition-all flex items-center justify-center gap-1.5',
+                      isInvoiced
+                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm border-transparent'
+                        : 'border-emerald-200 dark:border-emerald-900/50 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
+                    )}
+                  >
+                    <Receipt className="h-3.5 w-3.5" />
+                    <span>{isInvoiced ? 'Facturé (F)' : 'Marquer Facturé (F)'}</span>
+                  </Button>
+                </div>
+              </div>
+
+              {/* ── ATTACHMENTS & IMAGES (Local, Caméra Mobile, Google Drive) ── */}
+              {assignment?.id && (
                 <div className="space-y-3 bg-muted/20 p-4 rounded-md border border-border">
                   <div className="flex items-center justify-between">
-                    <Label className="text-sm font-semibold">Fichiers ({localAttachments.length}/3)</Label>
+                    <Label className="text-sm font-semibold flex items-center gap-2">
+                      <ImageIcon className="h-4 w-4 text-primary" />
+                      Images & Documents ({localAttachments.length}/6)
+                    </Label>
+                    <span className="text-xs text-muted-foreground">Local, Caméra, Drive</span>
                   </div>
 
                   {localAttachments.length > 0 && (
-                    <div className="grid grid-cols-1 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {localAttachments.map((url: string, index: number) => {
-                        const fileName = url.split('/').pop()?.split('?')[0] || `Fichier ${index + 1}`;
+                        const isDrive = url.includes('drive.google.com') || url.includes('docs.google.com');
+                        const isImage = !isDrive && (/\.(jpg|jpeg|png|webp|gif|svg)(\?.*)?$/i.test(url) || url.includes('image'));
+                        const fileName = isDrive
+                          ? 'Document Google Drive'
+                          : (url.split('/').pop()?.split('?')[0] || `Fichier ${index + 1}`);
+
                         return (
-                          <div key={url} className="flex items-center justify-between p-2 bg-background border rounded-md group">
+                          <div
+                            key={url}
+                            className="flex items-center justify-between p-2 bg-background border rounded-md group hover:border-primary/50 transition-colors"
+                          >
                             <a
                               href={url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex items-center gap-2 text-sm text-primary hover:underline truncate"
+                              className="flex items-center gap-2 text-xs text-primary hover:underline truncate flex-1 min-w-0 mr-2"
+                              title={url}
                             >
-                              <FileIcon className="h-4 w-4 flex-shrink-0" />
+                              {isImage ? (
+                                <img
+                                  src={url}
+                                  alt="Aperçu"
+                                  className="h-8 w-8 object-cover rounded border flex-shrink-0 bg-muted"
+                                  onError={(e) => {
+                                    // Fallback to icon if preview fails
+                                    (e.target as HTMLElement).style.display = 'none';
+                                  }}
+                                />
+                              ) : isDrive ? (
+                                <LinkIcon className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                              ) : (
+                                <FileIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                              )}
                               <span className="truncate">{fileName}</span>
                             </a>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
-                              onClick={async () => {
-                                if (!window.confirm('Supprimer ce fichier ?')) return;
 
-                                const filePathMatch = url.match(/attachments\/(.+)$/);
-                                if (filePathMatch) {
-                                  const filePath = filePathMatch[1];
-                                  await supabase.storage.from('attachments').remove([filePath]);
-                                }
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <a
+                                href={url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-1 text-muted-foreground hover:text-foreground"
+                                title="Ouvrir le fichier"
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </a>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={async () => {
+                                  if (!window.confirm('Supprimer ce fichier ?')) return;
 
-                                const newUrls = localAttachments.filter((u: string) => u !== url);
-                                setLocalAttachments(newUrls);
-                                
-                                // Immediately save the deletion to the database
-                                await supabase.from('assignments').update({ attachments: newUrls }).eq('id', assignment.id);
-                                queryClient.invalidateQueries({ queryKey: ['assignments'] });
-                                
-                                toast({ title: 'Fichier supprimé' });
-                              }}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
+                                  const matchAttachments = url.match(/attachments\/(.+)$/);
+                                  const matchCommandes = url.match(/commandes_files\/(.+)$/);
+                                  try {
+                                    if (matchAttachments) {
+                                      await supabase.storage.from('attachments').remove([matchAttachments[1]]);
+                                    } else if (matchCommandes) {
+                                      await supabase.storage.from('commandes_files').remove([matchCommandes[1]]);
+                                    }
+                                  } catch (err) {
+                                    console.warn('Storage delete warning:', err);
+                                  }
+
+                                  const newUrls = localAttachments.filter((u: string) => u !== url);
+                                  setLocalAttachments(newUrls);
+
+                                  if (assignment.id && !assignment.id.startsWith('new-')) {
+                                    await supabase.from('assignments').update({ attachments: newUrls }).eq('id', assignment.id);
+                                    queryClient.invalidateQueries({ queryKey: ['assignments'] });
+                                  }
+                                  toast({ title: 'Fichier supprimé' });
+                                }}
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
                           </div>
                         );
                       })}
                     </div>
                   )}
 
-                  {localAttachments.length < 3 && (
-                    <div>
-                      <Input
-                        type="file"
-                        id="assignment-file-upload"
-                        className="hidden"
-                        accept=".pdf,image/*"
-                        onChange={async (e) => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
+                  {localAttachments.length < 6 && (
+                    <div className="space-y-2 pt-1">
+                      {/* Upload action buttons */}
+                      <div className="grid grid-cols-3 gap-2">
+                        {/* 1. Local file / gallery */}
+                        <div>
+                          <Input
+                            type="file"
+                            id="assignment-file-local"
+                            className="hidden"
+                            accept="image/*,.pdf"
+                            disabled={isUploading}
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              await handleFileUpload(file);
+                              if (e.target) e.target.value = '';
+                            }}
+                          />
+                          <Label
+                            htmlFor="assignment-file-local"
+                            className={cn(
+                              'flex flex-col sm:flex-row items-center justify-center gap-1.5 w-full h-11 px-2 border rounded-md cursor-pointer text-xs font-medium transition-colors text-center',
+                              isUploading ? 'opacity-50 pointer-events-none bg-muted' : 'bg-background hover:bg-muted border-border hover:border-primary text-foreground'
+                            )}
+                          >
+                            <Upload className="h-4 w-4 text-primary" />
+                            <span>Fichier / Galerie</span>
+                          </Label>
+                        </div>
 
-                          if (file.size > 5 * 1024 * 1024) {
-                            toast({ title: 'Fichier trop volumineux', description: 'Le fichier dépasse la limite de 5Mo.', variant: 'destructive' });
-                            return;
-                          }
+                        {/* 2. Mobile camera direct */}
+                        <div>
+                          <Input
+                            type="file"
+                            id="assignment-file-camera"
+                            className="hidden"
+                            accept="image/*"
+                            capture="environment"
+                            disabled={isUploading}
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              await handleFileUpload(file);
+                              if (e.target) e.target.value = '';
+                            }}
+                          />
+                          <Label
+                            htmlFor="assignment-file-camera"
+                            className={cn(
+                              'flex flex-col sm:flex-row items-center justify-center gap-1.5 w-full h-11 px-2 border rounded-md cursor-pointer text-xs font-medium transition-colors text-center',
+                              isUploading ? 'opacity-50 pointer-events-none bg-muted' : 'bg-background hover:bg-muted border-border hover:border-primary text-foreground'
+                            )}
+                          >
+                            <Camera className="h-4 w-4 text-blue-500" />
+                            <span>Photo Caméra</span>
+                          </Label>
+                        </div>
 
-                          setIsUploading(true);
-                          try {
-                            const fileExt = file.name.split('.').pop();
-                            // Save to a specific folder for THIS assignment
-                            const fileName = `${assignment.id}/${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+                        {/* 3. Google Drive */}
+                        <div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={isUploading}
+                            onClick={() => setShowDriveInput(!showDriveInput)}
+                            className="w-full h-11 text-xs font-medium flex flex-col sm:flex-row items-center justify-center gap-1.5 px-2"
+                          >
+                            <LinkIcon className="h-4 w-4 text-amber-500" />
+                            <span>Google Drive</span>
+                          </Button>
+                        </div>
+                      </div>
 
-                            const { error: uploadError } = await supabase.storage
-                              .from('attachments')
-                              .upload(fileName, file);
+                      {/* Google Drive URL input form */}
+                      {showDriveInput && (
+                        <div className="flex gap-2 p-2 bg-background border rounded-md mt-2">
+                          <Input
+                            type="url"
+                            placeholder="Coller le lien Google Drive (ex: https://drive.google.com/...)"
+                            value={googleDriveUrl}
+                            onChange={(e) => setGoogleDriveUrl(e.target.value)}
+                            className="h-8 text-xs flex-1"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleAddDriveLink();
+                              }
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="h-8 text-xs px-3 bg-primary text-primary-foreground"
+                            onClick={handleAddDriveLink}
+                          >
+                            Ajouter
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 text-xs px-2"
+                            onClick={() => {
+                              setShowDriveInput(false);
+                              setGoogleDriveUrl('');
+                            }}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
 
-                            if (uploadError) throw uploadError;
-
-                            const { data } = supabase.storage
-                              .from('attachments')
-                              .getPublicUrl(fileName);
-
-                            const newUrls = [...localAttachments, data.publicUrl];
-                            setLocalAttachments(newUrls);
-
-                            // Immediately save the addition to the database
-                            const { error: dbError } = await supabase
-                              .from('assignments')
-                              .update({ attachments: newUrls })
-                              .eq('id', assignment.id);
-
-                            if (dbError) throw dbError;
-
-                            queryClient.invalidateQueries({ queryKey: ['assignments'] });
-                            toast({ title: 'Fichier ajouté avec succès' });
-                          } catch (error) {
-                            console.error('Upload error:', error);
-                            toast({ title: "Erreur d'envoi", description: 'Veuillez réessayer.', variant: 'destructive' });
-                          } finally {
-                            setIsUploading(false);
-                            if (e.target) e.target.value = '';
-                          }
-                        }}
-                      />
-                      <Label
-                        htmlFor="assignment-file-upload"
-                        className={`flex items-center justify-center gap-2 w-full p-3 border-2 border-dashed rounded-md cursor-pointer transition-colors text-sm font-medium
-                          ${isUploading ? 'opacity-50 pointer-events-none bg-muted' : 'text-muted-foreground hover:border-primary hover:text-primary'}`}
-                      >
-                        {isUploading ? (
-                          <><Loader2 className="h-4 w-4 animate-spin" /> Envoi en cours...</>
-                        ) : (
-                          <><Upload className="h-4 w-4" /> Ajouter un fichier (PDF, Image)</>
-                        )}
-                      </Label>
+                      {isUploading && (
+                        <div className="flex items-center justify-center gap-2 p-2 text-xs text-muted-foreground bg-muted/40 rounded-md">
+                          <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                          <span>Envoi de l'image en cours...</span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

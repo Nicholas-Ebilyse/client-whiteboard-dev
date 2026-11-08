@@ -26,6 +26,8 @@ export interface Chantier {
   attachments?: string[] | null;
   client?: string | null; // From commandes table
   chantier?: string | null; // The full address (full name) from commandes
+  is_postponed?: boolean;
+  is_invoiced?: boolean;
 }
 
 export type Commande = Chantier;
@@ -42,6 +44,9 @@ export interface Assignment {
   comment?: string | null;
   isValid: boolean; // Frontend only
   isConfirmed?: boolean;
+  isPostponed?: boolean;
+  isInvoiced?: boolean;
+  attachments?: string[] | null;
 
   assignment_group_id?: string | null;
   commandes?: {

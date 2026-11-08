@@ -441,6 +441,36 @@ const Index = () => {
     }
   };
 
+  const handleTogglePostponed = (assignment: Assignment) => {
+    const nextVal = !assignment.isPostponed;
+    saveAssignment.mutate({
+      ...assignment,
+      isPostponed: nextVal
+    }, {
+      onSuccess: () => {
+        toast.success(nextVal ? 'Chantier marqué comme reporté' : 'Statut reporté retiré');
+      },
+      onError: () => {
+        toast.error('Erreur lors de la mise à jour du statut');
+      }
+    });
+  };
+
+  const handleToggleInvoiced = (assignment: Assignment) => {
+    const nextVal = !assignment.isInvoiced;
+    saveAssignment.mutate({
+      ...assignment,
+      isInvoiced: nextVal
+    }, {
+      onSuccess: () => {
+        toast.success(nextVal ? 'Chantier marqué comme facturé (F)' : 'Statut facturé retiré');
+      },
+      onError: () => {
+        toast.error('Erreur lors de la mise à jour du statut');
+      }
+    });
+  };
+
   const handleDeleteAssignmentGroup = (groupId: string) => {
     deleteRelatedAssignments.mutate(groupId, {
       onSuccess: () => {
@@ -635,6 +665,9 @@ const Index = () => {
       isValid: true,
       comment: a.comment ?? undefined,
       isConfirmed: a.is_confirmed ?? a.isConfirmed ?? false,
+      isPostponed: a.is_postponed ?? a.isPostponed ?? false,
+      isInvoiced: a.is_invoiced ?? a.isInvoiced ?? false,
+      attachments: a.attachments ?? a.attachments ?? [],
       assignment_group_id: a.assignment_group_id,
       commandes: a.commandes
     };
@@ -764,6 +797,8 @@ const Index = () => {
                   handleAssignmentClick={handleAssignmentClick}
                   handleDuplicateAssignment={handleDuplicateAssignment}
                   handleDeleteAssignment={handleDeleteAssignment}
+                  handleTogglePostponed={handleTogglePostponed}
+                  handleToggleInvoiced={handleToggleInvoiced}
                   isDraggable={isDraggable}
                   handleDragStart={handleDragStart}
                   handleDragOver={handleDragOver}

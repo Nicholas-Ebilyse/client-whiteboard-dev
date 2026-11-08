@@ -354,7 +354,7 @@ export const useSaveAssignment = () => {
 
   return useMutation({
     mutationFn: async (assignment: any) => {
-      const { id, teamId, commandeId, startDate, endDate, isFixed, comment, isConfirmed, assignment_group_id, attachments, ...rest } = assignment;
+      const { id, teamId, commandeId, startDate, endDate, isFixed, comment, isConfirmed, isPostponed, isInvoiced, assignment_group_id, attachments, ...rest } = assignment;
 
       const dbAssignment = {
         team_id: teamId ?? assignment.team_id,
@@ -364,6 +364,8 @@ export const useSaveAssignment = () => {
         is_fixed: isFixed ?? assignment.is_fixed,
         comment: comment ?? assignment.comment,
         is_confirmed: isConfirmed ?? assignment.is_confirmed ?? false,
+        is_postponed: isPostponed ?? assignment.is_postponed ?? false,
+        is_invoiced: isInvoiced ?? assignment.is_invoiced ?? false,
         assignment_group_id: assignment_group_id,
         attachments: attachments ?? assignment.attachments ?? null
       };
