@@ -16,6 +16,7 @@ import {
   ChevronRight, UserMinus, Car, Building2, Trash2 // 👈 Trash2 imported
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { APP_VERSION, APP_BUILD_TIME } from '@/version';
 
 interface PlanningToolbarProps {
   weekConfig: { week_number: number; year: number };
@@ -87,7 +88,12 @@ export const PlanningToolbar: React.FC<PlanningToolbarProps> = ({
             const month = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'][weekStart.getMonth()];
             return `Planning des équipes • Semaine ${weekConfig.week_number} • ${month} ${weekConfig.year}`;
           })()}
-          <span className="text-[10px] font-mono font-normal text-muted-foreground/70 bg-muted px-1.5 py-0.5 rounded border border-border/50 select-all" title="Version de l'application">v2.0.4</span>
+          <span
+            className="text-[10px] font-mono font-normal text-muted-foreground/70 bg-muted px-1.5 py-0.5 rounded border border-border/50 select-all cursor-default"
+            title={`Version ${APP_VERSION}${APP_BUILD_TIME ? ` • Build ${APP_BUILD_TIME}` : ''}`}
+          >
+            v{APP_VERSION}
+          </span>
         </CardTitle>
         <div className="flex-1 flex flex-wrap items-center justify-end gap-1.5">
           {isAdmin && <KeyboardShortcutsHelp />}
