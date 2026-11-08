@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Assignment } from '@/types/planning';
 import { cn } from '@/lib/utils';
 import { StickyNote, CalendarPlus, Link2, MapPin, GripVertical, Lock, Check, Receipt, ArrowDown, ArrowUp, ChevronsDown, ChevronsUp, Car, Wrench, TriangleAlert } from 'lucide-react';
@@ -112,7 +113,7 @@ const getAssignmentDisplayName = (assignment: Assignment, commandes: Commande[])
   return commande.display_name || `${commande.client} - ${commande.chantier || ''}`;
 };
 
-export const AssignmentCell = ({
+const AssignmentCellComponent = ({
   assignments,
   notes,
   teamColor,
@@ -691,3 +692,5 @@ export const AssignmentCell = ({
     </div>
   );
 };
+
+export const AssignmentCell = memo(AssignmentCellComponent);

@@ -86,11 +86,23 @@ export const SearchFilterModal = ({
   useEffect(() => {
     if (open) {
       setIsLoading(true);
-      // Fetch complete datasets to enable global searching the moment the modal opens
+      // Fetch targeted datasets with necessary columns to enable fast, bounded global searching
       Promise.all([
-        supabase.from('assignments').select('*'),
-        supabase.from('notes').select('*'),
-        supabase.from('commandes').select('*')
+        supabase
+          .from('assignments')
+          .select('id, start_date, end_date, team_id, commande_id, comment, is_confirmed, is_deleted')
+          .neq('is_deleted', true)
+          .order('start_date', { ascending: false })
+          .limit(2000),
+        supabase
+          .from('notes')
+          .select('id, start_date, end_date, team_id, text')
+          .order('start_date', { ascending: false })
+          .limit(1000),
+        supabase
+          .from('commandes')
+          .select('id, client, chantier, display_name')
+          .limit(1000)
       ]).then(([{ data: aData }, { data: nData }, { data: cData }]) => {
         if (aData) setGlobalAssignments(aData);
         if (nData) setGlobalNotes(nData);

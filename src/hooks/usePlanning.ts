@@ -330,14 +330,19 @@ export const useNotes = (weekStart: string, weekEnd: string) => {
 
       if (notesError) throw notesError;
 
-      // Now grab the fleet so we can map names/plates down to the client!
-      const { data: vData } = await supabase.from('vehicles').select('id, name, license_plate');
-      const { data: eData } = await supabase.from('equipment').select('id, name, reference');
+      // Fetch fleet in parallel and index with Maps for O(1) lookups
+      const [vRes, eRes] = await Promise.all([
+        supabase.from('vehicles').select('id, name, license_plate'),
+        supabase.from('equipment').select('id, name, reference')
+      ]);
+
+      const vMap = new Map((vRes.data || []).map((v: any) => [v.id, v]));
+      const eMap = new Map((eRes.data || []).map((e: any) => [e.id, e]));
 
       return rawNotes.map((note: any) => ({
         ...note,
-        _vehicles: note.vehicle_ids?.map((id: string) => vData?.find(v => v.id === id) || { id }),
-        _equipment: note.equipment_ids?.map((id: string) => eData?.find(e => e.id === id) || { id })
+        _vehicles: note.vehicle_ids?.map((id: string) => vMap.get(id) || { id }),
+        _equipment: note.equipment_ids?.map((id: string) => eMap.get(id) || { id })
       }));
     },
     enabled: !!weekStart && !!weekEnd,

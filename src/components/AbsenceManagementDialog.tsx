@@ -1,4 +1,3 @@
-import * as XLSX from 'xlsx';
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -56,29 +55,34 @@ export const AbsenceManagementDialog: React.FC<AbsenceManagementDialogProps> = (
   const activeTechnicians = technicians.filter(t => !t.is_archived);
 
   // ── EXPORT TO EXCEL FUNCTION ──
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     if (!absences || absences.length === 0) {
       toast.error("Aucune absence à exporter.");
       return;
     }
 
-    const dataToExport = absences.map(abs => {
-      const tech = technicians.find(t => t.id === abs.technician_id);
-      return {
-        "Nom du Technicien": tech ? tech.name : "Inconnu",
-        "Date Début": abs.start_date,
-        "Date Fin": abs.end_date,
-        "Motif": (abs as any).absence_motives?.name || "Non spécifié",
-        "Commentaire": abs.commentaire || ""
-      };
-    });
+    try {
+      const XLSX = await import('xlsx');
+      const dataToExport = absences.map(abs => {
+        const tech = technicians.find(t => t.id === abs.technician_id);
+        return {
+          "Nom du Technicien": tech ? tech.name : "Inconnu",
+          "Date Début": abs.start_date,
+          "Date Fin": abs.end_date,
+          "Motif": (abs as any).absence_motives?.name || "Non spécifié",
+          "Commentaire": abs.commentaire || ""
+        };
+      });
 
-    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Absences");
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Absences");
 
-    XLSX.writeFile(workbook, `Export_Absences_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
-    toast.success("Export Excel réussi !");
+      XLSX.writeFile(workbook, `Export_Absences_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+      toast.success("Export Excel réussi !");
+    } catch (err: any) {
+      toast.error("Erreur lors de l'export Excel: " + (err?.message || "Échec"));
+    }
   };
 
   // Initialize defaults every time the dialog opens

@@ -75,10 +75,7 @@ const Index = () => {
   // Activate Ctrl+Z Soft-Delete recovery
   const { canUndoDelete, triggerUndoDelete } = useUndo();
   const navigate = useNavigate();
-  const { user: authUser, session: authSession, isAdmin } = useAuth();
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user, session, isAdmin, loading } = useAuth();
   const [isRefreshingSession, setIsRefreshingSession] = useState(false);
 
   // ── DIALOG STATES ──
@@ -128,25 +125,6 @@ const Index = () => {
     }
     return success;
   };
-
-  // Check authentication
-  useEffect(() => {
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
 
   // Redirect to auth if not logged in
   useEffect(() => {
@@ -692,11 +670,19 @@ const Index = () => {
       });
 
       queryClient.clear();
-      localStorage.removeItem('sb-fguflyjgzzeiicefilmb-auth-token');
+      Object.keys(localStorage).forEach((key) => {
+        if (key.startsWith('sb-') && key.endsWith('-auth-token')) {
+          localStorage.removeItem(key);
+        }
+      });
       window.location.replace("/auth");
     } catch (error) {
       console.error("Erreur de déconnexion:", error);
-      localStorage.removeItem('sb-fguflyjgzzeiicefilmb-auth-token');
+      Object.keys(localStorage).forEach((key) => {
+        if (key.startsWith('sb-') && key.endsWith('-auth-token')) {
+          localStorage.removeItem(key);
+        }
+      });
       window.location.replace("/auth");
     }
   };

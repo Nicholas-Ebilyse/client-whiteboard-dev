@@ -127,12 +127,20 @@ serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("Auth requise");
+    if (!authHeader) throw new Error("Authentification requise");
     const token = authHeader.replace("Bearer ", "");
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const isServiceRole = authHeader.includes(supabaseKey);
+    if (!isServiceRole) {
+      const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+      if (userError || !user) throw new Error("Session invalide ou expirée");
+      const { data: adminCheck } = await supabase.from('user_roles').select('role, is_suspended').eq('user_id', user.id).eq('role', 'admin').maybeSingle();
+      if (!adminCheck || adminCheck.is_suspended) throw new Error("Accès administrateur requis pour exporter");
+    }
 
     const { data: syncRecord } = await supabase.from('sync_status').insert({ sync_type: 'google_sheets_export', status: 'running', started_at: new Date().toISOString() }).select().single();
 

@@ -7,8 +7,7 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { TriangleAlert, Eye, EyeOff, CalendarX2 } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { useFleet } from '@/hooks/useFleet';
 
 export interface WeeklyGridProps {
   dailyTeamRosters: any[];
@@ -112,23 +111,8 @@ export const WeeklyGrid: React.FC<WeeklyGridProps> = ({
 }) => {
   const [showAbsencesRow, setShowAbsencesRow] = useState(false);
 
-  const { data: vehicles = [] } = useQuery({
-    queryKey: ['vehicles'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('vehicles').select('id, name, license_plate');
-      if (error) throw error;
-      return data;
-    }
-  });
-
-  const { data: equipment = [] } = useQuery({
-    queryKey: ['equipment'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('equipment').select('id, name');
-      if (error) throw error;
-      return data;
-    }
-  });
+  const { data: vehicles = [] } = useFleet('vehicles');
+  const { data: equipment = [] } = useFleet('equipment');
 
   return (
     <div className="overflow-x-auto pb-0 flex-1 flex flex-col min-h-0 overflow-y-auto">

@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Download, Loader2 } from "lucide-react";
-import * as XLSX from "xlsx";
 import { format } from "date-fns";
 
 const TABLES = [
@@ -29,6 +28,7 @@ export function DatabaseExportButtons() {
   const exportTable = async (table: TableName) => {
     setLoading(table);
     try {
+      const XLSX = await import("xlsx");
       const { data, error } = await supabase.from(table as any).select("*");
       if (error) throw error;
       
@@ -57,29 +57,34 @@ export function DatabaseExportButtons() {
 
   const exportAll = async () => {
     setLoading("all");
-    const workbook = XLSX.utils.book_new();
-    let hasData = false;
+    try {
+      const XLSX = await import("xlsx");
+      const workbook = XLSX.utils.book_new();
+      let hasData = false;
 
-    for (const table of TABLES) {
-      try {
-        const { data, error } = await supabase.from(table as any).select("*");
-        if (error) throw error;
-        
-        if (data && data.length > 0) {
-          const worksheet = XLSX.utils.json_to_sheet(data);
-          XLSX.utils.book_append_sheet(workbook, worksheet, table.substring(0, 31));
-          hasData = true;
+      for (const table of TABLES) {
+        try {
+          const { data, error } = await supabase.from(table as any).select("*");
+          if (error) throw error;
+          
+          if (data && data.length > 0) {
+            const worksheet = XLSX.utils.json_to_sheet(data);
+            XLSX.utils.book_append_sheet(workbook, worksheet, table.substring(0, 31));
+            hasData = true;
+          }
+        } catch {
+          // skip tables with access errors
         }
-      } catch {
-        // skip tables with access errors
       }
-    }
 
-    if (hasData) {
-      XLSX.writeFile(workbook, `Export_Complet_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
-      toast({ title: "Succès", description: "Export complet terminé" });
-    } else {
-      toast({ title: "Info", description: "Aucune donnée à exporter." });
+      if (hasData) {
+        XLSX.writeFile(workbook, `Export_Complet_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+        toast({ title: "Succès", description: "Export complet terminé" });
+      } else {
+        toast({ title: "Info", description: "Aucune donnée à exporter." });
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erreur", description: e.message });
     }
     
     setLoading(null);

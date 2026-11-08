@@ -7,8 +7,9 @@ export const useFleet = (table: 'vehicles' | 'equipment') => {
     queryFn: async () => {
       const { data, error } = await supabase.from(table).select('*').order('name');
       if (error) throw error;
-      return data;
+      return data || [];
     },
+    staleTime: 5 * 60 * 1000, // 5-minute cache to avoid repetitive full table scans
   });
 };
 

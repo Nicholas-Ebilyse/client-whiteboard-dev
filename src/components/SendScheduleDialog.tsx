@@ -6,8 +6,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Mail, Loader2 } from "lucide-react";
-import jsPDF from "jspdf";
-import autoTable from 'jspdf-autotable';
 import { supabase } from "@/integrations/supabase/client";
 import { Assignment, Note } from "@/types/planning";
 import { z } from "zod";
@@ -126,6 +124,12 @@ export const SendScheduleDialog = ({
       console.log("Session refreshed successfully, access token present:", !!session.access_token);
 
       toast.info("Génération du PDF en cours...");
+
+      // Dynamically load heavy PDF generation libraries on demand
+      const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+        import("jspdf"),
+        import("jspdf-autotable")
+      ]);
 
       // Create PDF programmatically
       const pdf = new jsPDF({

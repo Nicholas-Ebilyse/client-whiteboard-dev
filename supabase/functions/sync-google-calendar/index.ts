@@ -278,7 +278,16 @@ Deno.serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("Auth requise");
+    if (!authHeader) throw new Error("Authentification requise");
+    const token = authHeader.replace("Bearer ", "");
+
+    const isServiceRole = authHeader.includes(supabaseKey);
+    if (!isServiceRole) {
+      const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+      if (userError || !user) throw new Error("Session invalide ou expirée");
+      const { data: adminCheck } = await supabase.from('user_roles').select('role, is_suspended').eq('user_id', user.id).eq('role', 'admin').maybeSingle();
+      if (!adminCheck || adminCheck.is_suspended) throw new Error("Accès administrateur requis pour synchroniser le calendrier");
+    }
 
     // Get Credentials
     const googleKeySecret = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_KEY_V2");

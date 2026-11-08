@@ -9,13 +9,69 @@ const corsHeaders = {
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
-  try {
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+  const responseHeaders = { ...corsHeaders, 'Content-Type': 'application/json' };
 
-    const { userId, action, reason } = await req.json()
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return new Response(JSON.stringify({ error: 'Configuration serveur manquante' }), {
+        status: 500,
+        headers: responseHeaders,
+      });
+    }
+
+    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
+
+    // 1. Authenticate caller
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Authentification requise' }), {
+        status: 401,
+        headers: responseHeaders,
+      });
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user: caller }, error: callerError } = await supabaseClient.auth.getUser(token);
+    if (callerError || !caller) {
+      return new Response(JSON.stringify({ error: 'Session invalide ou expirée' }), {
+        status: 401,
+        headers: responseHeaders,
+      });
+    }
+
+    // 2. Verify caller has admin role and is not suspended
+    const { data: callerRole } = await supabaseClient
+      .from('user_roles')
+      .select('role, is_suspended')
+      .eq('user_id', caller.id)
+      .eq('role', 'admin')
+      .maybeSingle();
+
+    if (!callerRole || callerRole.is_suspended) {
+      return new Response(JSON.stringify({ error: 'Accès administrateur requis pour gérer les utilisateurs' }), {
+        status: 403,
+        headers: responseHeaders,
+      });
+    }
+
+    const { userId, action, reason } = await req.json();
+
+    if (!userId) {
+      return new Response(JSON.stringify({ error: 'Identifiant utilisateur requis' }), {
+        status: 400,
+        headers: responseHeaders,
+      });
+    }
+
+    // Prevent self-lockout
+    if (caller.id === userId && (action === 'revoke' || action === 'suspend')) {
+      return new Response(JSON.stringify({ error: 'Vous ne pouvez pas révoquer ou suspendre votre propre compte administrateur' }), {
+        status: 400,
+        headers: responseHeaders,
+      });
+    }
 
     let roleTableUpdate: any = {}
     let authVaultUpdate = {}
@@ -30,7 +86,7 @@ serve(async (req) => {
         authVaultUpdate = { app_metadata: { role: 'user' }, user_metadata: { role: 'user' } }
         break;
       case 'suspend':
-        roleTableUpdate = { is_suspended: true, suspension_reason: reason }
+        roleTableUpdate = { is_suspended: true, suspension_reason: reason || 'Suspendu par un administrateur' }
         authVaultUpdate = { ban_duration: '87600h' }
         break;
       case 'unsuspend':
@@ -41,7 +97,7 @@ serve(async (req) => {
         throw new Error('Action non reconnue')
     }
 
-    // 1. Check if the user already has a row in the public user_roles table
+    // 3. Check if the user already has a row in the public user_roles table
     const { data: existingRole } = await supabaseClient
       .from('user_roles')
       .select('user_id')
@@ -51,14 +107,14 @@ serve(async (req) => {
     let dbError;
 
     if (existingRole) {
-      // 2A. The row exists, so we UPDATE it normally
+      // 4A. Update existing row
       const { error } = await supabaseClient
         .from('user_roles')
         .update(roleTableUpdate)
         .eq('user_id', userId)
       dbError = error;
     } else {
-      // 2B. The row DOES NOT exist, so we INSERT a brand new row!
+      // 4B. Insert a new row
       const { error } = await supabaseClient
         .from('user_roles')
         .insert({
@@ -72,18 +128,17 @@ serve(async (req) => {
 
     if (dbError) throw dbError
 
-    // 3. Update the hidden Auth Vault (For strict backend security)
+    // 5. Update the Auth Vault
     const { error: authError } = await supabaseClient.auth.admin.updateUserById(userId, authVaultUpdate)
-
     if (authError) throw authError
 
     return new Response(JSON.stringify({ success: true }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: responseHeaders,
       status: 200,
     })
   } catch (error: any) {
     return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: responseHeaders,
       status: 400,
     })
   }
