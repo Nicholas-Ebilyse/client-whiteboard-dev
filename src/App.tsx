@@ -15,7 +15,15 @@ const TestDropdown = lazy(() => import("./pages/TestDropdown"));
 const Presentation = lazy(() => import("./pages/Presentation"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60 * 1000, // 1 minute de validité du cache (Realtime prend en charge les mises à jour)
+      refetchOnWindowFocus: false, // Empêche l'inondation de requêtes à chaque changement d'onglet
+      retry: 1,
+    },
+  },
+});
 
 // Auth Guard to protect private routes while keeping context providers global
 const AuthGuard = ({ children }: { children: React.ReactNode }) => {

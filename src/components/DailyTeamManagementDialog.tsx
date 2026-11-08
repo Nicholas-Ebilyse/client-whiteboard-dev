@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     Dialog,
     DialogContent,
@@ -24,6 +24,11 @@ interface DailyTeamManagementDialogProps {
     currentRosters: any[];
     onSave: (rosters: { technician_id: string; is_team_leader: boolean }[]) => void;
     baseTeamId?: string;
+    allAssignments?: any[];
+    commandes?: any[];
+    allRosters?: any[];
+    absences?: any[];
+    teams?: any[];
 }
 
 export const DailyTeamManagementDialog: React.FC<DailyTeamManagementDialogProps> = ({
@@ -35,121 +40,92 @@ export const DailyTeamManagementDialog: React.FC<DailyTeamManagementDialogProps>
     currentRosters,
     onSave,
     baseTeamId,
+    allAssignments = [],
+    commandes = [],
+    allRosters = [],
+    absences = [],
+    teams = [],
 }) => {
     const [selectedTechs, setSelectedTechs] = useState<{ id: string; isLeader: boolean }[]>([]);
-    const [requiredSkills, setRequiredSkills] = useState<string[]>([]);
-    const [busyTechIds, setBusyTechIds] = useState<Set<string>>(new Set());
 
-    // ── SMART FETCH: Find required skills for worksites ──
-    useEffect(() => {
-        let isMounted = true;
-        const fetchRequiredSkills = async () => {
-            if (!isOpen || !date) return;
-            try {
-                let teamId = baseTeamId;
-                if (!teamId) {
-                    const { data: teamData } = await supabase.from('teams').select('id').eq('name', teamName).single();
-                    teamId = teamData?.id;
-                }
-                if (!teamId) return;
+    // ── SMART IN-MEMORY COMPUTATION: Skills required for worksites on this date ──
+    const requiredSkills = useMemo(() => {
+        if (!isOpen || !date) return [];
+        let teamId = baseTeamId;
+        if (!teamId && teams.length > 0) {
+            teamId = teams.find(t => t.name === teamName)?.id;
+        }
+        if (!teamId || allAssignments.length === 0) return [];
 
-                const { data: assignments } = await supabase.from('assignments')
-                    .select('commande_id')
-                    .eq('team_id', teamId)
-                    .lte('start_date', date)
-                    .gte('end_date', date);
+        const teamAssignments = allAssignments.filter(a => {
+            const aTeamId = a.team_id || a.teamId;
+            const aStart = a.start_date || a.startDate;
+            const aEnd = a.end_date || a.endDate;
+            return aTeamId === teamId && aStart <= date && aEnd >= date;
+        });
 
-                if (!assignments || assignments.length === 0) {
-                    if (isMounted) setRequiredSkills([]);
-                    return;
-                }
+        if (teamAssignments.length === 0) return [];
 
-                const commandeIds = assignments.map(a => a.commande_id);
-                const { data: commandes } = await supabase.from('commandes')
-                    .select('required_skills')
-                    .in('id', commandeIds);
-
-                const skills = new Set<string>();
-                commandes?.forEach(c => {
-                    if (Array.isArray(c.required_skills)) {
-                        c.required_skills.forEach((s: string) => skills.add(s));
-                    }
-                });
-
-                if (isMounted) setRequiredSkills(Array.from(skills));
-            } catch (e) {
-                console.error("Erreur lors de la récupération des compétences", e);
+        const commandeIds = new Set(teamAssignments.map(a => a.commande_id || a.commandeId).filter(Boolean));
+        const skills = new Set<string>();
+        commandes.forEach(c => {
+            if (commandeIds.has(c.id) && Array.isArray(c.required_skills)) {
+                c.required_skills.forEach((s: string) => skills.add(s));
             }
-        };
+        });
 
-        fetchRequiredSkills();
-        return () => { isMounted = false; };
-    }, [isOpen, teamName, date, baseTeamId]);
+        return Array.from(skills);
+    }, [isOpen, date, baseTeamId, teamName, teams, allAssignments, commandes]);
 
-    // ── AVAILABILITY SCANNER & INITIALIZATION: Single atomic flow ──
-    useEffect(() => {
-        let isMounted = true;
-        if (!isOpen || !date) return;
+    // ── SMART IN-MEMORY AVAILABILITY SCANNER: Identify already busy/absent techs ──
+    const busyTechIds = useMemo(() => {
+        if (!isOpen || !date) return new Set<string>();
+        const busy = new Set<string>();
 
-        const initDialog = async () => {
-            try {
-                // 1. Check who is on another team today
-                const { data: allRosters } = await supabase
-                    .from('daily_team_rosters') 
-                    .select('technician_id, team_name')
-                    .eq('date', date);
-
-                // 2. Check who is officially absent today
-                const { data: allAbsences } = await supabase
-                    .from('absences')
-                    .select('technician_id')
-                    .lte('start_date', date)
-                    .gte('end_date', date);
-
-                const busy = new Set<string>();
-                allRosters?.forEach(roster => {
-                    if (roster.team_name !== teamName && roster.technician_id) {
-                        busy.add(roster.technician_id);
-                    }
-                });
-                allAbsences?.forEach(abs => {
-                    if (abs.technician_id) {
-                        busy.add(abs.technician_id);
-                    }
-                });
-
-                if (!isMounted) return;
-                setBusyTechIds(busy);
-
-                // 3. Initialize selectedTechs ONLY AFTER busy set is computed
-                if (currentRosters.length > 0) {
-                    setSelectedTechs(
-                        currentRosters.map(r => ({
-                            id: r.technician_id,
-                            isLeader: r.is_team_leader || false,
-                        }))
-                    );
-                } else if (baseTeamId) {
-                    const baseMembers = activeTechnicians.filter(
-                        t => t.team_id === baseTeamId && !busy.has(t.id)
-                    );
-                    setSelectedTechs(
-                        baseMembers.map((t, index) => ({
-                            id: t.id,
-                            isLeader: index === 0,
-                        }))
-                    );
-                } else {
-                    setSelectedTechs([]);
-                }
-            } catch (error) {
-                console.error("Erreur lors de la vérification des disponibilités", error);
+        // 1. Technicians rostered on another team on this date
+        allRosters.forEach(roster => {
+            if (roster.date === date && roster.team_name !== teamName && roster.technician_id) {
+                busy.add(roster.technician_id);
             }
-        };
-        
-        initDialog();
-        return () => { isMounted = false; };
-    }, [isOpen, date, teamName, baseTeamId, currentRosters, activeTechnicians]);
+        });
+
+        // 2. Technicians officially absent on this date
+        absences.forEach(abs => {
+            const start = abs.start_date || abs.startDate;
+            const end = abs.end_date || abs.endDate;
+            if (abs.technician_id && start <= date && end >= date) {
+                busy.add(abs.technician_id);
+            }
+        });
+
+        return busy;
+    }, [isOpen, date, teamName, allRosters, absences]);
+
+    // ── INITIALIZE SELECTED TECHNICIANS ──
+    useEffect(() => {
+        if (!isOpen) return;
+
+        if (currentRosters && currentRosters.length > 0) {
+            setSelectedTechs(
+                currentRosters.map(r => ({
+                    id: r.technician_id,
+                    isLeader: r.is_team_leader || false,
+                }))
+            );
+        } else if (baseTeamId) {
+            const baseMembers = activeTechnicians.filter(
+                t => t.team_id === baseTeamId && !busyTechIds.has(t.id)
+            );
+            setSelectedTechs(
+                baseMembers.map((t, index) => ({
+                    id: t.id,
+                    isLeader: index === 0,
+                }))
+            );
+        } else {
+            setSelectedTechs([]);
+        }
+    }, [isOpen, currentRosters, baseTeamId, activeTechnicians, busyTechIds]);
 
     const handleToggleTech = (techId: string) => {
         setSelectedTechs(prev => {

@@ -72,30 +72,28 @@ export const useDropExecution = (
 
       if (isCopy) {
         const newGroupId = crypto.randomUUID();
-        const createdIds: string[] = [];
-        
-        for (const pos of newPositions) {
+        const itemsToInsert = newPositions.map(pos => {
           const original = pos.originalAssignment;
-          const { data, error } = await supabase
-            .from('assignments')
-            .insert({
-              name: original.name,
-              team_id: targetTeamId,
-              start_date: pos.newStartDate.toISOString().split('T')[0],
-              end_date: pos.newEndDate.toISOString().split('T')[0],
-              commande_id: original.commande_id,
+          return {
+            name: original.name,
+            team_id: targetTeamId,
+            start_date: pos.newStartDate.toISOString().split('T')[0],
+            end_date: pos.newEndDate.toISOString().split('T')[0],
+            commande_id: original.commande_id,
+            comment: original.comment,
+            is_confirmed: false,
+            is_fixed: original.is_fixed,
+            assignment_group_id: newPositions.length > 1 ? newGroupId : null,
+          };
+        });
 
-              comment: original.comment,
-              is_confirmed: false,
-              is_fixed: original.is_fixed,
-              assignment_group_id: newPositions.length > 1 ? newGroupId : null,
-            })
-            .select('id')
-            .single();
-            
-          if (error) throw error;
-          if (data) createdIds.push(data.id);
-        }
+        const { data, error } = await supabase
+          .from('assignments')
+          .insert(itemsToInsert)
+          .select('id');
+
+        if (error) throw error;
+        const createdIds = (data || []).map(d => d.id);
         
         setUndoState({
           type: 'copy',
@@ -122,17 +120,21 @@ export const useDropExecution = (
           })),
         });
 
-        for (const pos of newPositions) {
-          const { error } = await supabase
-            .from('assignments')
-            .update({
-              team_id: targetTeamId,
-              start_date: pos.newStartDate.toISOString().split('T')[0],
-              end_date: pos.newEndDate.toISOString().split('T')[0],
-            })
-            .eq('id', pos.id);
-          if (error) throw error;
-        }
+        // Parallelize updates instead of sequential awaiting
+        await Promise.all(
+          newPositions.map(async pos => {
+            const { error } = await supabase
+              .from('assignments')
+              .update({
+                team_id: targetTeamId,
+                start_date: pos.newStartDate.toISOString().split('T')[0],
+                end_date: pos.newEndDate.toISOString().split('T')[0],
+              })
+              .eq('id', pos.id);
+            if (error) throw error;
+          })
+        );
+
         toast.success(newPositions.length > 1
           ? `Groupe de ${newPositions.length} affectation(s) déplacé`
           : 'Affectation assignée à l\'équipe'

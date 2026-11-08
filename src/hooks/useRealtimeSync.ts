@@ -1,11 +1,23 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
 export const useRealtimeSync = () => {
   const queryClient = useQueryClient();
+  const debounceTimers = useRef<Record<string, NodeJS.Timeout>>({});
 
   useEffect(() => {
+    const triggerDebouncedInvalidate = (queryKey: string) => {
+      if (debounceTimers.current[queryKey]) {
+        clearTimeout(debounceTimers.current[queryKey]);
+      }
+      debounceTimers.current[queryKey] = setTimeout(() => {
+        console.log(`🔄 Realtime coalesced invalidation: ${queryKey}`);
+        queryClient.invalidateQueries({ queryKey: [queryKey] });
+        delete debounceTimers.current[queryKey];
+      }, 200);
+    };
+
     // 1. Create the channel object first
     const channel = supabase.channel('planning-realtime');
 
@@ -13,35 +25,45 @@ export const useRealtimeSync = () => {
     channel.on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'assignments' },
-      () => {
-        console.log('🔄 Realtime update detected: assignments');
-        queryClient.invalidateQueries({ queryKey: ['assignments'] });
-      }
+      () => triggerDebouncedInvalidate('assignments')
+    );
+
+    channel.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'daily_team_rosters' },
+      () => triggerDebouncedInvalidate('dailyTeamRosters')
     );
 
     channel.on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'notes' },
-      () => {
-        console.log('🔄 Realtime update detected: notes');
-        queryClient.invalidateQueries({ queryKey: ['notes'] });
-      }
+      () => triggerDebouncedInvalidate('notes')
     );
 
     channel.on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'absences' },
-      () => {
-        console.log('🔄 Realtime update detected: absences');
-        queryClient.invalidateQueries({ queryKey: ['absences'] });
-      }
+      () => triggerDebouncedInvalidate('absences')
     );
 
-    // 3. Finally, subscribe to the channel
+    channel.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'technicians' },
+      () => triggerDebouncedInvalidate('technicians')
+    );
+
+    channel.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'teams' },
+      () => triggerDebouncedInvalidate('teams')
+    );
+
+    // 3. Subscribe to the channel
     channel.subscribe();
 
     // 4. Cleanup on unmount
     return () => {
+      Object.values(debounceTimers.current).forEach(t => clearTimeout(t));
       supabase.removeChannel(channel);
     };
   }, [queryClient]);

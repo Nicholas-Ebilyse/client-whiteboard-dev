@@ -703,6 +703,35 @@ export const useUpdateDailyTeamRosters = () => {
       teamName: string;
       rosters: { technician_id: string; is_team_leader: boolean }[];
     }) => {
+      // 1. Try atomic PostgreSQL RPC first (ACID transaction with lock)
+      try {
+        const { data: rpcData, error: rpcError } = await supabase.rpc('set_daily_team_roster', {
+          p_date: date,
+          p_team_name: teamName,
+          p_rosters: rosters.map(r => ({
+            technician_id: r.technician_id,
+            is_team_leader: !!r.is_team_leader
+          }))
+        });
+
+        if (!rpcError) {
+          return rpcData;
+        }
+
+        // If RPC failed due to user-level conflict, rethrow directly
+        if (rpcError.message && (rpcError.message.includes('déjà affecté') || rpcError.code === 'P0001')) {
+          throw new Error(rpcError.message);
+        }
+
+        console.warn('set_daily_team_roster RPC unavailable, executing fallback:', rpcError.message);
+      } catch (err: any) {
+        if (err.message && err.message.includes('déjà affecté')) {
+          throw err;
+        }
+        console.warn('RPC invocation failed, trying direct fallback', err);
+      }
+
+      // 2. Direct fallback (if migration not yet run on Supabase)
       const { error: deleteError } = await supabase
         .from('daily_team_rosters')
         .delete()

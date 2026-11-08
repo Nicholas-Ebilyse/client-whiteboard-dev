@@ -945,6 +945,11 @@ const Index = () => {
             date={dailyTeamDialogInfo.date}
             activeTechnicians={activeTechnicians}
             baseTeamId={teams.find(t => t.name === dailyTeamDialogInfo.teamName)?.id}
+            allAssignments={assignments}
+            commandes={commandes}
+            allRosters={dailyTeamRosters}
+            absences={absences}
+            teams={teams}
             currentRosters={dailyTeamRosters.filter((r: any) =>
               r.team_name === dailyTeamDialogInfo.teamName &&
               r.date === dailyTeamDialogInfo.date

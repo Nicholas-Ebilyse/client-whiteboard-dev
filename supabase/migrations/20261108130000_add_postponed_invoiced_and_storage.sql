@@ -55,3 +55,4 @@ WITH CHECK (bucket_id = 'commandes_files');
 -- 4. Performance indexes for postponed and invoiced queries
 CREATE INDEX IF NOT EXISTS idx_assignments_postponed ON public.assignments(is_postponed) WHERE is_postponed = true;
 CREATE INDEX IF NOT EXISTS idx_assignments_invoiced ON public.assignments(is_invoiced) WHERE is_invoiced = true;
+
