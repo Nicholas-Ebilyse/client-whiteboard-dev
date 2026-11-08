@@ -147,10 +147,11 @@ export const EditAssignmentDialog = ({
       const cleanExt = fileExt.toLowerCase();
       const fileName = `${assignment.id}/${Math.random().toString(36).substring(2)}_${Date.now()}.${cleanExt}`;
 
-      // Try uploading to 'attachments' bucket first, fallback to 'commandes_files' if bucket is missing
-      let targetBucket = 'attachments';
-      let uploadRes = await supabase.storage.from(targetBucket).upload(fileName, file);
+      // Use the verified existing Supabase storage bucket 'commandes_files' directly
+      let activeBucket = 'commandes_files';
+      let uploadRes = await supabase.storage.from(activeBucket).upload(fileName, file);
 
+      // Fallback to 'attachments' if ever configured
       if (
         uploadRes.error &&
         (uploadRes.error.message?.includes('not found') ||
@@ -158,16 +159,15 @@ export const EditAssignmentDialog = ({
           (uploadRes.error as any).statusCode === 400 ||
           (uploadRes.error as any).status === 400)
       ) {
-        console.warn('attachments bucket not found or failed, falling back to commandes_files');
-        targetBucket = 'commandes_files';
-        uploadRes = await supabase.storage.from(targetBucket).upload(fileName, file);
+        activeBucket = 'attachments';
+        uploadRes = await supabase.storage.from(activeBucket).upload(fileName, file);
       }
 
       if (uploadRes.error) {
         throw uploadRes.error;
       }
 
-      const { data: publicData } = supabase.storage.from(targetBucket).getPublicUrl(fileName);
+      const { data: publicData } = supabase.storage.from(activeBucket).getPublicUrl(fileName);
       const newUrls = [...localAttachments, publicData.publicUrl];
       setLocalAttachments(newUrls);
 
