@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { getWeek, getYear, startOfWeek, addDays, format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { setLastDeletedAssignmentId } from './useUndo';
+import { formatStatusIntoComment } from '@/lib/statusTags';
 
 export const useWeekConfig = () => {
   return useQuery({
@@ -356,39 +357,82 @@ export const useSaveAssignment = () => {
     mutationFn: async (assignment: any) => {
       const { id, teamId, commandeId, startDate, endDate, isFixed, comment, isConfirmed, isPostponed, isInvoiced, assignment_group_id, attachments, ...rest } = assignment;
 
-      const dbAssignment = {
+      const postponedVal = Boolean(isPostponed ?? assignment.is_postponed ?? false);
+      const invoicedVal = Boolean(isInvoiced ?? assignment.is_invoiced ?? false);
+      const formattedComment = formatStatusIntoComment(comment ?? assignment.comment, postponedVal, invoicedVal);
+
+      // Safe base payload with guaranteed existing columns
+      const safeAssignment: Record<string, any> = {
         team_id: teamId ?? assignment.team_id,
         commande_id: commandeId ?? assignment.commande_id,
         start_date: startDate ?? assignment.start_date,
         end_date: endDate ?? assignment.end_date,
         is_fixed: isFixed ?? assignment.is_fixed,
-        comment: comment ?? assignment.comment,
+        comment: formattedComment,
         is_confirmed: isConfirmed ?? assignment.is_confirmed ?? false,
-        is_postponed: isPostponed ?? assignment.is_postponed ?? false,
-        is_invoiced: isInvoiced ?? assignment.is_invoiced ?? false,
         assignment_group_id: assignment_group_id,
-        attachments: attachments ?? assignment.attachments ?? null
+        attachments: attachments ?? assignment.attachments ?? null,
+      };
+
+      // Full payload attempting direct columns if migration has run
+      const fullAssignment: Record<string, any> = {
+        ...safeAssignment,
+        is_postponed: postponedVal,
+        is_invoiced: invoicedVal,
       };
 
       if (id && !id.startsWith('new-')) {
-        const { data, error } = await supabase
+        let res = await supabase
           .from('assignments')
-          .update(dbAssignment)
+          .update(fullAssignment)
           .eq('id', id)
           .select()
           .single();
 
-        if (error) throw error;
-        return data;
+        // Automatic self-healing: if column not in schema cache, fallback to safe payload
+        if (
+          res.error &&
+          (res.error.message?.includes('schema cache') ||
+           res.error.message?.includes('is_invoiced') ||
+           res.error.message?.includes('is_postponed') ||
+           res.error.code === 'PGRST204')
+        ) {
+          console.warn('is_invoiced/is_postponed column not found in assignments table; saving status via metadata tag.');
+          res = await supabase
+            .from('assignments')
+            .update(safeAssignment)
+            .eq('id', id)
+            .select()
+            .single();
+        }
+
+        if (res.error) throw res.error;
+        return res.data;
       } else {
-        const { data, error } = await supabase
+        let res = await supabase
           .from('assignments')
-          .insert(dbAssignment)
+          .insert(fullAssignment)
           .select()
           .single();
 
-        if (error) throw error;
-        return data;
+        // Automatic self-healing for inserts
+        if (
+          res.error &&
+          (res.error.message?.includes('schema cache') ||
+           res.error.message?.includes('is_invoiced') ||
+           res.error.message?.includes('is_postponed') ||
+           res.error.code === 'PGRST204')
+        ) {
+          console.warn('is_invoiced/is_postponed column not found in assignments table; inserting with metadata tag fallback.');
+          res = await supabase
+            .from('assignments')
+            .insert(safeAssignment)
+            .select()
+            .single();
+        }
+
+        if (res.error) throw res.error;
+        return res.data;
       }
     },
     onSuccess: () => {

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { cn, getShortChantierName } from '@/lib/utils';
+import { parseStatusFromComment } from '@/lib/statusTags';
 import { Commande } from '@/types/planning';
 import { EditAssignmentDialog } from '@/components/EditAssignmentDialog';
 import { EditGeneralNoteDialog } from '@/components/EditGeneralNoteDialog';
@@ -655,6 +656,7 @@ const Index = () => {
 
   const allAssignmentsFormatted: Assignment[] = assignments.map(dbAssignment => {
     const a = dbAssignment as any;
+    const parsed = parseStatusFromComment(a.comment);
     return {
       id: a.id,
       teamId: a.team_id || a.teamId,
@@ -663,10 +665,10 @@ const Index = () => {
       endDate: a.end_date || a.endDate,
       isFixed: a.is_fixed ?? a.isFixed ?? false,
       isValid: true,
-      comment: a.comment ?? undefined,
+      comment: parsed.cleanComment || a.comment || undefined,
       isConfirmed: a.is_confirmed ?? a.isConfirmed ?? false,
-      isPostponed: a.is_postponed ?? a.isPostponed ?? false,
-      isInvoiced: a.is_invoiced ?? a.isInvoiced ?? false,
+      isPostponed: Boolean(a.is_postponed ?? a.isPostponed ?? parsed.isPostponed),
+      isInvoiced: Boolean(a.is_invoiced ?? a.isInvoiced ?? parsed.isInvoiced),
       attachments: a.attachments ?? a.attachments ?? [],
       assignment_group_id: a.assignment_group_id,
       commandes: a.commandes

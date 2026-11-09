@@ -8,6 +8,7 @@ import { Search, X, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
+import { parseStatusFromComment } from '@/lib/statusTags';
 
 interface Commande {
   id: string;
@@ -92,7 +93,7 @@ export const SearchFilterModal = ({
       Promise.all([
         supabase
           .from('assignments')
-          .select('id, start_date, end_date, team_id, commande_id, comment, is_confirmed, is_deleted, is_postponed, is_invoiced')
+          .select('id, start_date, end_date, team_id, commande_id, comment, is_confirmed, is_deleted')
           .neq('is_deleted', true)
           .order('start_date', { ascending: false })
           .limit(2000),
@@ -103,7 +104,7 @@ export const SearchFilterModal = ({
           .limit(1000),
         supabase
           .from('commandes')
-          .select('id, client, chantier, display_name, is_postponed, is_invoiced')
+          .select('id, client, chantier, display_name')
           .limit(1000)
       ]).then(([{ data: aData }, { data: nData }, { data: cData }]) => {
         if (aData) setGlobalAssignments(aData);
@@ -151,8 +152,9 @@ export const SearchFilterModal = ({
       .map((a) => {
         const commande = activeCommandes.find((c) => c.id === a.commande_id);
         const team = teams.find((t) => t.id === a.team_id);
-        const isPostponed = !!(a.is_postponed || a.isPostponed || (commande as any)?.is_postponed);
-        const isInvoiced = !!(a.is_invoiced || a.isInvoiced || (commande as any)?.is_invoiced);
+        const parsed = parseStatusFromComment(a.comment);
+        const isPostponed = Boolean(a.is_postponed || a.isPostponed || (commande as any)?.is_postponed || parsed.isPostponed);
+        const isInvoiced = Boolean(a.is_invoiced || a.isInvoiced || (commande as any)?.is_invoiced || parsed.isInvoiced);
         return {
           id: a.id,
           type: 'assignment',
@@ -161,7 +163,7 @@ export const SearchFilterModal = ({
           teamName: team?.name ?? '—',
           startDate: a.start_date || a.startDate,
           endDate: a.end_date || a.endDate || a.start_date || a.startDate,
-          comment: a.comment,
+          comment: parsed.cleanComment || a.comment,
           isPostponed,
           isInvoiced,
         };

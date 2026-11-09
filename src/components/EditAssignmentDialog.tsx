@@ -25,6 +25,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { useMaxAssignmentsPerPeriod } from '@/hooks/useAppSettings';
 import { useUpdateCommande } from '@/hooks/usePlanning';
+import { parseStatusFromComment } from '@/lib/statusTags';
 
 interface EditAssignmentDialogProps {
   open: boolean;
@@ -97,15 +98,16 @@ export const EditAssignmentDialog = ({
       setSelectedCommande(assignment.commandeId || '');
       setStartDate(new Date(assignment.startDate));
       setEndDate(new Date(assignment.endDate));
-      setComment(assignment.comment || '');
+      const parsed = parseStatusFromComment(assignment.comment);
+      setComment(parsed.cleanComment);
 
       const officialName = initialCommande?.display_name || (initialCommande ? `${initialCommande.client} - ${getShortChantierName(initialCommande.chantier || '')}` : '');
       setChantierDisplayName(officialName);
 
       setClientPresence(initialCommande?.client_presence || 'none');
       setSavType(initialCommande?.sav_type || 'none');
-      setIsPostponed(!!(assignment.isPostponed || (assignment as any).is_postponed));
-      setIsInvoiced(!!(assignment.isInvoiced || (assignment as any).is_invoiced));
+      setIsPostponed(Boolean(assignment.isPostponed || (assignment as any).is_postponed || parsed.isPostponed));
+      setIsInvoiced(Boolean(assignment.isInvoiced || (assignment as any).is_invoiced || parsed.isInvoiced));
       
       // Load attachments directly from the specific assignment record
       setLocalAttachments((assignment as any).attachments || []);
