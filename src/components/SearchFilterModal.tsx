@@ -193,7 +193,7 @@ export const SearchFilterModal = ({
         const dateB = b.startDate || '';
         return dateA.localeCompare(dateB);
       });
-  }, [query, searchMode, globalAssignments, globalCommandes, globalNotes, assignments, commandes, teams, notes]);
+  }, [query, searchMode, globalData, assignments, commandes, teams, notes]);
 
   const formatDate = (d: string) => {
     if (!d) return '—';
