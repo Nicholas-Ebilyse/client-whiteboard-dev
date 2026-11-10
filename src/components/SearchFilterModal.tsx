@@ -1,4 +1,5 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -80,55 +81,46 @@ export const SearchFilterModal = ({
   const [searchMode, setSearchMode] = useState<SearchMode>('tous');
   const [query, setQuery] = useState('');
 
-  // V2 Phase 4 Fix: Fetch ALL data across all weeks so the search is global!
-  const [globalAssignments, setGlobalAssignments] = useState<any[]>([]);
-  const [globalNotes, setGlobalNotes] = useState<any[]>([]);
-  const [globalCommandes, setGlobalCommandes] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-
-  useEffect(() => {
-    if (open) {
-      setIsLoading(true);
-      // Fetch targeted datasets with necessary columns to enable fast, bounded global searching
-      Promise.all([
+  // Cached global search dataset with 5-minute memory freshness to prevent disk IO burn
+  const { data: globalData, isLoading } = useQuery({
+    queryKey: ['global-search-dataset'],
+    queryFn: async () => {
+      const [{ data: aData }, { data: nData }, { data: cData }] = await Promise.all([
         supabase
           .from('assignments')
           .select('id, start_date, end_date, team_id, commande_id, comment, is_confirmed, is_deleted')
           .neq('is_deleted', true)
           .order('start_date', { ascending: false })
-          .limit(2000),
+          .limit(1000),
         supabase
           .from('notes')
           .select('id, start_date, end_date, team_id, text')
           .order('start_date', { ascending: false })
-          .limit(1000),
+          .limit(500),
         supabase
           .from('commandes')
           .select('id, client, chantier, display_name')
-          .limit(1000)
-      ]).then(([{ data: aData }, { data: nData }, { data: cData }]) => {
-        if (aData) setGlobalAssignments(aData);
-        if (nData) setGlobalNotes(nData);
-        if (cData) setGlobalCommandes(cData);
-        setIsLoading(false);
-      });
-    } else {
-      // Clean up when closed
-      setQuery('');
-      setGlobalAssignments([]);
-      setGlobalNotes([]);
-      setGlobalCommandes([]);
-    }
-  }, [open]);
+          .limit(500)
+      ]);
+      return {
+        assignments: aData || [],
+        notes: nData || [],
+        commandes: cData || []
+      };
+    },
+    enabled: open,
+    staleTime: 5 * 60 * 1000, // Kept in memory for 5 minutes
+    gcTime: 10 * 60 * 1000,
+  });
 
   const results = useMemo<ResultRow[]>(() => {
     const q = normalizeSearch(query.trim());
     if (!q) return [];
 
-    // Use global data if loaded, otherwise fallback safely
-    const activeCommandes = globalCommandes.length > 0 ? globalCommandes : commandes;
-    const activeAssignments = globalAssignments.length > 0 ? globalAssignments : assignments;
-    const activeNotes = globalNotes.length > 0 ? globalNotes : notes;
+    // Use cached global data if available, otherwise fallback safely
+    const activeCommandes = globalData?.commandes && globalData.commandes.length > 0 ? globalData.commandes : commandes;
+    const activeAssignments = globalData?.assignments && globalData.assignments.length > 0 ? globalData.assignments : assignments;
+    const activeNotes = globalData?.notes && globalData.notes.length > 0 ? globalData.notes : notes;
 
     const assignmentResults: ResultRow[] = activeAssignments
       .filter((a) => {

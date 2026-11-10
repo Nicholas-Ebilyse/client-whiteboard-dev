@@ -36,3 +36,4 @@ export function formatStatusIntoComment(
   if (tags.length === 0) return clean;
   return clean ? `${tags.join(' ')} ${clean}` : tags.join(' ');
 }
+
